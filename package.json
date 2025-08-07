@@ -1,0 +1,9 @@
+{
+  "name": "fantasy-survival",
+  "version": "0.1.0",
+  "description": "First stab at a text based fantasy survival builder.",
+  "type": "module",
+  "scripts": {
+    "test": "node -e \"console.log('No tests specified')\""
+  }
+}
