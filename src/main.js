@@ -5,27 +5,69 @@ import { advanceDay, info as timeInfo } from './time.js';
 import { registerBuildingType, getBuildableTypes } from './buildings.js';
 import { unlockTechnology } from './technology.js';
 import { generateLocation } from './location.js';
+import { harvestWood } from './resources.js';
+import { initSetupUI } from './ui.js';
+import { saveGame, loadGame } from './persistence.js';
 
-function bootstrap() {
-  addPerson({ id: 'p1', age: 30, sex: 'M', job: null, home: null, family: [] });
+function startGame(settings = {}) {
+  if (!store.people.size) {
+    addPerson({ id: 'p1', age: 30, sex: 'M', job: 'lumberjack', home: null, family: [] });
+  }
   addItem('food', 100);
-  generateLocation('loc1', 'plains');
+  if (settings.biome) {
+    generateLocation('loc1', settings.biome);
+  } else if (store.locations.size === 0) {
+    generateLocation('loc1', 'plains');
+  }
   registerBuildingType({ id: 'hut', name: 'Hut' });
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
 
-  advanceDay();
+  if (settings.season) store.time.season = settings.season;
+  if (settings.difficulty) store.difficulty = settings.difficulty;
 
-  const output = {
-    people: peopleStats(),
-    inventory: getItem('food'),
-    time: timeInfo(),
-    buildable: getBuildableTypes(),
-    locations: store.locations.size
-  };
-  document.getElementById('output').textContent = JSON.stringify(output, null, 2);
+  // Simple example of resource production influenced by tech/location.
+  const loc = [...store.locations.values()][0];
+  const wood = harvestWood(1, loc?.biome || 'plains');
+  addItem('wood', wood);
+
+  advanceDay();
+  saveGame();
+  render();
+  setInterval(() => {
+    advanceDay();
+    saveGame();
+    render();
+  }, 10000); // advance day and autosave every 10 seconds
 }
 
-bootstrap();
+function render() {
+  const output = {
+    people: peopleStats(),
+    inventory: {
+      food: getItem('food'),
+      wood: getItem('wood')
+    },
+    time: timeInfo(),
+    difficulty: store.difficulty,
+    buildable: getBuildableTypes(),
+    locations: [...store.locations.values()].map(l => l.biome)
+  };
+  const el = document.getElementById('output');
+  if (el) el.textContent = JSON.stringify(output, null, 2);
+}
+
+if (!loadGame()) {
+  initSetupUI(startGame);
+} else {
+  render();
+  // Resume autosave/advance loop
+  setInterval(() => {
+    advanceDay();
+    saveGame();
+    render();
+  }, 10000);
+}
 
 // expose for debugging
-window.Game = { store };
+window.Game = { store, saveGame };
+
