@@ -3,12 +3,30 @@
 <head>
   <meta charset="UTF-8">
   <title>Biome Explorer</title>
+  <style>
+    body {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      text-align: center;
+      margin-top: 50px;
+      font-family: sans-serif;
+    }
+
+    #biomeDisplay,
+    #biomeDescription,
+    #biomeImage {
+      margin-top: 20px;
+    }
+  </style>
 </head>
 <body>
   <h1>Biome Explorer</h1>
   <label for="biomeSelector">Select a biome:</label>
   <select id="biomeSelector"></select>
-  <div id="biomeDisplay" style="margin-top:20px"></div>
+  <div id="biomeDisplay"></div>
+  <p id="biomeDescription"></p>
+  <img id="biomeImage" alt="Biome image" />
   <script type="module" src="biomes.js"></script>
 </body>
 </html>
