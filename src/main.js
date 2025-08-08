@@ -8,6 +8,7 @@ import { generateLocation } from './location.js';
 import { harvestWood } from './resources.js';
 import { initSetupUI } from './ui.js';
 import { saveGame, loadGame } from './persistence.js';
+import { shelterTypes } from './shelters.js';
 
 function startGame(settings = {}) {
   if (!store.people.size) {
@@ -19,7 +20,7 @@ function startGame(settings = {}) {
   } else if (store.locations.size === 0) {
     generateLocation('loc1', 'plains');
   }
-  registerBuildingType({ id: 'hut', name: 'Hut' });
+  shelterTypes.forEach(registerBuildingType);
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
 
   if (settings.season) store.time.season = settings.season;
