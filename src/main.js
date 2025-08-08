@@ -18,7 +18,7 @@ function startGame(settings = {}) {
   if (settings.biome) {
     generateLocation('loc1', settings.biome);
   } else if (store.locations.size === 0) {
-    generateLocation('loc1', 'plains');
+    generateLocation('loc1', 'temperate-deciduous');
   }
   shelterTypes.forEach(registerBuildingType);
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
@@ -28,7 +28,7 @@ function startGame(settings = {}) {
 
   // Simple example of resource production influenced by tech/location.
   const loc = [...store.locations.values()][0];
-  const wood = harvestWood(1, loc?.biome || 'plains');
+  const wood = harvestWood(1, loc?.biome || 'temperate-deciduous');
   addItem('wood', wood);
 
   advanceDay();
