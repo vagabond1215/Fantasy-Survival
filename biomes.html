@@ -9,6 +9,56 @@
   <label for="biomeSelector">Select a biome:</label>
   <select id="biomeSelector"></select>
   <div id="biomeDisplay" style="margin-top:20px"></div>
-  <script src="biomes.js"></script>
+  <script type="module">
+    import { biomes } from './src/biomes.js';
+
+    const selector = document.getElementById('biomeSelector');
+    const output = document.getElementById('biomeDisplay');
+
+    biomes.forEach(b => {
+      const option = document.createElement('option');
+      option.value = b.id;
+      option.textContent = b.name;
+      selector.appendChild(option);
+    });
+
+    function renderResourceTable(resources) {
+      const rows = resources.map(r => `
+        <tr>
+          <td>${r.icon} ${r.name}</td>
+          <td>${r.type}</td>
+          <td>${r.rarityTier} (${r.rarityPerKm2}%/km²)</td>
+          <td>${r.abundance}</td>
+        </tr>
+      `).join('');
+      return `
+        <table border="1" cellpadding="6" cellspacing="0" style="border-collapse:collapse; width:100%">
+          <thead>
+            <tr>
+              <th style="text-align:left">Resource</th>
+              <th style="text-align:left">Type</th>
+              <th style="text-align:left">Rarity</th>
+              <th style="text-align:left">Abundance (deposit size)</th>
+            </tr>
+          </thead>
+          <tbody>${rows}</tbody>
+        </table>
+      `;
+    }
+
+    selector.addEventListener('change', () => {
+      const biome = biomes.find(b => b.id === selector.value);
+      if (!biome) return;
+      output.innerHTML = `
+        <h2>${biome.name}</h2>
+        ${biome.description ? `<p><strong>Description:</strong> ${biome.description}</p>` : ''}
+        ${biome.weather ? `<p><strong>Weather:</strong> ${biome.weather}</p>` : ''}
+        ${biome.geography ? `<p><strong>Geography:</strong> ${biome.geography}</p>` : ''}
+        ${biome.openLandPercent !== undefined ? `<p><strong>Open Land:</strong> ${biome.openLandPercent}%</p>` : ''}
+        ${biome.survivability ? `<p><strong>Survivability:</strong> ${biome.survivability}</p>` : ''}
+        ${biome.resources ? `<h3>Resources</h3>${renderResourceTable(biome.resources)}<p style="font-size:0.9em;opacity:0.8;margin-top:10px"><em>Notes:</em> Rarity represents the chance to encounter a deposit per km². Abundance represents deposit size and thus the extraction <u>rate</u> per time step. Mineral deposits are functionally infinite in total quantity but may be unmineable due to insufficient tools/technology.</p>` : ''}
+      `;
+    });
+  </script>
 </body>
 </html>
