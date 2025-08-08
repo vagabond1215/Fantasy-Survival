@@ -3,12 +3,7 @@
 // This module is standalone so the UI can be redesigned or replaced
 // without affecting the rest of the game logic.
 
-const biomes = [
-  { id: 'desert', name: 'Desert' },
-  { id: 'taiga', name: 'Taiga' },
-  { id: 'tundra', name: 'Tundra' },
-  { id: 'plains', name: 'Plains' }
-];
+import { biomes } from './biomes.js';
 
 const seasons = ['Spring', 'Summer', 'Autumn', 'Winter'];
 

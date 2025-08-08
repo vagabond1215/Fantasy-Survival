@@ -3,6 +3,7 @@
 // to allow for future conversion to metric.
 
 import { hasTechnology } from './technology.js';
+import { getBiome } from './biomes.js';
 
 // Base wood yield per lumberjack per day in pounds depending on tool tech.
 // The values roughly correspond to the weight of a tree that could be felled
@@ -24,12 +25,7 @@ export function harvestWood(workers = 0, biome = 'plains') {
   if (hasTechnology('bronze-tools')) tech = 'bronze-axe';
   if (hasTechnology('iron-tools')) tech = 'iron-axe';
   const perWorker = woodYieldPerDay[tech] || 0;
-  const biomeMod = {
-    desert: 0.2,
-    taiga: 1.0,
-    tundra: 0.5,
-    plains: 0.8
-  }[biome] || 1;
+  const biomeMod = getBiome(biome)?.woodMod ?? 1;
   return workers * perWorker * biomeMod;
 }
 
