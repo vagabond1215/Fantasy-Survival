@@ -22,6 +22,10 @@ function updateGlobals() {
   store.peopleStats = { total, adults, children, employed, unemployed, housed, homeless };
 }
 
+export function refreshStats() {
+  updateGlobals();
+}
+
 export function stats() {
   return (
     store.peopleStats || {

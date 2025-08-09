@@ -1,4 +1,5 @@
 import store from './state.js';
+import { refreshStats } from './people.js';
 
 const SAVE_KEY = 'fantasy-survival-save';
 
@@ -19,6 +20,7 @@ export function loadGame() {
     const data = localStorage.getItem(SAVE_KEY);
     if (!data) return false;
     store.deserialize(JSON.parse(data));
+    refreshStats();
     return true;
   } catch (err) {
     console.error('Failed to load game', err);
