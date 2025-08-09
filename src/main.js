@@ -1,8 +1,7 @@
 import store from './state.js';
-import { addPerson, stats as peopleStats } from './people.js';
-import { addItem, getItem } from './inventory.js';
-import { advanceDay, info as timeInfo } from './time.js';
-import { registerBuildingType, getBuildableTypes } from './buildings.js';
+import { addPerson } from './people.js';
+import { addItem } from './inventory.js';
+import { registerBuildingType } from './buildings.js';
 import { unlockTechnology } from './technology.js';
 import { generateLocation } from './location.js';
 import { harvestWood } from './resources.js';
@@ -10,6 +9,7 @@ import { initSetupUI } from './ui.js';
 import { saveGame, loadGame } from './persistence.js';
 import { shelterTypes } from './shelters.js';
 import { difficultySettings } from './difficulty.js';
+import { initGameUI } from './gameUI.js';
 
 function startGame(settings = {}) {
   const diff = settings.difficulty || 'normal';
@@ -35,51 +35,26 @@ function startGame(settings = {}) {
 
   if (settings.season) store.time.season = settings.season;
   store.difficulty = diff;
+  store.jobs = { laborer: 0 };
+  store.buildQueue = 0;
+  store.haulQueue = 0;
 
-  // Simple example of resource production influenced by tech/location.
   const loc = [...store.locations.values()][0];
   const wood = harvestWood(1, loc?.biome || 'temperate-deciduous');
   addItem('wood', wood);
 
-  advanceDay();
   saveGame();
-  render();
-  setInterval(() => {
-    advanceDay();
-    saveGame();
-    render();
-  }, 10000); // advance day and autosave every 10 seconds
-}
-
-function render() {
-  const output = {
-    people: peopleStats(),
-    inventory: {
-      food: getItem('food'),
-      firewood: getItem('firewood'),
-      wood: getItem('wood')
-    },
-    time: timeInfo(),
-    difficulty: store.difficulty,
-    buildable: getBuildableTypes(),
-    locations: [...store.locations.values()].map(l => l.biome)
-  };
-  const el = document.getElementById('output');
-  if (el) el.textContent = JSON.stringify(output, null, 2);
+  const setupDiv = document.getElementById('setup');
+  if (setupDiv) setupDiv.style.display = 'none';
+  initGameUI();
 }
 
 if (!loadGame()) {
   initSetupUI(startGame);
 } else {
-  render();
-  // Resume autosave/advance loop
-  setInterval(() => {
-    advanceDay();
-    saveGame();
-    render();
-  }, 10000);
+  const setupDiv = document.getElementById('setup');
+  if (setupDiv) setupDiv.style.display = 'none';
+  initGameUI();
 }
 
-// expose for debugging
 window.Game = { store, saveGame };
-
