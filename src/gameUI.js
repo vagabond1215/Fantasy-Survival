@@ -5,7 +5,7 @@ import { getJobs, setJob } from './jobs.js';
 import store from './state.js';
 
 function computeChanges() {
-  const adults = peopleStats().total;
+  const stats = peopleStats();
   const jobs = getJobs();
   let laborers = jobs.laborer || 0;
 
@@ -23,8 +23,8 @@ function computeChanges() {
   const foodWorkers = laborers - firewoodWorkers;
 
   return {
-    food: { quantity: getItem('food').quantity, supply: foodWorkers, demand: adults },
-    firewood: { quantity: getItem('firewood').quantity, supply: firewoodWorkers, demand: adults }
+    food: { quantity: getItem('food').quantity, supply: foodWorkers, demand: stats.total },
+    firewood: { quantity: getItem('firewood').quantity, supply: firewoodWorkers, demand: stats.total }
   };
 }
 
@@ -64,16 +64,92 @@ function processTurn() {
   render();
 }
 
-function showJobs() {
-  const adults = peopleStats().total;
-  const jobs = getJobs();
-  const current = jobs.laborer || 0;
-  const input = prompt(`Assign laborers (0-${adults})`, current);
-  const num = parseInt(input, 10);
-  if (!isNaN(num)) {
-    setJob('laborer', num);
-    render();
+let jobsPopup = null;
+
+function closeJobs() {
+  if (jobsPopup) {
+    jobsPopup.remove();
+    jobsPopup = null;
   }
+}
+
+function renderJobs() {
+  closeJobs();
+  const stats = peopleStats();
+  const jobs = getJobs();
+  jobsPopup = document.createElement('div');
+  jobsPopup.id = 'jobs-popup';
+  Object.assign(jobsPopup.style, {
+    position: 'fixed',
+    top: '10%',
+    left: '10%',
+    right: '10%',
+    bottom: '10%',
+    background: '#fff',
+    border: '1px solid #000',
+    padding: '10px',
+    overflow: 'auto'
+  });
+
+  const close = document.createElement('span');
+  close.textContent = 'X';
+  close.style.float = 'right';
+  close.style.cursor = 'pointer';
+  close.addEventListener('click', closeJobs);
+  jobsPopup.appendChild(close);
+
+  const heading = document.createElement('div');
+  heading.textContent = `Pop: ${stats.total} | Adults: ${stats.adults} | Children: ${stats.children}`;
+  jobsPopup.appendChild(heading);
+
+  const list = document.createElement('div');
+  const unlocked = Object.keys(store.jobs || {});
+  unlocked.forEach(name => {
+    const row = document.createElement('div');
+    row.style.display = 'flex';
+    row.style.alignItems = 'center';
+    row.style.gap = '4px';
+
+    const label = document.createElement('span');
+    label.textContent = name;
+
+    const down = document.createElement('button');
+    down.textContent = '↓';
+    down.addEventListener('click', () => {
+      setJob(name, (jobs[name] || 0) - 1);
+      render();
+      renderJobs();
+    });
+
+    const count = document.createElement('span');
+    count.textContent = jobs[name] || 0;
+
+    const up = document.createElement('button');
+    up.textContent = '↑';
+    up.addEventListener('click', () => {
+      setJob(name, (jobs[name] || 0) + 1);
+      render();
+      renderJobs();
+    });
+
+    row.appendChild(label);
+    row.appendChild(down);
+    row.appendChild(count);
+    row.appendChild(up);
+    list.appendChild(row);
+  });
+
+  const laborRow = document.createElement('div');
+  laborRow.style.marginTop = '10px';
+  laborRow.textContent = `Laborers: ${jobs.laborer}`;
+  list.appendChild(laborRow);
+
+  jobsPopup.appendChild(list);
+  document.body.appendChild(jobsPopup);
+}
+
+function showJobs() {
+  renderJobs();
 }
 
 export function initGameUI() {
