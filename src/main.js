@@ -49,12 +49,20 @@ function startGame(settings = {}) {
   initGameUI();
 }
 
-if (!loadGame()) {
-  initSetupUI(startGame);
+function init() {
+  if (!loadGame()) {
+    initSetupUI(startGame);
+  } else {
+    const setupDiv = document.getElementById('setup');
+    if (setupDiv) setupDiv.style.display = 'none';
+    initGameUI();
+  }
+}
+
+if (document.readyState === 'loading') {
+  document.addEventListener('DOMContentLoaded', init);
 } else {
-  const setupDiv = document.getElementById('setup');
-  if (setupDiv) setupDiv.style.display = 'none';
-  initGameUI();
+  init();
 }
 
 window.Game = { store, saveGame };
