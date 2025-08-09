@@ -35,7 +35,7 @@ function startGame(settings = {}) {
 
   if (settings.season) store.time.season = settings.season;
   store.difficulty = diff;
-  store.jobs = { laborer: 0 };
+  store.jobs = {};
   store.buildQueue = 0;
   store.haulQueue = 0;
 
