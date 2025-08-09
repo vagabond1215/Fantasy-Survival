@@ -35,7 +35,8 @@ function startGame(settings = {}) {
 
   if (settings.season) store.time.season = settings.season;
   store.difficulty = diff;
-  store.jobs = {};
+  // Initialize available jobs, starting with scavenging
+  store.jobs = { scavenge: 0 };
   store.buildQueue = 0;
   store.haulQueue = 0;
 
