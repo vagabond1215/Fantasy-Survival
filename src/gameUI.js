@@ -4,10 +4,18 @@ import { advanceDay, info as timeInfo } from './time.js';
 import { getJobs, setJob } from './jobs.js';
 import store from './state.js';
 
+// Keep a reference to the scavenge count element so the display can
+// be refreshed whenever the UI rerenders.
+let scavengeDisplay = null;
+
 function computeChanges() {
   const stats = peopleStats();
   const jobs = getJobs();
   let laborers = jobs.laborer || 0;
+
+  // Workers explicitly assigned to scavenge gather resources before
+  // any remaining laborers are split between other tasks.
+  const scavengeWorkers = jobs.scavenge || 0;
 
   // Prioritize building then hauling
   const buildingTasks = store.buildQueue || 0;
@@ -23,8 +31,26 @@ function computeChanges() {
   const foodWorkers = laborers - firewoodWorkers;
 
   return {
-    food: { quantity: getItem('food').quantity, supply: foodWorkers, demand: stats.total },
-    firewood: { quantity: getItem('firewood').quantity, supply: firewoodWorkers, demand: stats.total }
+    food: {
+      quantity: getItem('food').quantity,
+      supply: foodWorkers + scavengeWorkers,
+      demand: stats.total
+    },
+    firewood: {
+      quantity: getItem('firewood').quantity,
+      supply: firewoodWorkers + scavengeWorkers,
+      demand: stats.total
+    },
+    'small rocks': {
+      quantity: getItem('small rocks').quantity,
+      supply: scavengeWorkers,
+      demand: 0
+    },
+    pebbles: {
+      quantity: getItem('pebbles').quantity,
+      supply: scavengeWorkers,
+      demand: 0
+    }
   };
 }
 
@@ -37,6 +63,8 @@ function render() {
   if (turn) turn.textContent = `Day ${t.day} - ${t.season}`;
 
   const changes = computeChanges();
+  const jobs = getJobs();
+  if (scavengeDisplay) scavengeDisplay.textContent = jobs.scavenge || 0;
   const inv = container.querySelector('#inventory');
   if (inv) {
     inv.innerHTML = '<h3>Inventory</h3>';
@@ -164,6 +192,32 @@ export function initGameUI() {
   next.textContent = 'Next Turn';
   next.addEventListener('click', processTurn);
 
+  // Direct scavenge controls on the main UI
+  const scavengeRow = document.createElement('div');
+  const scavengeLabel = document.createElement('span');
+  scavengeLabel.textContent = 'Scavenge';
+  const scavengeDown = document.createElement('button');
+  scavengeDown.textContent = '↓';
+  scavengeDown.addEventListener('click', () => {
+    const jobs = getJobs();
+    setJob('scavenge', (jobs.scavenge || 0) - 1);
+    render();
+  });
+  scavengeDisplay = document.createElement('span');
+  scavengeDisplay.id = 'scavenge-count';
+  scavengeDisplay.textContent = '0';
+  const scavengeUp = document.createElement('button');
+  scavengeUp.textContent = '↑';
+  scavengeUp.addEventListener('click', () => {
+    const jobs = getJobs();
+    setJob('scavenge', (jobs.scavenge || 0) + 1);
+    render();
+  });
+  scavengeRow.appendChild(scavengeLabel);
+  scavengeRow.appendChild(scavengeDown);
+  scavengeRow.appendChild(scavengeDisplay);
+  scavengeRow.appendChild(scavengeUp);
+
   const jobsBtn = document.createElement('button');
   jobsBtn.textContent = 'Jobs';
   jobsBtn.addEventListener('click', showJobs);
@@ -173,6 +227,7 @@ export function initGameUI() {
 
   container.appendChild(turn);
   container.appendChild(next);
+  container.appendChild(scavengeRow);
   container.appendChild(jobsBtn);
   container.appendChild(inv);
 
