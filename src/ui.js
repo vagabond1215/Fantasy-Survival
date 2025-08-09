@@ -4,14 +4,9 @@
 // without affecting the rest of the game logic.
 
 import { biomes } from './biomes.js';
+import { difficulties, difficultySettings } from './difficulty.js';
 
 const seasons = ['Spring', 'Summer', 'Autumn', 'Winter'];
-
-const difficulties = [
-  { id: 'easy', name: 'Easy' },
-  { id: 'normal', name: 'Normal' },
-  { id: 'hard', name: 'Hard' }
-];
 
 /**
  * Create a temporary setup form and call the provided callback when submitted.
@@ -49,10 +44,41 @@ export function initSetupUI(onStart) {
     form.appendChild(document.createElement('br'));
   });
 
+  const biomeInfo = document.createElement('p');
+  const diffInfo = document.createElement('p');
+  form.appendChild(biomeInfo);
+  form.appendChild(diffInfo);
+
   const startBtn = document.createElement('button');
   startBtn.type = 'submit';
   startBtn.textContent = 'Start';
   form.appendChild(startBtn);
+
+  const formatDays = d => (d >= 7 ? `${d / 7} week${d >= 14 ? 's' : ''}` : `${d} day${d !== 1 ? 's' : ''}`);
+
+  const updateBiomeInfo = () => {
+    const b = biomes.find(x => x.id === biomeSelect.select.value);
+    if (!b) {
+      biomeInfo.textContent = '';
+      return;
+    }
+    biomeInfo.innerHTML = `<strong>${b.name}</strong>: ${b.description}<br>Open land: ${b.openLand}<br>Food resources: ${b.food}`;
+  };
+
+  const updateDiffInfo = () => {
+    const id = diffSelect.select.value;
+    const cfg = difficultySettings[id];
+    const name = diffSelect.select.options[diffSelect.select.selectedIndex].textContent;
+    const tools = Object.entries(cfg.tools)
+      .map(([t, q]) => `${q} ${t}`)
+      .join(', ') || 'None';
+    diffInfo.innerHTML = `<strong>Difficulty:</strong> ${name}<br>Starting people: ${cfg.people}<br>Food: ${formatDays(cfg.foodDays)} stock<br>Firewood: ${formatDays(cfg.firewoodDays)} stock<br>Tools: ${tools}`;
+  };
+
+  biomeSelect.select.addEventListener('change', updateBiomeInfo);
+  diffSelect.select.addEventListener('change', updateDiffInfo);
+  updateBiomeInfo();
+  updateDiffInfo();
 
   form.addEventListener('submit', e => {
     e.preventDefault();

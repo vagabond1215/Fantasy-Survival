@@ -9,12 +9,22 @@ import { harvestWood } from './resources.js';
 import { initSetupUI } from './ui.js';
 import { saveGame, loadGame } from './persistence.js';
 import { shelterTypes } from './shelters.js';
+import { difficultySettings } from './difficulty.js';
 
 function startGame(settings = {}) {
-  if (!store.people.size) {
-    addPerson({ id: 'p1', age: 30, sex: 'M', job: 'lumberjack', home: null, family: [] });
+  const diff = settings.difficulty || 'normal';
+  const cfg = difficultySettings[diff];
+
+  for (let i = 1; i <= cfg.people; i++) {
+    addPerson({ id: `p${i}`, age: 20 + i, sex: i % 2 ? 'M' : 'F', job: null, home: null, family: [] });
   }
-  addItem('food', 100);
+
+  const foodPerPersonPerDay = 1;
+  addItem('food', cfg.people * cfg.foodDays * foodPerPersonPerDay);
+  addItem('firewood', cfg.people * cfg.firewoodDays);
+
+  Object.entries(cfg.tools).forEach(([item, qty]) => addItem(item, qty));
+
   if (settings.biome) {
     generateLocation('loc1', settings.biome);
   } else if (store.locations.size === 0) {
@@ -24,7 +34,7 @@ function startGame(settings = {}) {
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
 
   if (settings.season) store.time.season = settings.season;
-  if (settings.difficulty) store.difficulty = settings.difficulty;
+  store.difficulty = diff;
 
   // Simple example of resource production influenced by tech/location.
   const loc = [...store.locations.values()][0];
@@ -46,6 +56,7 @@ function render() {
     people: peopleStats(),
     inventory: {
       food: getItem('food'),
+      firewood: getItem('firewood'),
       wood: getItem('wood')
     },
     time: timeInfo(),

@@ -4,6 +4,8 @@ export const biomes = [
     name: 'Alpine',
     features: ['snow-capped peaks', 'glacial valley', 'rocky slopes'],
     woodMod: 0.3,
+    openLand: 0.2,
+    food: 0.2,
     description: 'High mountains where trees are sparse and the air is thin.'
   },
   {
@@ -11,6 +13,8 @@ export const biomes = [
     name: 'Boreal (Taiga)',
     features: ['conifer forest', 'bog', 'cold rivers'],
     woodMod: 1.0,
+    openLand: 0.3,
+    food: 0.4,
     description: 'Cold northern forests dominated by pines and dotted with bogs.'
   },
   {
@@ -18,6 +22,8 @@ export const biomes = [
     name: 'Coastal (Temperate)',
     features: ['rocky shore', 'tide pools', 'windy cliffs'],
     woodMod: 0.8,
+    openLand: 0.5,
+    food: 0.6,
     description: 'Cool coasts with rocky beaches and windswept cliffs.'
   },
   {
@@ -25,6 +31,8 @@ export const biomes = [
     name: 'Coastal (Tropical)',
     features: ['sandy beaches', 'coral reefs', 'lagoon'],
     woodMod: 0.9,
+    openLand: 0.5,
+    food: 0.9,
     description: 'Warm shores of sand and reef washed by gentle tropical seas.'
   },
   {
@@ -32,6 +40,8 @@ export const biomes = [
     name: 'Flooded Grasslands / Swamp',
     features: ['marsh', 'reed beds', 'shallow lakes'],
     woodMod: 0.7,
+    openLand: 0.4,
+    food: 0.6,
     description: 'Waterlogged plains filled with reeds, marshes and standing water.'
   },
   {
@@ -39,6 +49,8 @@ export const biomes = [
     name: 'Island (Temperate)',
     features: ['pebble beach', 'forest interior', 'cliffs'],
     woodMod: 0.8,
+    openLand: 0.5,
+    food: 0.7,
     description: 'A temperate island with forests, cliffs and cool seas.'
   },
   {
@@ -46,6 +58,8 @@ export const biomes = [
     name: 'Island (Tropical)',
     features: ['palm beach', 'volcanic ridge', 'lagoon'],
     woodMod: 0.9,
+    openLand: 0.5,
+    food: 0.9,
     description: 'Lush tropical islands fringed by palms and volcanic heights.'
   },
   {
@@ -53,6 +67,8 @@ export const biomes = [
     name: 'Mangrove',
     features: ['mangrove forest', 'brackish water', 'mudflats'],
     woodMod: 1.0,
+    openLand: 0.3,
+    food: 0.8,
     description: 'Dense coastal forests rooted in tidal mud and brackish water.'
   },
   {
@@ -60,6 +76,8 @@ export const biomes = [
     name: 'Mediterranean Woodland',
     features: ['scrubland', 'olive groves', 'rocky hills'],
     woodMod: 0.9,
+    openLand: 0.6,
+    food: 0.7,
     description: 'Warm dry woodlands with scrub and hardy trees.'
   },
   {
@@ -67,6 +85,8 @@ export const biomes = [
     name: 'Montane / Cloud',
     features: ['misty forest', 'steep terrain', 'waterfalls'],
     woodMod: 0.8,
+    openLand: 0.3,
+    food: 0.5,
     description: 'High elevation forests perpetually shrouded in mist.'
   },
   {
@@ -74,6 +94,8 @@ export const biomes = [
     name: 'Savanna',
     features: ['grassland', 'acacia trees', 'watering hole'],
     woodMod: 0.6,
+    openLand: 0.8,
+    food: 0.5,
     description: 'Vast grassy plains dotted with trees and seasonal water.'
   },
   {
@@ -81,6 +103,8 @@ export const biomes = [
     name: 'Temperate Deciduous',
     features: ['broadleaf forest', 'meadow', 'stream'],
     woodMod: 1.1,
+    openLand: 0.6,
+    food: 0.7,
     description: 'Forests of broadleaf trees that change with the seasons.'
   },
   {
@@ -88,6 +112,8 @@ export const biomes = [
     name: 'Temperate Rainforest',
     features: ['wet forest', 'coastal cliffs', 'mossy ground'],
     woodMod: 1.1,
+    openLand: 0.4,
+    food: 0.8,
     description: 'Mild coastal forests kept lush by constant rain and fog.'
   },
   {
@@ -95,6 +121,8 @@ export const biomes = [
     name: 'Tropical Monsoon',
     features: ['seasonal forest', 'river delta', 'monsoon rains'],
     woodMod: 1.0,
+    openLand: 0.5,
+    food: 1.0,
     description: 'Tropical forests with distinct wet and dry seasons.'
   },
   {
@@ -102,6 +130,8 @@ export const biomes = [
     name: 'Tropical Rainforest',
     features: ['dense jungle', 'river', 'rolling hills'],
     woodMod: 1.2,
+    openLand: 0.3,
+    food: 1.2,
     description: 'Hot, humid jungles teeming with life and thick vegetation.'
   }
 ];
