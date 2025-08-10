@@ -3,6 +3,7 @@ import { getItem, addItem } from './inventory.js';
 import { advanceDay, info as timeInfo } from './time.js';
 import { getJobs, setJob } from './jobs.js';
 import store from './state.js';
+import { scavengeResources } from './resources.js';
 
 // Keep a reference to the scavenge count element so the display can
 // be refreshed whenever the UI rerenders.
@@ -16,6 +17,7 @@ function computeChanges() {
   // Workers explicitly assigned to scavenge gather resources before
   // any remaining laborers are split between other tasks.
   const scavengeWorkers = jobs.scavenge || 0;
+  const scavengeTotals = scavengeResources(scavengeWorkers);
 
   // Prioritize building then hauling
   const buildingTasks = store.buildQueue || 0;
@@ -33,22 +35,22 @@ function computeChanges() {
   return {
     food: {
       quantity: getItem('food').quantity,
-      supply: foodWorkers + scavengeWorkers,
+      supply: foodWorkers + scavengeTotals.food,
       demand: stats.total
     },
     firewood: {
       quantity: getItem('firewood').quantity,
-      supply: firewoodWorkers + scavengeWorkers,
+      supply: firewoodWorkers + scavengeTotals.firewood,
       demand: stats.total
     },
-    'small rocks': {
-      quantity: getItem('small rocks').quantity,
-      supply: scavengeWorkers,
+    'small stones': {
+      quantity: getItem('small stones').quantity,
+      supply: scavengeTotals['small stones'],
       demand: 0
     },
     pebbles: {
       quantity: getItem('pebbles').quantity,
-      supply: scavengeWorkers,
+      supply: scavengeTotals.pebbles,
       demand: 0
     }
   };
