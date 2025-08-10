@@ -7,6 +7,7 @@ class DataStore {
     this.technologies = new Map();
     this.time = { day: 0, season: 'Spring' };
     this.difficulty = 'normal';
+    this.jobs = {};
   }
 
   addItem(collection, item) {
@@ -45,7 +46,8 @@ class DataStore {
       locations: [...this.locations.entries()],
       technologies: [...this.technologies.entries()],
       time: this.time,
-      difficulty: this.difficulty
+      difficulty: this.difficulty,
+      jobs: this.jobs
     };
   }
 
@@ -58,6 +60,7 @@ class DataStore {
     this.technologies = new Map(data.technologies || []);
     this.time = data.time || { day: 0, season: 'Spring' };
     this.difficulty = data.difficulty || 'normal';
+    this.jobs = data.jobs || {};
   }
 }
 
