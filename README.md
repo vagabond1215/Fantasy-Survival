@@ -9,6 +9,7 @@ duplicate or inconsistent data. Modules currently include:
 - **people** – population details and aggregate statistics.
 - **inventory** – resources with quantity and demand tracking.
 - **location** – geographical generation based on biome.
+- **map** – generates 100×100 pixel color maps scaled to 100 m per tile.
 - **technology** – unlocked technologies which gate other features.
 - **time** – day and season progression.
 
