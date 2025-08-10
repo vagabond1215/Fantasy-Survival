@@ -9,7 +9,8 @@ import { initSetupUI } from './ui.js';
 import { saveGame, loadGame } from './persistence.js';
 import { shelterTypes } from './shelters.js';
 import { difficultySettings } from './difficulty.js';
-import { initGameUI } from './gameUI.js';
+import { initGameUI, showJobs, closeJobs } from './gameUI.js';
+import { initTopMenu } from './menu.js';
 
 function startGame(settings = {}) {
   const diff = settings.difficulty || 'normal';
@@ -51,6 +52,7 @@ function startGame(settings = {}) {
 }
 
 function init() {
+  initTopMenu(showJobs, closeJobs);
   if (!loadGame()) {
     initSetupUI(startGame);
   } else {

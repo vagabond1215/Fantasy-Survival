@@ -4,6 +4,7 @@ import { advanceDay, info as timeInfo } from './time.js';
 import { getJobs, setJob } from './jobs.js';
 import store from './state.js';
 import { scavengeResources } from './resources.js';
+import { showBackButton } from './menu.js';
 
 // Keep a reference to the scavenge count element so the display can
 // be refreshed whenever the UI rerenders.
@@ -96,11 +97,12 @@ function processTurn() {
 
 let jobsPopup = null;
 
-function closeJobs() {
+export function closeJobs() {
   if (jobsPopup) {
     jobsPopup.remove();
     jobsPopup = null;
   }
+  showBackButton(false);
 }
 
 function renderJobs() {
@@ -178,7 +180,8 @@ function renderJobs() {
   document.body.appendChild(jobsPopup);
 }
 
-function showJobs() {
+export function showJobs() {
+  showBackButton(true);
   renderJobs();
 }
 
@@ -220,17 +223,12 @@ export function initGameUI() {
   scavengeRow.appendChild(scavengeDisplay);
   scavengeRow.appendChild(scavengeUp);
 
-  const jobsBtn = document.createElement('button');
-  jobsBtn.textContent = 'Jobs';
-  jobsBtn.addEventListener('click', showJobs);
-
   const inv = document.createElement('div');
   inv.id = 'inventory';
 
   container.appendChild(turn);
   container.appendChild(next);
   container.appendChild(scavengeRow);
-  container.appendChild(jobsBtn);
   container.appendChild(inv);
 
   container.style.display = 'block';

@@ -75,6 +75,9 @@ export function scavengeResources(workers = 0) {
       totals[r.name] += weight / r.weight;
     });
   }
+  SCAVENGE_RESOURCES.forEach(r => {
+    totals[r.name] = Math.round(totals[r.name]);
+  });
   return totals;
 }
 

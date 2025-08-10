@@ -1,5 +1,6 @@
 import store from './state.js';
 import { stats as peopleStats } from './people.js';
+import { saveGame } from './persistence.js';
 
 function ensureJobs() {
   if (!store.jobs) store.jobs = {};
@@ -22,6 +23,7 @@ export function setJob(name, count) {
     .reduce((sum, [, v]) => sum + v, 0);
   const max = Math.max(0, adults - others);
   store.jobs[name] = Math.max(0, Math.min(count, max));
+  saveGame();
 }
 
 export function totalAssigned() {
