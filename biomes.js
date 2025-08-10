@@ -1,4 +1,5 @@
 import { biomes, getBiome } from './src/biomes.js';
+import { getPointsOfInterest } from './src/pointsOfInterest.js';
 
 // DOM Elements
 const selector = document.getElementById('biomeSelector');
@@ -23,9 +24,11 @@ selector.addEventListener('change', () => {
     image.src = '';
     return;
   }
+  const pois = getPointsOfInterest(selector.value);
   output.innerHTML = `
     <h2>${biome.name}</h2>
     <p><strong>Features:</strong> ${biome.features.join(', ')}</p>
+    <p><strong>Points of Interest:</strong> ${pois.join(', ')}</p>
     <p><strong>Wood Modifier:</strong> ${biome.woodMod}</p>
   `;
   description.textContent = biome.description;
