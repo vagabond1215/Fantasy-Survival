@@ -43,7 +43,7 @@ function updateMapDisplay() {
     mapCanvas.style.transform = `translate(${mapOffsetX}px, ${mapOffsetY}px) scale(${zoomFactor})`;
     mapCanvas.style.transformOrigin = '0 0';
   }
-  if (scaleDisplay) scaleDisplay.textContent = `Grid: ${mapScale}m`;
+  if (scaleDisplay) scaleDisplay.textContent = `${mapScale}m`;
 }
 
 function renderMap() {
@@ -401,29 +401,39 @@ export function initGameUI() {
     const zoomControls = document.createElement('div');
     zoomControls.style.textAlign = 'center';
     zoomControls.style.marginTop = '5px';
+
     const centerBtn = document.createElement('button');
-    centerBtn.textContent = 'Center';
+    centerBtn.textContent = '🏠';
     centerBtn.addEventListener('click', () => {
+      mapScale = DEFAULT_MAP_SCALE;
+      currentLocation.map.scale = mapScale;
       centerMap();
       updateMapDisplay();
+      ensureMapCoverage();
     });
-    const zoomIn = document.createElement('button');
-    zoomIn.textContent = 'Zoom In';
-    zoomIn.addEventListener('click', () => {
-      zoomMap(-10);
-    });
+
     const zoomOut = document.createElement('button');
-    zoomOut.textContent = 'Zoom Out';
+    zoomOut.textContent = '-';
     zoomOut.addEventListener('click', () => {
       zoomMap(10);
     });
-    scaleDisplay = document.createElement('div');
-    scaleDisplay.style.marginTop = '4px';
+
+    scaleDisplay = document.createElement('button');
+    scaleDisplay.disabled = true;
+    scaleDisplay.style.margin = '0 5px';
+
+    const zoomIn = document.createElement('button');
+    zoomIn.textContent = '+';
+    zoomIn.addEventListener('click', () => {
+      zoomMap(-10);
+    });
+
     updateMapDisplay();
+
     zoomControls.appendChild(centerBtn);
-    zoomControls.appendChild(zoomIn);
     zoomControls.appendChild(zoomOut);
     zoomControls.appendChild(scaleDisplay);
+    zoomControls.appendChild(zoomIn);
     container.appendChild(zoomControls);
   }
 
