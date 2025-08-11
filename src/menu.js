@@ -51,6 +51,7 @@ export function initTopMenu(onMenu, onBack, onReset) {
   };
   const themeBtn = document.createElement('button');
   themeBtn.id = 'theme-btn';
+  Object.assign(themeBtn.style, squareStyle);
   const updateThemeIcon = () => {
     themeBtn.textContent = theme === 'light' ? '🌙' : '☀️';
   };
@@ -80,6 +81,7 @@ export function initTopMenu(onMenu, onBack, onReset) {
   const menuBtn = document.createElement('button');
   menuBtn.id = 'menu-btn';
   menuBtn.textContent = 'Menu';
+  Object.assign(menuBtn.style, { height: squareStyle.height });
 
   const menuWrapper = document.createElement('div');
   menuWrapper.id = 'menu-wrapper';
@@ -115,29 +117,31 @@ export function initTopMenu(onMenu, onBack, onReset) {
   }
   menuBtn.addEventListener('click', () => toggleMenu());
 
-  if (typeof onMenu === 'function') {
-    const jobsBtn = document.createElement('button');
-    jobsBtn.textContent = 'Jobs';
-    jobsBtn.addEventListener('click', () => {
-      toggleMenu(false);
-      onMenu();
-      showBackButton(true);
-    });
-    dropdown.appendChild(jobsBtn);
-  }
+    if (typeof onMenu === 'function') {
+      const jobsBtn = document.createElement('button');
+      jobsBtn.textContent = 'Jobs';
+      Object.assign(jobsBtn.style, { height: squareStyle.height });
+      jobsBtn.addEventListener('click', () => {
+        toggleMenu(false);
+        onMenu();
+        showBackButton(true);
+      });
+      dropdown.appendChild(jobsBtn);
+    }
 
-  const resetBtn = document.createElement('button');
-  resetBtn.textContent = 'New Game';
-  resetBtn.addEventListener('click', () => {
-    toggleMenu(false);
-    if (typeof onReset === 'function') onReset();
-  });
-  dropdown.appendChild(resetBtn);
+    const resetBtn = document.createElement('button');
+    resetBtn.textContent = 'New Game';
+    Object.assign(resetBtn.style, { height: squareStyle.height });
+    resetBtn.addEventListener('click', () => {
+      toggleMenu(false);
+      if (typeof onReset === 'function') onReset();
+    });
+    dropdown.appendChild(resetBtn);
 
   const backBtn = document.createElement('button');
   backBtn.id = 'back-btn';
   backBtn.textContent = 'Back';
-  backBtn.style.display = 'none';
+  Object.assign(backBtn.style, { height: squareStyle.height, display: 'none' });
   if (typeof onBack === 'function') {
     backBtn.addEventListener('click', () => {
       onBack();
