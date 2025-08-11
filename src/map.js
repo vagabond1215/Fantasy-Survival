@@ -11,85 +11,60 @@ function hasWaterFeature(features = []) {
   return features.some(f => /(water|river|lake|shore|beach|lagoon|reef|marsh|bog|swamp|delta|stream|tide|coast)/i.test(f));
 }
 
-export function generateColorMap(biomeId) {
-  const size = 200; // base map dimensions
+// Deterministic pseudo-random generator based on string seed
+function xmur3(str) {
+  let h = 1779033703 ^ str.length;
+  for (let i = 0; i < str.length; i++) {
+    h = Math.imul(h ^ str.charCodeAt(i), 3432918353);
+    h = h << 13 | h >>> 19;
+  }
+  return function () {
+    h = Math.imul(h ^ h >>> 16, 2246822507);
+    h = Math.imul(h ^ h >>> 13, 3266489909);
+    return (h ^= h >>> 16) >>> 0;
+  };
+}
+
+function mulberry32(a) {
+  return function () {
+    let t = a += 0x6D2B79F5;
+    t = Math.imul(t ^ t >>> 15, t | 1);
+    t ^= t + Math.imul(t ^ t >>> 7, t | 61);
+    return ((t ^ t >>> 14) >>> 0) / 4294967296;
+  };
+}
+
+// Produces a deterministic random number for a coordinate pair
+function coordRand(seed, x, y, salt = '') {
+  const rng = mulberry32(xmur3(`${seed}:${x}:${y}:${salt}`)());
+  return rng();
+}
+
+export function generateColorMap(
+  biomeId,
+  seed = Date.now(),
+  xStart = 0,
+  yStart = 0,
+  width = 200,
+  height = 200
+) {
   const biome = getBiome(biomeId);
   const openLand = biome?.openLand ?? 0.5;
   const waterFeature = biome && hasWaterFeature(biome.features);
-  const oreChance = 0.02; // rare ore deposits
+  const pixels = [];
 
-  // --- Base terrain generation (open land vs forest) ---
-  let terrain = Array.from({ length: size }, () => Array(size).fill('forest'));
-  for (let y = 0; y < size; y++) {
-    for (let x = 0; x < size; x++) {
-      terrain[y][x] = Math.random() < openLand ? 'open' : 'forest';
+  for (let y = 0; y < height; y++) {
+    const row = [];
+    for (let x = 0; x < width; x++) {
+      const gx = xStart + x;
+      const gy = yStart + y;
+      let type = coordRand(seed, gx, gy, 'terrain') < openLand ? 'open' : 'forest';
+      if (waterFeature && coordRand(seed, gx, gy, 'water') < 0.05) type = 'water';
+      if (coordRand(seed, gx, gy, 'ore') < 0.02) type = 'ore';
+      row.push(FEATURE_COLORS[type]);
     }
-  }
-  // Smooth the terrain to create more contiguous regions
-  for (let iter = 0; iter < 3; iter++) {
-    const next = terrain.map(arr => [...arr]);
-    for (let y = 0; y < size; y++) {
-      for (let x = 0; x < size; x++) {
-        let openCount = 0;
-        for (let dy = -1; dy <= 1; dy++) {
-          for (let dx = -1; dx <= 1; dx++) {
-            if (dx === 0 && dy === 0) continue;
-            const ny = y + dy, nx = x + dx;
-            if (ny >= 0 && ny < size && nx >= 0 && nx < size && terrain[ny][nx] === 'open') openCount++;
-          }
-        }
-        if (openCount > 4) next[y][x] = 'open';
-        else if (openCount < 4) next[y][x] = 'forest';
-      }
-    }
-    terrain = next;
+    pixels.push(row);
   }
 
-  // --- Water features: rivers and lakes ---
-  const riverStart = Math.floor(Math.random() * size);
-  let riverY = riverStart;
-  for (let x = 0; x < size; x++) {
-    for (let w = -1; w <= 1; w++) {
-      const yy = riverY + w;
-      if (yy >= 0 && yy < size) terrain[yy][x] = 'water';
-    }
-    riverY += Math.floor(Math.random() * 3) - 1; // -1, 0, or 1
-    riverY = Math.max(1, Math.min(size - 2, riverY));
-  }
-
-  const lakeCount = waterFeature ? 5 : 2;
-  for (let i = 0; i < lakeCount; i++) {
-    const cx = Math.floor(Math.random() * size);
-    const cy = Math.floor(Math.random() * size);
-    const radius = 3 + Math.floor(Math.random() * 6);
-    for (let dy = -radius; dy <= radius; dy++) {
-      for (let dx = -radius; dx <= radius; dx++) {
-        if (dx * dx + dy * dy <= radius * radius) {
-          const nx = cx + dx;
-          const ny = cy + dy;
-          if (nx >= 0 && nx < size && ny >= 0 && ny < size) terrain[ny][nx] = 'water';
-        }
-      }
-    }
-  }
-
-  // --- Ore deposits ---
-  const oreDeposits = Math.floor(size * oreChance);
-  for (let i = 0; i < oreDeposits; i++) {
-    const cx = Math.floor(Math.random() * size);
-    const cy = Math.floor(Math.random() * size);
-    for (let dy = -1; dy <= 1; dy++) {
-      for (let dx = -1; dx <= 1; dx++) {
-        if (Math.random() < 0.5) {
-          const nx = cx + dx;
-          const ny = cy + dy;
-          if (nx >= 0 && nx < size && ny >= 0 && ny < size) terrain[ny][nx] = 'ore';
-        }
-      }
-    }
-  }
-
-  // Convert terrain types to color values
-  const pixels = terrain.map(row => row.map(cell => FEATURE_COLORS[cell]));
-  return { scale: 100, pixels };
+  return { scale: 100, seed, xStart, yStart, pixels };
 }
