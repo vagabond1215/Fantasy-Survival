@@ -119,6 +119,22 @@ function ensureMapCoverage(preGenerate = false) {
   }
 }
 
+function zoomMap(delta) {
+  if (!currentLocation || !mapCanvas) return;
+  const centerX = MAP_DISPLAY_SIZE / 2;
+  const centerY = MAP_DISPLAY_SIZE / 2;
+  const oldZoom = DEFAULT_MAP_SCALE / mapScale;
+  const worldX = (centerX - mapOffsetX) / oldZoom;
+  const worldY = (centerY - mapOffsetY) / oldZoom;
+  mapScale = Math.max(10, mapScale + delta);
+  currentLocation.map.scale = mapScale;
+  const newZoom = DEFAULT_MAP_SCALE / mapScale;
+  mapOffsetX = centerX - worldX * newZoom;
+  mapOffsetY = centerY - worldY * newZoom;
+  updateMapDisplay();
+  ensureMapCoverage();
+}
+
 function computeChanges() {
   const stats = peopleStats();
   const jobs = getJobs();
@@ -394,18 +410,12 @@ export function initGameUI() {
     const zoomIn = document.createElement('button');
     zoomIn.textContent = 'Zoom In';
     zoomIn.addEventListener('click', () => {
-      mapScale = Math.max(10, mapScale - 10);
-      loc.map.scale = mapScale;
-      updateMapDisplay();
-      ensureMapCoverage();
+      zoomMap(-10);
     });
     const zoomOut = document.createElement('button');
     zoomOut.textContent = 'Zoom Out';
     zoomOut.addEventListener('click', () => {
-      mapScale += 10;
-      loc.map.scale = mapScale;
-      updateMapDisplay();
-      ensureMapCoverage();
+      zoomMap(10);
     });
     scaleDisplay = document.createElement('div');
     scaleDisplay.style.marginTop = '4px';
