@@ -6,11 +6,11 @@ import { unlockTechnology } from './technology.js';
 import { generateLocation } from './location.js';
 import { harvestWood } from './resources.js';
 import { initSetupUI } from './ui.js';
-import { saveGame, loadGame } from './persistence.js';
+import { saveGame, loadGame, clearSave } from './persistence.js';
 import { shelterTypes } from './shelters.js';
 import { difficultySettings } from './difficulty.js';
 import { initGameUI, showJobs, closeJobs } from './gameUI.js';
-import { initTopMenu } from './menu.js';
+import { initTopMenu, initBottomMenu } from './menu.js';
 
 function startGame(settings = {}) {
   const diff = settings.difficulty || 'normal';
@@ -53,6 +53,10 @@ function startGame(settings = {}) {
 
 function init() {
   initTopMenu(showJobs, closeJobs);
+  initBottomMenu(() => {
+    clearSave();
+    window.location.reload();
+  });
   if (!loadGame()) {
     initSetupUI(startGame);
   } else {
