@@ -26,12 +26,14 @@ let mapOffsetY = 0;
 let currentLocation = null;
 
 function centerMap() {
-  if (!mapCanvas) return;
+  if (!mapCanvas || !currentLocation) return;
   const zoomFactor = DEFAULT_MAP_SCALE / mapScale;
-  const width = mapCanvas.width * zoomFactor;
-  const height = mapCanvas.height * zoomFactor;
-  mapOffsetX = (MAP_DISPLAY_SIZE - width) / 2;
-  mapOffsetY = (MAP_DISPLAY_SIZE - height) / 2;
+  const centerX = MAP_DISPLAY_SIZE / 2;
+  const centerY = MAP_DISPLAY_SIZE / 2;
+  const startPixelX = -currentLocation.map.xStart;
+  const startPixelY = -currentLocation.map.yStart;
+  mapOffsetX = centerX - startPixelX * zoomFactor;
+  mapOffsetY = centerY - startPixelY * zoomFactor;
 }
 
 // Apply a CSS transform rather than resizing the canvas element. This
@@ -401,29 +403,53 @@ export function initGameUI() {
     const zoomControls = document.createElement('div');
     zoomControls.style.textAlign = 'center';
     zoomControls.style.marginTop = '5px';
+    zoomControls.style.display = 'flex';
+    zoomControls.style.justifyContent = 'center';
+    zoomControls.style.alignItems = 'center';
+
+    const BTN_SIZE = '30px';
 
     const centerBtn = document.createElement('button');
     centerBtn.textContent = '🏠';
+    centerBtn.style.width = BTN_SIZE;
+    centerBtn.style.height = BTN_SIZE;
+    centerBtn.style.padding = '0';
+    centerBtn.style.lineHeight = BTN_SIZE;
+    centerBtn.style.boxSizing = 'border-box';
     centerBtn.addEventListener('click', () => {
-      mapScale = DEFAULT_MAP_SCALE;
-      currentLocation.map.scale = mapScale;
       centerMap();
-      updateMapDisplay();
       ensureMapCoverage();
+      updateMapDisplay();
     });
 
     const zoomOut = document.createElement('button');
     zoomOut.textContent = '-';
+    zoomOut.style.width = BTN_SIZE;
+    zoomOut.style.height = BTN_SIZE;
+    zoomOut.style.padding = '0';
+    zoomOut.style.lineHeight = BTN_SIZE;
+    zoomOut.style.boxSizing = 'border-box';
     zoomOut.addEventListener('click', () => {
       zoomMap(10);
     });
 
     scaleDisplay = document.createElement('button');
-    scaleDisplay.disabled = true;
     scaleDisplay.style.margin = '0 5px';
+    scaleDisplay.style.height = BTN_SIZE;
+    scaleDisplay.style.lineHeight = BTN_SIZE;
+    scaleDisplay.style.padding = '0 5px';
+    scaleDisplay.style.boxSizing = 'border-box';
+    scaleDisplay.addEventListener('click', () => {
+      zoomMap(DEFAULT_MAP_SCALE - mapScale);
+    });
 
     const zoomIn = document.createElement('button');
     zoomIn.textContent = '+';
+    zoomIn.style.width = BTN_SIZE;
+    zoomIn.style.height = BTN_SIZE;
+    zoomIn.style.padding = '0';
+    zoomIn.style.lineHeight = BTN_SIZE;
+    zoomIn.style.boxSizing = 'border-box';
     zoomIn.addEventListener('click', () => {
       zoomMap(-10);
     });
