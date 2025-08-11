@@ -7,7 +7,7 @@ export const FEATURE_COLORS = {
   ore: '#B87333' // coppery brown for ore deposits
 };
 
-function hasWaterFeature(features = []) {
+export function hasWaterFeature(features = []) {
   return features.some(f => /(water|river|lake|shore|beach|lagoon|reef|marsh|bog|swamp|delta|stream|tide|coast)/i.test(f));
 }
 
@@ -103,4 +103,11 @@ export function generateColorMap(
   }
 
   return { scale: 100, seed, xStart, yStart, pixels, elevations };
+}
+
+export function getBiomeBorderColor(biomeId) {
+  const biome = getBiome(biomeId);
+  if (!biome) return FEATURE_COLORS.open;
+  if (hasWaterFeature(biome.features)) return FEATURE_COLORS.water;
+  return biome.openLand > 0.5 ? FEATURE_COLORS.open : FEATURE_COLORS.forest;
 }
