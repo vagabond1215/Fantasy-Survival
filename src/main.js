@@ -52,11 +52,11 @@ function startGame(settings = {}) {
 }
 
 function init() {
-  initTopMenu(showJobs, closeJobs);
-  initBottomMenu(() => {
+  initTopMenu(showJobs, closeJobs, () => {
     clearSave();
     window.location.reload();
   });
+  initBottomMenu();
   if (!loadGame()) {
     initSetupUI(startGame);
   } else {
