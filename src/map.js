@@ -3,7 +3,8 @@ import { getBiome } from './biomes.js';
 export const FEATURE_COLORS = {
   water: '#1E90FF', // blue
   open: '#7CFC00', // light green
-  forest: '#228B22' // forest green
+  forest: '#228B22', // forest green
+  ore: '#B87333' // coppery brown for ore deposits
 };
 
 function hasWaterFeature(features = []) {
@@ -11,10 +12,11 @@ function hasWaterFeature(features = []) {
 }
 
 export function generateColorMap(biomeId) {
-  const size = 100;
+  const size = 200; // doubled map dimensions
   const biome = getBiome(biomeId);
   const openLand = biome?.openLand ?? 0.5;
   const waterChance = biome && hasWaterFeature(biome.features) ? 0.2 : 0.05;
+  const oreChance = 0.02; // rare ore deposits
   const pixels = [];
   for (let y = 0; y < size; y++) {
     const row = [];
@@ -22,7 +24,8 @@ export function generateColorMap(biomeId) {
       const r = Math.random();
       let feature;
       if (r < waterChance) feature = 'water';
-      else if (r < waterChance + openLand) feature = 'open';
+      else if (r < waterChance + oreChance) feature = 'ore';
+      else if (r < waterChance + oreChance + openLand) feature = 'open';
       else feature = 'forest';
       row.push(FEATURE_COLORS[feature]);
     }

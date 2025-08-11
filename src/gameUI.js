@@ -6,10 +6,14 @@ import store from './state.js';
 import { scavengeResources } from './resources.js';
 import { showBackButton } from './menu.js';
 import { allLocations } from './location.js';
+import { FEATURE_COLORS } from './map.js';
+import { getBiome } from './biomes.js';
 
 // Keep a reference to the scavenge count element so the display can
 // be refreshed whenever the UI rerenders.
 let scavengeDisplay = null;
+let mapZoom = 1;
+let mapCanvas = null;
 
 function computeChanges() {
   const stats = peopleStats();
@@ -196,7 +200,9 @@ export function initGameUI() {
     const mapWrapper = document.createElement('div');
     mapWrapper.style.display = 'flex';
     mapWrapper.style.justifyContent = 'center';
+    mapWrapper.style.alignItems = 'flex-start';
     mapWrapper.style.marginTop = '10px';
+
     const canvas = document.createElement('canvas');
     const pixels = loc.map.pixels;
     canvas.width = pixels[0].length;
@@ -215,12 +221,64 @@ export function initGameUI() {
     }
     ctx.putImageData(imgData, 0, 0);
     canvas.style.imageRendering = 'pixelated';
-    canvas.style.width = '300px';
-    canvas.style.height = '300px';
+    canvas.style.width = `${600 * mapZoom}px`;
+    canvas.style.height = `${600 * mapZoom}px`;
     canvas.style.display = 'block';
     canvas.style.margin = '0 auto';
+    mapCanvas = canvas;
     mapWrapper.appendChild(canvas);
+
+    const legend = document.createElement('div');
+    legend.style.marginLeft = '20px';
+    const biomeName = getBiome(loc.biome)?.name || loc.biome;
+    const title = document.createElement('h3');
+    title.textContent = biomeName;
+    legend.appendChild(title);
+
+    const list = document.createElement('ul');
+    const labels = {
+      water: 'Bodies of Water',
+      open: 'Open Land',
+      forest: 'Forest',
+      ore: 'Ore Deposits'
+    };
+    Object.entries(FEATURE_COLORS).forEach(([key, color]) => {
+      const li = document.createElement('li');
+      const swatch = document.createElement('span');
+      swatch.style.display = 'inline-block';
+      swatch.style.width = '12px';
+      swatch.style.height = '12px';
+      swatch.style.backgroundColor = color;
+      swatch.style.marginRight = '6px';
+      li.appendChild(swatch);
+      li.appendChild(document.createTextNode(labels[key] || key));
+      list.appendChild(li);
+    });
+    legend.appendChild(list);
+
+    mapWrapper.appendChild(legend);
     container.appendChild(mapWrapper);
+
+    const zoomControls = document.createElement('div');
+    zoomControls.style.textAlign = 'center';
+    zoomControls.style.marginTop = '5px';
+    const zoomIn = document.createElement('button');
+    zoomIn.textContent = 'Zoom In';
+    zoomIn.addEventListener('click', () => {
+      mapZoom *= 1.5;
+      mapCanvas.style.width = `${600 * mapZoom}px`;
+      mapCanvas.style.height = `${600 * mapZoom}px`;
+    });
+    const zoomOut = document.createElement('button');
+    zoomOut.textContent = 'Zoom Out';
+    zoomOut.addEventListener('click', () => {
+      mapZoom /= 1.5;
+      mapCanvas.style.width = `${600 * mapZoom}px`;
+      mapCanvas.style.height = `${600 * mapZoom}px`;
+    });
+    zoomControls.appendChild(zoomIn);
+    zoomControls.appendChild(zoomOut);
+    container.appendChild(zoomControls);
   }
 
   const turn = document.createElement('div');
