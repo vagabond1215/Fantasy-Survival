@@ -12,8 +12,13 @@ import { getBiome } from './biomes.js';
 // Keep a reference to the scavenge count element so the display can
 // be refreshed whenever the UI rerenders.
 let scavengeDisplay = null;
-let mapZoom = 1;
+// Distance (in meters) represented by a single map grid cell. This
+// value changes when the user "zooms" the map to simulate different
+// aerial view heights without altering the canvas resolution.
+let mapScale = 100;
 let mapCanvas = null;
+let scaleDisplay = null;
+const MAP_DISPLAY_SIZE = 600;
 
 function computeChanges() {
   const stats = peopleStats();
@@ -221,11 +226,12 @@ export function initGameUI() {
     }
     ctx.putImageData(imgData, 0, 0);
     canvas.style.imageRendering = 'pixelated';
-    canvas.style.width = `${600 * mapZoom}px`;
-    canvas.style.height = `${600 * mapZoom}px`;
+    canvas.style.width = `${MAP_DISPLAY_SIZE}px`;
+    canvas.style.height = `${MAP_DISPLAY_SIZE}px`;
     canvas.style.display = 'block';
     canvas.style.margin = '0 auto';
     mapCanvas = canvas;
+    mapScale = loc.map.scale || mapScale;
     mapWrapper.appendChild(canvas);
 
     const legend = document.createElement('div');
@@ -265,19 +271,23 @@ export function initGameUI() {
     const zoomIn = document.createElement('button');
     zoomIn.textContent = 'Zoom In';
     zoomIn.addEventListener('click', () => {
-      mapZoom *= 1.5;
-      mapCanvas.style.width = `${600 * mapZoom}px`;
-      mapCanvas.style.height = `${600 * mapZoom}px`;
+      mapScale = Math.max(1, Math.round(mapScale / 1.5));
+      loc.map.scale = mapScale;
+      if (scaleDisplay) scaleDisplay.textContent = `Grid: ${mapScale}m`;
     });
     const zoomOut = document.createElement('button');
     zoomOut.textContent = 'Zoom Out';
     zoomOut.addEventListener('click', () => {
-      mapZoom /= 1.5;
-      mapCanvas.style.width = `${600 * mapZoom}px`;
-      mapCanvas.style.height = `${600 * mapZoom}px`;
+      mapScale = Math.round(mapScale * 1.5);
+      loc.map.scale = mapScale;
+      if (scaleDisplay) scaleDisplay.textContent = `Grid: ${mapScale}m`;
     });
+    scaleDisplay = document.createElement('div');
+    scaleDisplay.style.marginTop = '4px';
+    scaleDisplay.textContent = `Grid: ${mapScale}m`;
     zoomControls.appendChild(zoomIn);
     zoomControls.appendChild(zoomOut);
+    zoomControls.appendChild(scaleDisplay);
     container.appendChild(zoomControls);
   }
 
