@@ -6,7 +6,8 @@ import store from './state.js';
 import { scavengeResources } from './resources.js';
 import { showBackButton } from './menu.js';
 import { allLocations } from './location.js';
-import { FEATURE_COLORS } from './map.js';
+import { FEATURE_COLORS, generateColorMap } from './map.js';
+import { saveGame } from './persistence.js';
 import { getBiome } from './biomes.js';
 
 // Keep a reference to the scavenge count element so the display can
@@ -20,6 +21,18 @@ let mapScale = DEFAULT_MAP_SCALE;
 let mapCanvas = null;
 let scaleDisplay = null;
 const MAP_DISPLAY_SIZE = 600;
+let mapOffsetX = 0;
+let mapOffsetY = 0;
+let currentLocation = null;
+
+function centerMap() {
+  if (!mapCanvas) return;
+  const zoomFactor = DEFAULT_MAP_SCALE / mapScale;
+  const width = mapCanvas.width * zoomFactor;
+  const height = mapCanvas.height * zoomFactor;
+  mapOffsetX = (MAP_DISPLAY_SIZE - width) / 2;
+  mapOffsetY = (MAP_DISPLAY_SIZE - height) / 2;
+}
 
 // Apply a CSS transform rather than resizing the canvas element. This
 // keeps the canvas resolution consistent while visually zooming the
@@ -27,10 +40,76 @@ const MAP_DISPLAY_SIZE = 600;
 function updateMapDisplay() {
   if (mapCanvas) {
     const zoomFactor = DEFAULT_MAP_SCALE / mapScale;
-    mapCanvas.style.transform = `scale(${zoomFactor})`;
+    mapCanvas.style.transform = `translate(${mapOffsetX}px, ${mapOffsetY}px) scale(${zoomFactor})`;
     mapCanvas.style.transformOrigin = '0 0';
   }
   if (scaleDisplay) scaleDisplay.textContent = `Grid: ${mapScale}m`;
+}
+
+function renderMap() {
+  if (!currentLocation || !mapCanvas) return;
+  const pixels = currentLocation.map.pixels;
+  mapCanvas.width = pixels[0].length;
+  mapCanvas.height = pixels.length;
+  const ctx = mapCanvas.getContext('2d');
+  const imgData = ctx.createImageData(mapCanvas.width, mapCanvas.height);
+  for (let y = 0; y < mapCanvas.height; y++) {
+    for (let x = 0; x < mapCanvas.width; x++) {
+      const color = pixels[y][x];
+      const idx = (y * mapCanvas.width + x) * 4;
+      imgData.data[idx] = parseInt(color.slice(1, 3), 16);
+      imgData.data[idx + 1] = parseInt(color.slice(3, 5), 16);
+      imgData.data[idx + 2] = parseInt(color.slice(5, 7), 16);
+      imgData.data[idx + 3] = 255;
+    }
+  }
+  ctx.putImageData(imgData, 0, 0);
+}
+
+function ensureMapCoverage() {
+  const loc = currentLocation;
+  if (!loc || !mapCanvas) return;
+  const zoomFactor = DEFAULT_MAP_SCALE / mapScale;
+  const viewWidth = MAP_DISPLAY_SIZE / zoomFactor;
+  const viewHeight = MAP_DISPLAY_SIZE / zoomFactor;
+  const left = -mapOffsetX / zoomFactor + loc.map.xStart;
+  const top = -mapOffsetY / zoomFactor + loc.map.yStart;
+  const right = left + viewWidth;
+  const bottom = top + viewHeight;
+  const chunk = 200;
+
+  if (left < loc.map.xStart) {
+    const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart - chunk, loc.map.yStart, chunk, loc.map.pixels.length).pixels;
+    for (let i = 0; i < loc.map.pixels.length; i++) {
+      loc.map.pixels[i] = extra[i].concat(loc.map.pixels[i]);
+    }
+    loc.map.xStart -= chunk;
+    mapOffsetX -= chunk * zoomFactor;
+    renderMap();
+    saveGame();
+  }
+  if (right > loc.map.xStart + loc.map.pixels[0].length) {
+    const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart + loc.map.pixels[0].length, loc.map.yStart, chunk, loc.map.pixels.length).pixels;
+    for (let i = 0; i < loc.map.pixels.length; i++) {
+      loc.map.pixels[i] = loc.map.pixels[i].concat(extra[i]);
+    }
+    renderMap();
+    saveGame();
+  }
+  if (top < loc.map.yStart) {
+    const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart, loc.map.yStart - chunk, loc.map.pixels[0].length, chunk).pixels;
+    loc.map.pixels = extra.concat(loc.map.pixels);
+    loc.map.yStart -= chunk;
+    mapOffsetY -= chunk * zoomFactor;
+    renderMap();
+    saveGame();
+  }
+  if (bottom > loc.map.yStart + loc.map.pixels.length) {
+    const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart, loc.map.yStart + loc.map.pixels.length, loc.map.pixels[0].length, chunk).pixels;
+    loc.map.pixels = loc.map.pixels.concat(extra);
+    renderMap();
+    saveGame();
+  }
 }
 
 function computeChanges() {
@@ -215,6 +294,7 @@ export function initGameUI() {
 
   const loc = allLocations()[0];
   if (loc?.map?.pixels) {
+    currentLocation = loc;
     const mapWrapper = document.createElement('div');
     mapWrapper.style.display = 'flex';
     mapWrapper.style.justifyContent = 'center';
@@ -227,22 +307,6 @@ export function initGameUI() {
     viewport.style.overflow = 'hidden';
 
     const canvas = document.createElement('canvas');
-    const pixels = loc.map.pixels;
-    canvas.width = pixels[0].length;
-    canvas.height = pixels.length;
-    const ctx = canvas.getContext('2d');
-    const imgData = ctx.createImageData(canvas.width, canvas.height);
-    for (let y = 0; y < canvas.height; y++) {
-      for (let x = 0; x < canvas.width; x++) {
-        const color = pixels[y][x];
-        const idx = (y * canvas.width + x) * 4;
-        imgData.data[idx] = parseInt(color.slice(1, 3), 16);
-        imgData.data[idx + 1] = parseInt(color.slice(3, 5), 16);
-        imgData.data[idx + 2] = parseInt(color.slice(5, 7), 16);
-        imgData.data[idx + 3] = 255;
-      }
-    }
-    ctx.putImageData(imgData, 0, 0);
     canvas.style.imageRendering = 'pixelated';
     canvas.style.display = 'block';
     canvas.style.margin = '0 auto';
@@ -250,7 +314,30 @@ export function initGameUI() {
     canvas.style.height = `${MAP_DISPLAY_SIZE}px`;
     mapCanvas = canvas;
     mapScale = loc.map.scale || mapScale;
+    renderMap();
+    centerMap();
     updateMapDisplay();
+    let dragging = false;
+    let lastX = 0;
+    let lastY = 0;
+    const startDrag = (x, y) => { dragging = true; lastX = x; lastY = y; };
+    const moveDrag = (x, y) => {
+      if (!dragging) return;
+      mapOffsetX += x - lastX;
+      mapOffsetY += y - lastY;
+      lastX = x;
+      lastY = y;
+      updateMapDisplay();
+      ensureMapCoverage();
+    };
+    const endDrag = () => { dragging = false; };
+    canvas.addEventListener('mousedown', e => startDrag(e.clientX, e.clientY));
+    document.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
+    document.addEventListener('mouseup', endDrag);
+    canvas.addEventListener('touchstart', e => { const t = e.touches[0]; startDrag(t.clientX, t.clientY); e.preventDefault(); });
+    document.addEventListener('touchmove', e => { const t = e.touches[0]; moveDrag(t.clientX, t.clientY); e.preventDefault(); });
+    document.addEventListener('touchend', endDrag);
+
     viewport.appendChild(canvas);
     mapWrapper.appendChild(viewport);
 
@@ -288,12 +375,19 @@ export function initGameUI() {
     const zoomControls = document.createElement('div');
     zoomControls.style.textAlign = 'center';
     zoomControls.style.marginTop = '5px';
+    const centerBtn = document.createElement('button');
+    centerBtn.textContent = 'Center';
+    centerBtn.addEventListener('click', () => {
+      centerMap();
+      updateMapDisplay();
+    });
     const zoomIn = document.createElement('button');
     zoomIn.textContent = 'Zoom In';
     zoomIn.addEventListener('click', () => {
       mapScale = Math.max(1, Math.round(mapScale / 1.5));
       loc.map.scale = mapScale;
       updateMapDisplay();
+      ensureMapCoverage();
     });
     const zoomOut = document.createElement('button');
     zoomOut.textContent = 'Zoom Out';
@@ -301,10 +395,12 @@ export function initGameUI() {
       mapScale = Math.round(mapScale * 1.5);
       loc.map.scale = mapScale;
       updateMapDisplay();
+      ensureMapCoverage();
     });
     scaleDisplay = document.createElement('div');
     scaleDisplay.style.marginTop = '4px';
     updateMapDisplay();
+    zoomControls.appendChild(centerBtn);
     zoomControls.appendChild(zoomIn);
     zoomControls.appendChild(zoomOut);
     zoomControls.appendChild(scaleDisplay);

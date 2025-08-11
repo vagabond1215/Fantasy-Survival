@@ -24,6 +24,10 @@ export function loadGame() {
     for (const loc of store.locations.values()) {
       if (!loc.map || !loc.map.pixels) {
         loc.map = generateColorMap(loc.biome);
+      } else {
+        if (!loc.map.seed) loc.map.seed = Date.now();
+        if (loc.map.xStart === undefined) loc.map.xStart = 0;
+        if (loc.map.yStart === undefined) loc.map.yStart = 0;
       }
     }
     refreshStats();
