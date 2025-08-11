@@ -1,5 +1,6 @@
 import store from './state.js';
 import { refreshStats } from './people.js';
+import { generateColorMap } from './map.js';
 
 const SAVE_KEY = 'fantasy-survival-save';
 
@@ -20,6 +21,11 @@ export function loadGame() {
     const data = localStorage.getItem(SAVE_KEY);
     if (!data) return false;
     store.deserialize(JSON.parse(data));
+    for (const loc of store.locations.values()) {
+      if (!loc.map || !loc.map.pixels) {
+        loc.map = generateColorMap(loc.biome);
+      }
+    }
     refreshStats();
     return true;
   } catch (err) {
