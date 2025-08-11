@@ -75,3 +75,27 @@ export function initTopMenu(onMenu, onBack) {
   applyZoom();
 }
 
+export function initBottomMenu(onRest) {
+  const bar = document.getElementById('bottom-menu');
+  if (!bar) return;
+  bar.innerHTML = '';
+  Object.assign(bar.style, {
+    position: 'fixed',
+    bottom: '0',
+    left: '0',
+    right: '0',
+    background: '#eee',
+    padding: '4px',
+    display: 'flex',
+    justifyContent: 'center',
+    zIndex: '1000'
+  });
+
+  const restBtn = document.createElement('button');
+  restBtn.textContent = 'Rest';
+  if (typeof onRest === 'function') {
+    restBtn.addEventListener('click', onRest);
+  }
+  bar.appendChild(restBtn);
+}
+
