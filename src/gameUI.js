@@ -6,7 +6,7 @@ import store from './state.js';
 import { scavengeResources } from './resources.js';
 import { showBackButton } from './menu.js';
 import { allLocations } from './location.js';
-import { FEATURE_COLORS, generateColorMap } from './map.js';
+import { FEATURE_COLORS, generateColorMap, getBiomeBorderColor } from './map.js';
 import { saveGame } from './persistence.js';
 import { getBiome } from './biomes.js';
 
@@ -51,6 +51,8 @@ function renderMap() {
   const pixels = currentLocation.map.pixels;
   mapCanvas.width = pixels[0].length;
   mapCanvas.height = pixels.length;
+  mapCanvas.style.width = `${mapCanvas.width}px`;
+  mapCanvas.style.height = `${mapCanvas.height}px`;
   const ctx = mapCanvas.getContext('2d');
   const imgData = ctx.createImageData(mapCanvas.width, mapCanvas.height);
   for (let y = 0; y < mapCanvas.height; y++) {
@@ -66,29 +68,32 @@ function renderMap() {
   ctx.putImageData(imgData, 0, 0);
 }
 
-function ensureMapCoverage() {
+function ensureMapCoverage(preGenerate = false) {
   const loc = currentLocation;
   if (!loc || !mapCanvas) return;
   const zoomFactor = DEFAULT_MAP_SCALE / mapScale;
   const viewWidth = MAP_DISPLAY_SIZE / zoomFactor;
   const viewHeight = MAP_DISPLAY_SIZE / zoomFactor;
-  const left = -mapOffsetX / zoomFactor + loc.map.xStart;
-  const top = -mapOffsetY / zoomFactor + loc.map.yStart;
-  const right = left + viewWidth;
-  const bottom = top + viewHeight;
+  let left = -mapOffsetX / zoomFactor + loc.map.xStart;
+  let top = -mapOffsetY / zoomFactor + loc.map.yStart;
+  let right = left + viewWidth;
+  let bottom = top + viewHeight;
   const chunk = 200;
+  const buffer = preGenerate ? Math.max(loc.map.pixels[0].length, viewWidth) : 0;
 
-  if (left < loc.map.xStart) {
+  while (left < loc.map.xStart - buffer) {
     const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart - chunk, loc.map.yStart, chunk, loc.map.pixels.length).pixels;
     for (let i = 0; i < loc.map.pixels.length; i++) {
       loc.map.pixels[i] = extra[i].concat(loc.map.pixels[i]);
     }
     loc.map.xStart -= chunk;
     mapOffsetX -= chunk * zoomFactor;
+    left += chunk;
+    right += chunk;
     renderMap();
     saveGame();
   }
-  if (right > loc.map.xStart + loc.map.pixels[0].length) {
+  while (right > loc.map.xStart + loc.map.pixels[0].length + buffer) {
     const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart + loc.map.pixels[0].length, loc.map.yStart, chunk, loc.map.pixels.length).pixels;
     for (let i = 0; i < loc.map.pixels.length; i++) {
       loc.map.pixels[i] = loc.map.pixels[i].concat(extra[i]);
@@ -96,15 +101,17 @@ function ensureMapCoverage() {
     renderMap();
     saveGame();
   }
-  if (top < loc.map.yStart) {
+  while (top < loc.map.yStart - buffer) {
     const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart, loc.map.yStart - chunk, loc.map.pixels[0].length, chunk).pixels;
     loc.map.pixels = extra.concat(loc.map.pixels);
     loc.map.yStart -= chunk;
     mapOffsetY -= chunk * zoomFactor;
+    top += chunk;
+    bottom += chunk;
     renderMap();
     saveGame();
   }
-  if (bottom > loc.map.yStart + loc.map.pixels.length) {
+  while (bottom > loc.map.yStart + loc.map.pixels.length + buffer) {
     const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart, loc.map.yStart + loc.map.pixels.length, loc.map.pixels[0].length, chunk).pixels;
     loc.map.pixels = loc.map.pixels.concat(extra);
     renderMap();
@@ -305,16 +312,19 @@ export function initGameUI() {
     viewport.style.width = `${MAP_DISPLAY_SIZE}px`;
     viewport.style.height = `${MAP_DISPLAY_SIZE}px`;
     viewport.style.overflow = 'hidden';
+    viewport.style.position = 'relative';
+    viewport.style.border = `4px solid ${getBiomeBorderColor(loc.biome)}`;
 
     const canvas = document.createElement('canvas');
+    canvas.style.position = 'absolute';
     canvas.style.imageRendering = 'pixelated';
     canvas.style.display = 'block';
     canvas.style.margin = '0 auto';
-    canvas.style.width = `${MAP_DISPLAY_SIZE}px`;
-    canvas.style.height = `${MAP_DISPLAY_SIZE}px`;
     mapCanvas = canvas;
     mapScale = loc.map.scale || mapScale;
     renderMap();
+    centerMap();
+    ensureMapCoverage(true);
     centerMap();
     updateMapDisplay();
     let dragging = false;
