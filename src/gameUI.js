@@ -394,7 +394,7 @@ export function initGameUI() {
     const zoomIn = document.createElement('button');
     zoomIn.textContent = 'Zoom In';
     zoomIn.addEventListener('click', () => {
-      mapScale = Math.max(1, Math.round(mapScale / 1.5));
+      mapScale = Math.max(10, mapScale - 10);
       loc.map.scale = mapScale;
       updateMapDisplay();
       ensureMapCoverage();
@@ -402,7 +402,7 @@ export function initGameUI() {
     const zoomOut = document.createElement('button');
     zoomOut.textContent = 'Zoom Out';
     zoomOut.addEventListener('click', () => {
-      mapScale = Math.round(mapScale * 1.5);
+      mapScale += 10;
       loc.map.scale = mapScale;
       updateMapDisplay();
       ensureMapCoverage();
