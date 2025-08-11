@@ -40,6 +40,36 @@ function coordRand(seed, x, y, salt = '') {
   return rng();
 }
 
+function lerp(a, b, t) {
+  return a + (b - a) * t;
+}
+
+function elevationNoise(seed, x, y, scale) {
+  const nx = x / scale;
+  const ny = y / scale;
+  const x0 = Math.floor(nx);
+  const y0 = Math.floor(ny);
+  const x1 = x0 + 1;
+  const y1 = y0 + 1;
+  const sx = nx - x0;
+  const sy = ny - y0;
+
+  const n00 = coordRand(seed, x0, y0, 'elev');
+  const n10 = coordRand(seed, x1, y0, 'elev');
+  const n01 = coordRand(seed, x0, y1, 'elev');
+  const n11 = coordRand(seed, x1, y1, 'elev');
+
+  const ix0 = lerp(n00, n10, sx);
+  const ix1 = lerp(n01, n11, sx);
+  return lerp(ix0, ix1, sy);
+}
+
+function getElevation(seed, x, y, options = {}) {
+  const { base = 0.5, variance = 0.5, scale = 50 } = options;
+  const noise = elevationNoise(seed, x, y, scale);
+  return base + (noise - 0.5) * 2 * variance;
+}
+
 export function generateColorMap(
   biomeId,
   seed = Date.now(),
@@ -52,19 +82,25 @@ export function generateColorMap(
   const openLand = biome?.openLand ?? 0.5;
   const waterFeature = biome && hasWaterFeature(biome.features);
   const pixels = [];
+  const elevations = [];
 
   for (let y = 0; y < height; y++) {
     const row = [];
+    const eRow = [];
     for (let x = 0; x < width; x++) {
       const gx = xStart + x;
       const gy = yStart + y;
+      const elevation = getElevation(seed, gx, gy, biome?.elevation);
+      eRow.push(elevation);
       let type = coordRand(seed, gx, gy, 'terrain') < openLand ? 'open' : 'forest';
-      if (waterFeature && coordRand(seed, gx, gy, 'water') < 0.05) type = 'water';
-      if (coordRand(seed, gx, gy, 'ore') < 0.02) type = 'ore';
+      const waterLevel = biome?.elevation?.waterLevel ?? 0.3;
+      if (waterFeature && elevation < waterLevel) type = 'water';
+      if (coordRand(seed, gx, gy, 'ore') < 0.02 && elevation >= waterLevel) type = 'ore';
       row.push(FEATURE_COLORS[type]);
     }
     pixels.push(row);
+    elevations.push(eRow);
   }
 
-  return { scale: 100, seed, xStart, yStart, pixels };
+  return { scale: 100, seed, xStart, yStart, pixels, elevations };
 }
