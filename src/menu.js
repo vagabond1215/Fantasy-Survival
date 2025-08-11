@@ -1,4 +1,5 @@
 let zoomLevel = 1;
+let theme = localStorage.getItem('theme') || 'light';
 
 function applyZoom() {
   const content = document.getElementById('content');
@@ -6,6 +7,11 @@ function applyZoom() {
     content.style.transform = `scale(${zoomLevel})`;
     content.style.transformOrigin = 'top left';
   }
+}
+
+function applyTheme() {
+  document.body.className = theme;
+  localStorage.setItem('theme', theme);
 }
 
 export function showBackButton(show) {
@@ -20,13 +26,14 @@ export function showBackButton(show) {
 export function initTopMenu(onMenu, onBack) {
   const bar = document.getElementById('top-menu');
   if (!bar) return;
+  applyTheme();
   bar.innerHTML = '';
   Object.assign(bar.style, {
     position: 'fixed',
     top: '0',
     left: '0',
     right: '0',
-    background: '#eee',
+    background: 'var(--menu-bg)',
     padding: '4px',
     display: 'flex',
     gap: '4px',
@@ -57,6 +64,18 @@ export function initTopMenu(onMenu, onBack) {
     });
   }
 
+  const themeBtn = document.createElement('button');
+  themeBtn.id = 'theme-btn';
+  const updateThemeIcon = () => {
+    themeBtn.textContent = theme === 'light' ? '🌙' : '☀️';
+  };
+  updateThemeIcon();
+  themeBtn.addEventListener('click', () => {
+    theme = theme === 'light' ? 'dark' : 'light';
+    applyTheme();
+    updateThemeIcon();
+  });
+
   const backBtn = document.createElement('button');
   backBtn.id = 'back-btn';
   backBtn.textContent = 'Back';
@@ -71,6 +90,7 @@ export function initTopMenu(onMenu, onBack) {
   bar.appendChild(zoomOut);
   bar.appendChild(zoomIn);
   bar.appendChild(menuBtn);
+  bar.appendChild(themeBtn);
   bar.appendChild(backBtn);
   applyZoom();
 }
@@ -84,7 +104,7 @@ export function initBottomMenu(onRest) {
     bottom: '0',
     left: '0',
     right: '0',
-    background: '#eee',
+    background: 'var(--menu-bg)',
     padding: '4px',
     display: 'flex',
     justifyContent: 'center',

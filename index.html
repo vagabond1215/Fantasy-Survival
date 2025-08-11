@@ -3,8 +3,27 @@
 <head>
   <meta charset="UTF-8">
   <title>Fantasy Survival</title>
+  <style>
+    :root {
+      --bg-color: #fff;
+      --text-color: #000;
+      --menu-bg: #eee;
+    }
+    body.dark {
+      --bg-color: #222;
+      --text-color: #eee;
+      --menu-bg: #333;
+    }
+    body {
+      background: var(--bg-color);
+      color: var(--text-color);
+    }
+    #top-menu, #bottom-menu {
+      background: var(--menu-bg);
+    }
+  </style>
 </head>
-<body>
+<body class="light">
   <div id="top-menu"></div>
   <div id="content" style="margin-top:40px;">
     <h1>Fantasy Survival</h1>
