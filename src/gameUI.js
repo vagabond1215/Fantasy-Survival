@@ -17,16 +17,18 @@ let scavengeDisplay = null;
 // aerial view heights without altering the canvas resolution.
 const DEFAULT_MAP_SCALE = 100;
 let mapScale = DEFAULT_MAP_SCALE;
-let mapBaseScale = DEFAULT_MAP_SCALE;
 let mapCanvas = null;
 let scaleDisplay = null;
 const MAP_DISPLAY_SIZE = 600;
 
+// Apply a CSS transform rather than resizing the canvas element. This
+// keeps the canvas resolution consistent while visually zooming the
+// contents to represent different map scales.
 function updateMapDisplay() {
   if (mapCanvas) {
-    const zoomFactor = mapBaseScale / mapScale;
-    mapCanvas.style.width = `${MAP_DISPLAY_SIZE * zoomFactor}px`;
-    mapCanvas.style.height = `${MAP_DISPLAY_SIZE * zoomFactor}px`;
+    const zoomFactor = DEFAULT_MAP_SCALE / mapScale;
+    mapCanvas.style.transform = `scale(${zoomFactor})`;
+    mapCanvas.style.transformOrigin = '0 0';
   }
   if (scaleDisplay) scaleDisplay.textContent = `Grid: ${mapScale}m`;
 }
@@ -219,6 +221,11 @@ export function initGameUI() {
     mapWrapper.style.alignItems = 'flex-start';
     mapWrapper.style.marginTop = '10px';
 
+    const viewport = document.createElement('div');
+    viewport.style.width = `${MAP_DISPLAY_SIZE}px`;
+    viewport.style.height = `${MAP_DISPLAY_SIZE}px`;
+    viewport.style.overflow = 'hidden';
+
     const canvas = document.createElement('canvas');
     const pixels = loc.map.pixels;
     canvas.width = pixels[0].length;
@@ -239,10 +246,13 @@ export function initGameUI() {
     canvas.style.imageRendering = 'pixelated';
     canvas.style.display = 'block';
     canvas.style.margin = '0 auto';
+    canvas.style.width = `${MAP_DISPLAY_SIZE}px`;
+    canvas.style.height = `${MAP_DISPLAY_SIZE}px`;
     mapCanvas = canvas;
     mapScale = loc.map.scale || mapScale;
     updateMapDisplay();
-    mapWrapper.appendChild(canvas);
+    viewport.appendChild(canvas);
+    mapWrapper.appendChild(viewport);
 
     const legend = document.createElement('div');
     legend.style.marginLeft = '20px';
