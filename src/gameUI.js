@@ -5,6 +5,7 @@ import { getJobs, setJob } from './jobs.js';
 import store from './state.js';
 import { scavengeResources } from './resources.js';
 import { showBackButton } from './menu.js';
+import { allLocations } from './location.js';
 
 // Keep a reference to the scavenge count element so the display can
 // be refreshed whenever the UI rerenders.
@@ -189,6 +190,38 @@ export function initGameUI() {
   const container = document.getElementById('game');
   if (!container) return;
   container.innerHTML = '';
+
+  const loc = allLocations()[0];
+  if (loc?.map?.pixels) {
+    const mapWrapper = document.createElement('div');
+    mapWrapper.style.display = 'flex';
+    mapWrapper.style.justifyContent = 'center';
+    mapWrapper.style.marginTop = '10px';
+    const canvas = document.createElement('canvas');
+    const pixels = loc.map.pixels;
+    canvas.width = pixels[0].length;
+    canvas.height = pixels.length;
+    const ctx = canvas.getContext('2d');
+    const imgData = ctx.createImageData(canvas.width, canvas.height);
+    for (let y = 0; y < canvas.height; y++) {
+      for (let x = 0; x < canvas.width; x++) {
+        const color = pixels[y][x];
+        const idx = (y * canvas.width + x) * 4;
+        imgData.data[idx] = parseInt(color.slice(1, 3), 16);
+        imgData.data[idx + 1] = parseInt(color.slice(3, 5), 16);
+        imgData.data[idx + 2] = parseInt(color.slice(5, 7), 16);
+        imgData.data[idx + 3] = 255;
+      }
+    }
+    ctx.putImageData(imgData, 0, 0);
+    canvas.style.imageRendering = 'pixelated';
+    canvas.style.width = '300px';
+    canvas.style.height = '300px';
+    canvas.style.display = 'block';
+    canvas.style.margin = '0 auto';
+    mapWrapper.appendChild(canvas);
+    container.appendChild(mapWrapper);
+  }
 
   const turn = document.createElement('div');
   turn.id = 'turn';
