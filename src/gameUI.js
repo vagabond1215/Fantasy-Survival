@@ -6,7 +6,7 @@ import store from './state.js';
 import { scavengeResources } from './resources.js';
 import { showBackButton } from './menu.js';
 import { allLocations } from './location.js';
-import { FEATURE_COLORS, generateColorMap, getBiomeBorderColor } from './map.js';
+import { generateColorMap, getBiomeBorderColor, getFeatureColors } from './map.js';
 import { saveGame } from './persistence.js';
 import { getBiome } from './biomes.js';
 
@@ -24,6 +24,34 @@ const MAP_DISPLAY_SIZE = 600;
 let mapOffsetX = 0;
 let mapOffsetY = 0;
 let currentLocation = null;
+let mapViewport = null;
+let legendList = null;
+let lastSeason = null;
+
+const LEGEND_LABELS = {
+  water: 'Bodies of Water',
+  open: 'Open Land',
+  forest: 'Forest',
+  ore: 'Ore Deposits'
+};
+
+function updateLegendColors(season = store.time.season) {
+  if (!legendList || !currentLocation) return;
+  const colors = getFeatureColors(currentLocation.biome, season);
+  legendList.innerHTML = '';
+  Object.entries(colors).forEach(([key, color]) => {
+    const li = document.createElement('li');
+    const swatch = document.createElement('span');
+    swatch.style.display = 'inline-block';
+    swatch.style.width = '12px';
+    swatch.style.height = '12px';
+    swatch.style.backgroundColor = color;
+    swatch.style.marginRight = '6px';
+    li.appendChild(swatch);
+    li.appendChild(document.createTextNode(LEGEND_LABELS[key] || key));
+    legendList.appendChild(li);
+  });
+}
 
 function centerMap() {
   if (!mapCanvas || !currentLocation) return;
@@ -84,7 +112,15 @@ function ensureMapCoverage(preGenerate = false) {
   const buffer = preGenerate ? Math.max(loc.map.pixels[0].length, viewWidth) : 0;
 
   while (left < loc.map.xStart - buffer) {
-    const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart - chunk, loc.map.yStart, chunk, loc.map.pixels.length).pixels;
+    const extra = generateColorMap(
+      loc.biome,
+      loc.map.seed,
+      loc.map.xStart - chunk,
+      loc.map.yStart,
+      chunk,
+      loc.map.pixels.length,
+      store.time.season
+    ).pixels;
     for (let i = 0; i < loc.map.pixels.length; i++) {
       loc.map.pixels[i] = extra[i].concat(loc.map.pixels[i]);
     }
@@ -96,7 +132,15 @@ function ensureMapCoverage(preGenerate = false) {
     saveGame();
   }
   while (right > loc.map.xStart + loc.map.pixels[0].length + buffer) {
-    const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart + loc.map.pixels[0].length, loc.map.yStart, chunk, loc.map.pixels.length).pixels;
+    const extra = generateColorMap(
+      loc.biome,
+      loc.map.seed,
+      loc.map.xStart + loc.map.pixels[0].length,
+      loc.map.yStart,
+      chunk,
+      loc.map.pixels.length,
+      store.time.season
+    ).pixels;
     for (let i = 0; i < loc.map.pixels.length; i++) {
       loc.map.pixels[i] = loc.map.pixels[i].concat(extra[i]);
     }
@@ -104,7 +148,15 @@ function ensureMapCoverage(preGenerate = false) {
     saveGame();
   }
   while (top < loc.map.yStart - buffer) {
-    const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart, loc.map.yStart - chunk, loc.map.pixels[0].length, chunk).pixels;
+    const extra = generateColorMap(
+      loc.biome,
+      loc.map.seed,
+      loc.map.xStart,
+      loc.map.yStart - chunk,
+      loc.map.pixels[0].length,
+      chunk,
+      store.time.season
+    ).pixels;
     loc.map.pixels = extra.concat(loc.map.pixels);
     loc.map.yStart -= chunk;
     mapOffsetY -= chunk * zoomFactor;
@@ -114,7 +166,15 @@ function ensureMapCoverage(preGenerate = false) {
     saveGame();
   }
   while (bottom > loc.map.yStart + loc.map.pixels.length + buffer) {
-    const extra = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart, loc.map.yStart + loc.map.pixels.length, loc.map.pixels[0].length, chunk).pixels;
+    const extra = generateColorMap(
+      loc.biome,
+      loc.map.seed,
+      loc.map.xStart,
+      loc.map.yStart + loc.map.pixels.length,
+      loc.map.pixels[0].length,
+      chunk,
+      store.time.season
+    ).pixels;
     loc.map.pixels = loc.map.pixels.concat(extra);
     renderMap();
     saveGame();
@@ -191,6 +251,27 @@ function render() {
   const t = timeInfo();
   const turn = container.querySelector('#turn');
   if (turn) turn.textContent = `Day ${t.day} - ${t.season}`;
+
+  if (currentLocation && t.season !== lastSeason) {
+    const map = currentLocation.map;
+    const newMap = generateColorMap(
+      currentLocation.biome,
+      map.seed,
+      map.xStart,
+      map.yStart,
+      map.pixels[0].length,
+      map.pixels.length,
+      t.season
+    );
+    map.pixels = newMap.pixels;
+    map.season = t.season;
+    renderMap();
+    if (mapViewport) {
+      mapViewport.style.border = `4px solid ${getBiomeBorderColor(currentLocation.biome, t.season)}`;
+    }
+    updateLegendColors(t.season);
+    lastSeason = t.season;
+  }
 
   const changes = computeChanges();
   const jobs = getJobs();
@@ -320,6 +401,19 @@ export function initGameUI() {
   const loc = allLocations()[0];
   if (loc?.map?.pixels) {
     currentLocation = loc;
+    if (loc.map.season !== store.time.season) {
+      const newMap = generateColorMap(
+        loc.biome,
+        loc.map.seed,
+        loc.map.xStart,
+        loc.map.yStart,
+        loc.map.pixels[0].length,
+        loc.map.pixels.length,
+        store.time.season
+      );
+      loc.map.pixels = newMap.pixels;
+      loc.map.season = store.time.season;
+    }
     const mapWrapper = document.createElement('div');
     mapWrapper.style.display = 'flex';
     mapWrapper.style.justifyContent = 'center';
@@ -331,7 +425,8 @@ export function initGameUI() {
     viewport.style.height = `${MAP_DISPLAY_SIZE}px`;
     viewport.style.overflow = 'hidden';
     viewport.style.position = 'relative';
-    viewport.style.border = `4px solid ${getBiomeBorderColor(loc.biome)}`;
+    viewport.style.border = `4px solid ${getBiomeBorderColor(loc.biome, store.time.season)}`;
+    mapViewport = viewport;
 
     const canvas = document.createElement('canvas');
     canvas.style.position = 'absolute';
@@ -377,25 +472,9 @@ export function initGameUI() {
     legend.appendChild(title);
 
     const list = document.createElement('ul');
-    const labels = {
-      water: 'Bodies of Water',
-      open: 'Open Land',
-      forest: 'Forest',
-      ore: 'Ore Deposits'
-    };
-    Object.entries(FEATURE_COLORS).forEach(([key, color]) => {
-      const li = document.createElement('li');
-      const swatch = document.createElement('span');
-      swatch.style.display = 'inline-block';
-      swatch.style.width = '12px';
-      swatch.style.height = '12px';
-      swatch.style.backgroundColor = color;
-      swatch.style.marginRight = '6px';
-      li.appendChild(swatch);
-      li.appendChild(document.createTextNode(labels[key] || key));
-      list.appendChild(li);
-    });
     legend.appendChild(list);
+    legendList = list;
+    updateLegendColors(store.time.season);
 
     mapWrapper.appendChild(legend);
     container.appendChild(mapWrapper);
@@ -455,6 +534,7 @@ export function initGameUI() {
     });
 
     updateMapDisplay();
+    lastSeason = store.time.season;
 
     zoomControls.appendChild(centerBtn);
     zoomControls.appendChild(zoomOut);
