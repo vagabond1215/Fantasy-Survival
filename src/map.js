@@ -171,7 +171,8 @@ export function generateColorMap(
   yStart = 0,
   width = 200,
   height = 200,
-  season = store.time.season
+  season = store.time.season,
+  waterLevelOverride
 ) {
   const biome = getBiome(biomeId);
   const openLand = biome?.openLand ?? 0.5;
@@ -179,6 +180,7 @@ export function generateColorMap(
   const pixels = [];
   const elevations = [];
   const colors = getFeatureColors(biomeId, season);
+  const waterLevel = waterLevelOverride ?? biome?.elevation?.waterLevel ?? 0.3;
 
   for (let y = 0; y < height; y++) {
     const row = [];
@@ -189,7 +191,6 @@ export function generateColorMap(
       const elevation = getElevation(seed, gx, gy, biome?.elevation);
       eRow.push(elevation);
       let type = coordRand(seed, gx, gy, 'terrain') < openLand ? 'open' : 'forest';
-      const waterLevel = biome?.elevation?.waterLevel ?? 0.3;
       if (waterFeature && elevation < waterLevel) type = 'water';
       if (coordRand(seed, gx, gy, 'ore') < 0.02 && elevation >= waterLevel) type = 'ore';
       row.push(colors[type]);

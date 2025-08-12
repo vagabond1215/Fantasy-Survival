@@ -59,6 +59,9 @@ export function initSetupUI(onStart) {
     let mapOffsetY = 0;
     let scaleDisplay = null;
     let mapData = null;
+    let waterDisplay = null;
+    let waterLevelDefault = getBiome(biomeSelect.select.value)?.elevation?.waterLevel ?? 0.3;
+    let waterLevel = waterLevelDefault;
 
     const mapWrapper = document.createElement('div');
     mapWrapper.style.display = 'flex';
@@ -88,11 +91,53 @@ export function initSetupUI(onStart) {
     legend.appendChild(title);
     const list = document.createElement('ul');
     legend.appendChild(list);
+
+    const waterControls = document.createElement('div');
+    waterControls.style.display = 'flex';
+    waterControls.style.alignItems = 'center';
+    waterControls.style.justifyContent = 'center';
+    waterControls.style.marginTop = '10px';
+
+    const waterDown = document.createElement('button');
+    waterDown.type = 'button';
+    waterDown.textContent = '▼';
+    waterDown.style.width = '30px';
+    waterDown.style.height = '30px';
+    waterDown.style.padding = '0';
+
+    waterDisplay = document.createElement('button');
+    waterDisplay.type = 'button';
+    waterDisplay.style.margin = '0 5px';
+    waterDisplay.style.height = '30px';
+    waterDisplay.style.padding = '0 5px';
+
+    const waterUp = document.createElement('button');
+    waterUp.type = 'button';
+    waterUp.textContent = '▲';
+    waterUp.style.width = '30px';
+    waterUp.style.height = '30px';
+    waterUp.style.padding = '0';
+
+    waterControls.appendChild(waterDown);
+    waterControls.appendChild(waterDisplay);
+    waterControls.appendChild(waterUp);
+    legend.appendChild(waterControls);
+
     const labels = {
       water: 'Bodies of Water',
       open: 'Open Land',
       forest: 'Forest',
       ore: 'Ore Deposits'
+    };
+
+    const updateWaterDisplay = () => {
+      if (waterDisplay) waterDisplay.textContent = `${Math.round(waterLevel * 100)}%`;
+    };
+
+    const resetWaterLevel = () => {
+      waterLevelDefault = getBiome(biomeSelect.select.value)?.elevation?.waterLevel ?? 0.3;
+      waterLevel = waterLevelDefault;
+      updateWaterDisplay();
     };
     const updateLegend = () => {
       list.innerHTML = '';
@@ -112,6 +157,7 @@ export function initSetupUI(onStart) {
       title.textContent = getBiome(biomeSelect.select.value)?.name || biomeSelect.select.value;
     };
     updateLegend();
+    resetWaterLevel();
     mapWrapper.appendChild(legend);
     form.appendChild(mapWrapper);
 
@@ -233,7 +279,8 @@ export function initSetupUI(onStart) {
         -MAP_DISPLAY_SIZE / 2,
         MAP_DISPLAY_SIZE,
         MAP_DISPLAY_SIZE,
-        seasonSelect.select.value
+        seasonSelect.select.value,
+        waterLevel
       );
       renderMap();
       centerMap();
@@ -241,6 +288,22 @@ export function initSetupUI(onStart) {
       viewport.style.border = `4px solid ${getBiomeBorderColor(biomeId, seasonSelect.select.value)}`;
       updateLegend();
     };
+
+    waterDown.addEventListener('click', () => {
+      waterLevel = Math.max(0, Math.round((waterLevel - 0.05) * 100) / 100);
+      updateWaterDisplay();
+      generatePreview();
+    });
+    waterUp.addEventListener('click', () => {
+      waterLevel = Math.min(1, Math.round((waterLevel + 0.05) * 100) / 100);
+      updateWaterDisplay();
+      generatePreview();
+    });
+    waterDisplay.addEventListener('click', () => {
+      waterLevel = waterLevelDefault;
+      updateWaterDisplay();
+      generatePreview();
+    });
 
     centerBtn.addEventListener('click', () => {
       centerMap();
@@ -297,12 +360,14 @@ export function initSetupUI(onStart) {
 
     biomeSelect.select.addEventListener('change', () => {
       updateBiomeInfo();
+      resetWaterLevel();
       generatePreview();
     });
     seasonSelect.select.addEventListener('change', generatePreview);
-  diffSelect.select.addEventListener('change', updateDiffInfo);
+    diffSelect.select.addEventListener('change', updateDiffInfo);
     updateBiomeInfo();
     updateDiffInfo();
+    resetWaterLevel();
     generatePreview();
 
   form.addEventListener('submit', e => {
