@@ -5,7 +5,7 @@
 
 import { biomes, getBiome } from './biomes.js';
 import { difficulties, difficultySettings } from './difficulty.js';
-import { generateColorMap, FEATURE_COLORS, getBiomeBorderColor } from './map.js';
+import { generateColorMap, getFeatureColors, getBiomeBorderColor } from './map.js';
 
 const seasons = ['Spring', 'Summer', 'Autumn', 'Winter'];
 
@@ -85,28 +85,33 @@ export function initSetupUI(onStart) {
     const legend = document.createElement('div');
     legend.style.marginLeft = '20px';
     const title = document.createElement('h3');
-    title.textContent = getBiome(biomeSelect.select.value)?.name || biomeSelect.select.value;
     legend.appendChild(title);
     const list = document.createElement('ul');
+    legend.appendChild(list);
     const labels = {
       water: 'Bodies of Water',
       open: 'Open Land',
       forest: 'Forest',
       ore: 'Ore Deposits'
     };
-    Object.entries(FEATURE_COLORS).forEach(([key, color]) => {
-      const li = document.createElement('li');
-      const swatch = document.createElement('span');
-      swatch.style.display = 'inline-block';
-      swatch.style.width = '12px';
-      swatch.style.height = '12px';
-      swatch.style.backgroundColor = color;
-      swatch.style.marginRight = '6px';
-      li.appendChild(swatch);
-      li.appendChild(document.createTextNode(labels[key] || key));
-      list.appendChild(li);
-    });
-    legend.appendChild(list);
+    const updateLegend = () => {
+      list.innerHTML = '';
+      const colors = getFeatureColors(biomeSelect.select.value, seasonSelect.select.value);
+      Object.entries(colors).forEach(([key, color]) => {
+        const li = document.createElement('li');
+        const swatch = document.createElement('span');
+        swatch.style.display = 'inline-block';
+        swatch.style.width = '12px';
+        swatch.style.height = '12px';
+        swatch.style.backgroundColor = color;
+        swatch.style.marginRight = '6px';
+        li.appendChild(swatch);
+        li.appendChild(document.createTextNode(labels[key] || key));
+        list.appendChild(li);
+      });
+      title.textContent = getBiome(biomeSelect.select.value)?.name || biomeSelect.select.value;
+    };
+    updateLegend();
     mapWrapper.appendChild(legend);
     form.appendChild(mapWrapper);
 
@@ -227,13 +232,14 @@ export function initSetupUI(onStart) {
         -MAP_DISPLAY_SIZE / 2,
         -MAP_DISPLAY_SIZE / 2,
         MAP_DISPLAY_SIZE,
-        MAP_DISPLAY_SIZE
+        MAP_DISPLAY_SIZE,
+        seasonSelect.select.value
       );
       renderMap();
       centerMap();
       updateMapDisplay();
-      viewport.style.border = `4px solid ${getBiomeBorderColor(biomeId)}`;
-      title.textContent = getBiome(biomeId)?.name || biomeId;
+      viewport.style.border = `4px solid ${getBiomeBorderColor(biomeId, seasonSelect.select.value)}`;
+      updateLegend();
     };
 
     centerBtn.addEventListener('click', () => {
@@ -293,6 +299,7 @@ export function initSetupUI(onStart) {
       updateBiomeInfo();
       generatePreview();
     });
+    seasonSelect.select.addEventListener('change', generatePreview);
   diffSelect.select.addEventListener('change', updateDiffInfo);
     updateBiomeInfo();
     updateDiffInfo();

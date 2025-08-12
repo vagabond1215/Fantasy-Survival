@@ -1,11 +1,105 @@
 import { getBiome } from './biomes.js';
+import store from './state.js';
 
-export const FEATURE_COLORS = {
-  water: '#1E90FF', // blue
-  open: '#7CFC00', // light green
-  forest: '#228B22', // forest green
-  ore: '#B87333' // coppery brown for ore deposits
+// Color themes for each biome and season
+export const BIOME_COLOR_THEMES = {
+  alpine: {
+    Spring: { water: '#1E90FF', open: '#9ACD32', forest: '#2E8B57', ore: '#B87333' },
+    Summer: { water: '#1E90FF', open: '#7CFC00', forest: '#228B22', ore: '#B87333' },
+    Autumn: { water: '#1E90FF', open: '#DEB887', forest: '#556B2F', ore: '#B87333' },
+    Winter: { water: '#ADD8E6', open: '#FFFFFF', forest: '#A9A9A9', ore: '#B87333' }
+  },
+  'boreal-taiga': {
+    Spring: { water: '#4682B4', open: '#98FB98', forest: '#2E8B57', ore: '#B87333' },
+    Summer: { water: '#4682B4', open: '#6B8E23', forest: '#006400', ore: '#B87333' },
+    Autumn: { water: '#4682B4', open: '#CD853F', forest: '#556B2F', ore: '#B87333' },
+    Winter: { water: '#87CEFA', open: '#F5F5F5', forest: '#A9A9A9', ore: '#B87333' }
+  },
+  'coastal-temperate': {
+    Spring: { water: '#87CEFA', open: '#90EE90', forest: '#228B22', ore: '#B87333' },
+    Summer: { water: '#1E90FF', open: '#7CFC00', forest: '#006400', ore: '#B87333' },
+    Autumn: { water: '#87CEEB', open: '#DAA520', forest: '#8B4513', ore: '#B87333' },
+    Winter: { water: '#B0C4DE', open: '#D3D3D3', forest: '#A9A9A9', ore: '#B87333' }
+  },
+  'coastal-tropical': {
+    Spring: { water: '#00CED1', open: '#FFE4B5', forest: '#2E8B57', ore: '#B87333' },
+    Summer: { water: '#00CED1', open: '#FFDAB9', forest: '#228B22', ore: '#B87333' },
+    Autumn: { water: '#00CED1', open: '#FFE4B5', forest: '#228B22', ore: '#B87333' },
+    Winter: { water: '#00CED1', open: '#FFE4B5', forest: '#228B22', ore: '#B87333' }
+  },
+  'flooded-grasslands': {
+    Spring: { water: '#2E8B57', open: '#ADFF2F', forest: '#556B2F', ore: '#B87333' },
+    Summer: { water: '#228B22', open: '#7FFF00', forest: '#006400', ore: '#B87333' },
+    Autumn: { water: '#2E8B57', open: '#CD853F', forest: '#556B2F', ore: '#B87333' },
+    Winter: { water: '#4682B4', open: '#F0E68C', forest: '#A9A9A9', ore: '#B87333' }
+  },
+  'island-temperate': {
+    Spring: { water: '#1E90FF', open: '#90EE90', forest: '#228B22', ore: '#B87333' },
+    Summer: { water: '#1E90FF', open: '#7CFC00', forest: '#006400', ore: '#B87333' },
+    Autumn: { water: '#1E90FF', open: '#DAA520', forest: '#8B4513', ore: '#B87333' },
+    Winter: { water: '#87CEEB', open: '#D3D3D3', forest: '#A9A9A9', ore: '#B87333' }
+  },
+  'island-tropical': {
+    Spring: { water: '#00BFFF', open: '#FFE4B5', forest: '#2E8B57', ore: '#B87333' },
+    Summer: { water: '#00BFFF', open: '#FFDAB9', forest: '#228B22', ore: '#B87333' },
+    Autumn: { water: '#00BFFF', open: '#FFE4B5', forest: '#228B22', ore: '#B87333' },
+    Winter: { water: '#00BFFF', open: '#FFE4B5', forest: '#228B22', ore: '#B87333' }
+  },
+  mangrove: {
+    Spring: { water: '#2F4F4F', open: '#BDB76B', forest: '#556B2F', ore: '#B87333' },
+    Summer: { water: '#2F4F4F', open: '#BDB76B', forest: '#2E8B57', ore: '#B87333' },
+    Autumn: { water: '#2F4F4F', open: '#CD853F', forest: '#556B2F', ore: '#B87333' },
+    Winter: { water: '#2F4F4F', open: '#C0C0C0', forest: '#A9A9A9', ore: '#B87333' }
+  },
+  'mediterranean-woodland': {
+    Spring: { water: '#4682B4', open: '#9ACD32', forest: '#556B2F', ore: '#B87333' },
+    Summer: { water: '#4682B4', open: '#C2B280', forest: '#6B8E23', ore: '#B87333' },
+    Autumn: { water: '#4682B4', open: '#CD853F', forest: '#8B4513', ore: '#B87333' },
+    Winter: { water: '#4682B4', open: '#D3D3D3', forest: '#A9A9A9', ore: '#B87333' }
+  },
+  'montane-cloud': {
+    Spring: { water: '#87CEEB', open: '#66CDAA', forest: '#2E8B57', ore: '#B87333' },
+    Summer: { water: '#87CEEB', open: '#7FFFD4', forest: '#228B22', ore: '#B87333' },
+    Autumn: { water: '#87CEEB', open: '#DAA520', forest: '#556B2F', ore: '#B87333' },
+    Winter: { water: '#B0E0E6', open: '#F0F8FF', forest: '#A9A9A9', ore: '#B87333' }
+  },
+  savanna: {
+    Spring: { water: '#1E90FF', open: '#ADFF2F', forest: '#556B2F', ore: '#B87333' },
+    Summer: { water: '#1E90FF', open: '#DAA520', forest: '#6B8E23', ore: '#B87333' },
+    Autumn: { water: '#1E90FF', open: '#CD853F', forest: '#8B4513', ore: '#B87333' },
+    Winter: { water: '#1E90FF', open: '#F0E68C', forest: '#808000', ore: '#B87333' }
+  },
+  'temperate-deciduous': {
+    Spring: { water: '#1E90FF', open: '#90EE90', forest: '#228B22', ore: '#B87333' },
+    Summer: { water: '#1E90FF', open: '#7CFC00', forest: '#006400', ore: '#B87333' },
+    Autumn: { water: '#1E90FF', open: '#DEB887', forest: '#8B4513', ore: '#B87333' },
+    Winter: { water: '#87CEFA', open: '#F5F5F5', forest: '#A9A9A9', ore: '#B87333' }
+  },
+  'temperate-rainforest': {
+    Spring: { water: '#4682B4', open: '#90EE90', forest: '#2E8B57', ore: '#B87333' },
+    Summer: { water: '#4682B4', open: '#7CFC00', forest: '#006400', ore: '#B87333' },
+    Autumn: { water: '#4682B4', open: '#8FBC8F', forest: '#556B2F', ore: '#B87333' },
+    Winter: { water: '#4682B4', open: '#98FB98', forest: '#2F4F4F', ore: '#B87333' }
+  },
+  'tropical-monsoon': {
+    Spring: { water: '#00CED1', open: '#32CD32', forest: '#228B22', ore: '#B87333' },
+    Summer: { water: '#00CED1', open: '#7CFC00', forest: '#006400', ore: '#B87333' },
+    Autumn: { water: '#00CED1', open: '#ADFF2F', forest: '#228B22', ore: '#B87333' },
+    Winter: { water: '#00CED1', open: '#C2B280', forest: '#556B2F', ore: '#B87333' }
+  },
+  'tropical-rainforest': {
+    Spring: { water: '#00BFFF', open: '#32CD32', forest: '#006400', ore: '#B87333' },
+    Summer: { water: '#00BFFF', open: '#00FF7F', forest: '#006400', ore: '#B87333' },
+    Autumn: { water: '#00BFFF', open: '#3CB371', forest: '#228B22', ore: '#B87333' },
+    Winter: { water: '#00BFFF', open: '#2E8B57', forest: '#2E8B57', ore: '#B87333' }
+  }
 };
+
+export function getFeatureColors(biomeId, season = store.time.season) {
+  const biomeColors = BIOME_COLOR_THEMES[biomeId];
+  if (biomeColors && biomeColors[season]) return biomeColors[season];
+  return { water: '#1E90FF', open: '#7CFC00', forest: '#228B22', ore: '#B87333' };
+}
 
 export function hasWaterFeature(features = []) {
   return features.some(f => /(water|river|lake|shore|beach|lagoon|reef|marsh|bog|swamp|delta|stream|tide|coast)/i.test(f));
@@ -76,13 +170,15 @@ export function generateColorMap(
   xStart = 0,
   yStart = 0,
   width = 200,
-  height = 200
+  height = 200,
+  season = store.time.season
 ) {
   const biome = getBiome(biomeId);
   const openLand = biome?.openLand ?? 0.5;
   const waterFeature = biome && hasWaterFeature(biome.features);
   const pixels = [];
   const elevations = [];
+  const colors = getFeatureColors(biomeId, season);
 
   for (let y = 0; y < height; y++) {
     const row = [];
@@ -96,18 +192,18 @@ export function generateColorMap(
       const waterLevel = biome?.elevation?.waterLevel ?? 0.3;
       if (waterFeature && elevation < waterLevel) type = 'water';
       if (coordRand(seed, gx, gy, 'ore') < 0.02 && elevation >= waterLevel) type = 'ore';
-      row.push(FEATURE_COLORS[type]);
+      row.push(colors[type]);
     }
     pixels.push(row);
     elevations.push(eRow);
   }
 
-  return { scale: 100, seed, xStart, yStart, pixels, elevations };
+  return { scale: 100, seed, xStart, yStart, pixels, elevations, season };
 }
-
-export function getBiomeBorderColor(biomeId) {
+export function getBiomeBorderColor(biomeId, season = store.time.season) {
   const biome = getBiome(biomeId);
-  if (!biome) return FEATURE_COLORS.open;
-  if (hasWaterFeature(biome.features)) return FEATURE_COLORS.water;
-  return biome.openLand > 0.5 ? FEATURE_COLORS.open : FEATURE_COLORS.forest;
+  const colors = getFeatureColors(biomeId, season);
+  if (!biome) return colors.open;
+  if (hasWaterFeature(biome.features)) return colors.water;
+  return biome.openLand > 0.5 ? colors.open : colors.forest;
 }

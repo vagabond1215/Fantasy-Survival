@@ -26,15 +26,14 @@ function startGame(settings = {}) {
 
   Object.entries(cfg.tools).forEach(([item, qty]) => addItem(item, qty));
 
+  if (settings.season) store.time.season = settings.season;
   if (settings.biome) {
-    generateLocation('loc1', settings.biome);
+    generateLocation('loc1', settings.biome, store.time.season);
   } else if (store.locations.size === 0) {
-    generateLocation('loc1', 'temperate-deciduous');
+    generateLocation('loc1', 'temperate-deciduous', store.time.season);
   }
   shelterTypes.forEach(registerBuildingType);
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
-
-  if (settings.season) store.time.season = settings.season;
   store.difficulty = diff;
   // Initialize available jobs, starting with scavenging
   store.jobs = { scavenge: 0 };
