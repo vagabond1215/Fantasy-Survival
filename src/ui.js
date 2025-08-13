@@ -62,6 +62,8 @@ export function initSetupUI(onStart) {
     let waterDisplay = null;
     let waterLevelDefault = getBiome(biomeSelect.select.value)?.elevation?.waterLevel ?? 0.3;
     let waterLevel = waterLevelDefault;
+    let mapSeed = Date.now().toString();
+    let seedDisplay = null;
 
     const mapWrapper = document.createElement('div');
     mapWrapper.style.display = 'flex';
@@ -139,6 +141,9 @@ export function initSetupUI(onStart) {
       waterLevel = waterLevelDefault;
       updateWaterDisplay();
     };
+    const updateSeedDisplay = () => {
+      if (seedDisplay) seedDisplay.textContent = mapSeed;
+    };
     const updateLegend = () => {
       list.innerHTML = '';
       const colors = getFeatureColors(biomeSelect.select.value, seasonSelect.select.value);
@@ -206,11 +211,34 @@ export function initSetupUI(onStart) {
     zoomIn.style.lineHeight = BTN_SIZE;
     zoomIn.style.boxSizing = 'border-box';
 
-    const regenBtn = document.createElement('button');
-    regenBtn.type = 'button';
-    regenBtn.textContent = 'Regenerate';
+    const randomSeedBtn = document.createElement('button');
+    randomSeedBtn.type = 'button';
+    randomSeedBtn.textContent = '🎲';
+    randomSeedBtn.style.width = BTN_SIZE;
+    randomSeedBtn.style.height = BTN_SIZE;
+    randomSeedBtn.style.padding = '0';
+    randomSeedBtn.style.lineHeight = BTN_SIZE;
+    randomSeedBtn.style.boxSizing = 'border-box';
 
-    zoomControls.appendChild(regenBtn);
+    seedDisplay = document.createElement('button');
+    seedDisplay.type = 'button';
+    seedDisplay.style.margin = '0 5px';
+    seedDisplay.style.height = BTN_SIZE;
+    seedDisplay.style.lineHeight = BTN_SIZE;
+    seedDisplay.style.padding = '0 5px';
+    seedDisplay.style.boxSizing = 'border-box';
+
+    const generateBtn = document.createElement('button');
+    generateBtn.type = 'button';
+    generateBtn.textContent = 'Generate';
+    generateBtn.style.height = BTN_SIZE;
+    generateBtn.style.lineHeight = BTN_SIZE;
+    generateBtn.style.padding = '0 5px';
+    generateBtn.style.boxSizing = 'border-box';
+
+    zoomControls.appendChild(randomSeedBtn);
+    zoomControls.appendChild(seedDisplay);
+    zoomControls.appendChild(generateBtn);
     zoomControls.appendChild(centerBtn);
     zoomControls.appendChild(zoomOut);
     zoomControls.appendChild(scaleDisplay);
@@ -274,7 +302,7 @@ export function initSetupUI(onStart) {
       const biomeId = biomeSelect.select.value;
       mapData = generateColorMap(
         biomeId,
-        Date.now(),
+        mapSeed,
         -MAP_DISPLAY_SIZE / 2,
         -MAP_DISPLAY_SIZE / 2,
         MAP_DISPLAY_SIZE,
@@ -315,7 +343,20 @@ export function initSetupUI(onStart) {
       mapScale = DEFAULT_MAP_SCALE;
       updateMapDisplay();
     });
-    regenBtn.addEventListener('click', generatePreview);
+    generateBtn.addEventListener('click', generatePreview);
+    randomSeedBtn.addEventListener('click', () => {
+      mapSeed = Date.now().toString();
+      updateSeedDisplay();
+      generatePreview();
+    });
+    seedDisplay.addEventListener('click', () => {
+      const input = prompt('Enter seed:', mapSeed);
+      if (input !== null && input !== '') {
+        mapSeed = input;
+        updateSeedDisplay();
+        generatePreview();
+      }
+    });
 
     let dragging = false;
     let lastX = 0;
@@ -368,6 +409,7 @@ export function initSetupUI(onStart) {
     updateBiomeInfo();
     updateDiffInfo();
     resetWaterLevel();
+    updateSeedDisplay();
     generatePreview();
 
   form.addEventListener('submit', e => {
@@ -375,7 +417,8 @@ export function initSetupUI(onStart) {
     const settings = {
       biome: biomeSelect.select.value,
       season: seasonSelect.select.value,
-      difficulty: diffSelect.select.value
+      difficulty: diffSelect.select.value,
+      seed: mapData?.seed || mapSeed
     };
     form.remove();
     if (typeof onStart === 'function') onStart(settings);
