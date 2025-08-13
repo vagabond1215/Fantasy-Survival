@@ -28,9 +28,9 @@ function startGame(settings = {}) {
 
   if (settings.season) store.time.season = settings.season;
   if (settings.biome) {
-    generateLocation('loc1', settings.biome, store.time.season);
+    generateLocation('loc1', settings.biome, store.time.season, settings.seed);
   } else if (store.locations.size === 0) {
-    generateLocation('loc1', 'temperate-deciduous', store.time.season);
+    generateLocation('loc1', 'temperate-deciduous', store.time.season, settings.seed);
   }
   shelterTypes.forEach(registerBuildingType);
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
