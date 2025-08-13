@@ -138,7 +138,7 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
-function elevationNoise(seed, x, y, scale) {
+function noise2D(seed, x, y, scale, salt) {
   const nx = x / scale;
   const ny = y / scale;
   const x0 = Math.floor(nx);
@@ -148,14 +148,26 @@ function elevationNoise(seed, x, y, scale) {
   const sx = nx - x0;
   const sy = ny - y0;
 
-  const n00 = coordRand(seed, x0, y0, 'elev');
-  const n10 = coordRand(seed, x1, y0, 'elev');
-  const n01 = coordRand(seed, x0, y1, 'elev');
-  const n11 = coordRand(seed, x1, y1, 'elev');
+  const n00 = coordRand(seed, x0, y0, salt);
+  const n10 = coordRand(seed, x1, y0, salt);
+  const n01 = coordRand(seed, x0, y1, salt);
+  const n11 = coordRand(seed, x1, y1, salt);
 
   const ix0 = lerp(n00, n10, sx);
   const ix1 = lerp(n01, n11, sx);
   return lerp(ix0, ix1, sy);
+}
+
+function elevationNoise(seed, x, y, scale) {
+  return noise2D(seed, x, y, scale, 'elev');
+}
+
+function vegetationNoise(seed, x, y, scale) {
+  return noise2D(seed, x, y, scale, 'veg');
+}
+
+function oreNoise(seed, x, y, scale) {
+  return noise2D(seed, x, y, scale, 'ore');
 }
 
 function getElevation(seed, x, y, options = {}) {
@@ -181,6 +193,8 @@ export function generateColorMap(
   const elevations = [];
   const colors = getFeatureColors(biomeId, season);
   const waterLevel = waterLevelOverride ?? biome?.elevation?.waterLevel ?? 0.3;
+  // scale for vegetation pattern: more open land -> larger contiguous clearings
+  const vegScale = 20 + openLand * 80;
 
   for (let y = 0; y < height; y++) {
     const row = [];
@@ -190,9 +204,14 @@ export function generateColorMap(
       const gy = yStart + y;
       const elevation = getElevation(seed, gx, gy, biome?.elevation);
       eRow.push(elevation);
-      let type = coordRand(seed, gx, gy, 'terrain') < openLand ? 'open' : 'forest';
-      if (waterFeature && elevation < waterLevel) type = 'water';
-      if (coordRand(seed, gx, gy, 'ore') < 0.02 && elevation >= waterLevel) type = 'ore';
+      let type;
+      if (waterFeature && elevation < waterLevel) {
+        type = 'water';
+      } else {
+        type = vegetationNoise(seed, gx, gy, vegScale) < openLand ? 'open' : 'forest';
+        const oreVal = oreNoise(seed, gx, gy, 12);
+        if (oreVal > 0.85 && elevation >= waterLevel) type = 'ore';
+      }
       row.push(colors[type]);
     }
     pixels.push(row);
