@@ -218,7 +218,7 @@ export function generateColorMap(
     elevations.push(eRow);
   }
 
-  return { scale: 100, seed, xStart, yStart, pixels, elevations, season };
+  return { scale: 100, seed, xStart, yStart, pixels, elevations, season, waterLevel };
 }
 export function getBiomeBorderColor(biomeId, season = store.time.season) {
   const biome = getBiome(biomeId);
