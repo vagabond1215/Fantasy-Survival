@@ -401,6 +401,19 @@ export function initGameUI() {
   const loc = allLocations()[0];
   if (loc?.map?.pixels) {
     currentLocation = loc;
+    let waterLevelDefault = getBiome(loc.biome)?.elevation?.waterLevel ?? 0.3;
+    let waterLevel = loc.map.waterLevel ?? waterLevelDefault;
+    let waterDisplay = null;
+    let waterFeaturesContainer = null;
+    let waterFeatureCounts = {};
+    const WATER_FEATURE_TYPES = [
+      { name: 'River', keyword: 'river' },
+      { name: 'Creek', keyword: 'creek' },
+      { name: 'Lake', keyword: 'lake' },
+      { name: 'Spring', keyword: 'spring' },
+      { name: 'Estuary Branch', keyword: 'estuary' },
+      { name: 'Inlet', keyword: 'inlet' }
+    ];
     if (loc.map.season !== store.time.season) {
       const newMap = generateColorMap(
         loc.biome,
@@ -409,11 +422,93 @@ export function initGameUI() {
         loc.map.yStart,
         loc.map.pixels[0].length,
         loc.map.pixels.length,
-        store.time.season
+        store.time.season,
+        waterLevel
       );
       loc.map.pixels = newMap.pixels;
       loc.map.season = store.time.season;
     }
+
+    const updateWaterDisplay = () => {
+      if (waterDisplay) waterDisplay.textContent = `${Math.round(waterLevel * 100)}%`;
+    };
+
+    const updateWaterFeatures = () => {
+      if (!waterFeaturesContainer) return;
+      waterFeaturesContainer.innerHTML = '';
+      waterFeatureCounts = {};
+      const biomeFeatures = (getBiome(currentLocation.biome)?.features || []).map(f => f.toLowerCase());
+      WATER_FEATURE_TYPES.forEach(f => {
+        if (!biomeFeatures.some(bf => bf.includes(f.keyword))) return;
+        waterFeatureCounts[f.name] = 0;
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.justifyContent = 'center';
+        row.style.marginTop = '4px';
+
+        const label = document.createElement('span');
+        label.textContent = f.name;
+        label.style.marginRight = '5px';
+        row.appendChild(label);
+
+        const minus = document.createElement('button');
+        minus.type = 'button';
+        minus.textContent = '-';
+        minus.style.width = '30px';
+        minus.style.height = '30px';
+        minus.style.padding = '0';
+
+        const display = document.createElement('button');
+        display.type = 'button';
+        display.textContent = '0';
+        display.style.margin = '0 5px';
+        display.style.height = '30px';
+        display.style.padding = '0 5px';
+
+        const plus = document.createElement('button');
+        plus.type = 'button';
+        plus.textContent = '+';
+        plus.style.width = '30px';
+        plus.style.height = '30px';
+        plus.style.padding = '0';
+
+        minus.addEventListener('click', () => {
+          waterFeatureCounts[f.name] = Math.max(0, waterFeatureCounts[f.name] - 1);
+          display.textContent = waterFeatureCounts[f.name];
+        });
+        plus.addEventListener('click', () => {
+          waterFeatureCounts[f.name] += 1;
+          display.textContent = waterFeatureCounts[f.name];
+        });
+        display.addEventListener('click', () => {
+          waterFeatureCounts[f.name] = 0;
+          display.textContent = '0';
+        });
+
+        row.appendChild(minus);
+        row.appendChild(display);
+        row.appendChild(plus);
+        waterFeaturesContainer.appendChild(row);
+      });
+    };
+
+    const regenerateWater = () => {
+      const newMap = generateColorMap(
+        loc.biome,
+        loc.map.seed,
+        loc.map.xStart,
+        loc.map.yStart,
+        loc.map.pixels[0].length,
+        loc.map.pixels.length,
+        store.time.season,
+        waterLevel
+      );
+      currentLocation.map = { ...currentLocation.map, ...newMap };
+      renderMap();
+      updateMapDisplay();
+    };
+
     const mapWrapper = document.createElement('div');
     mapWrapper.style.display = 'flex';
     mapWrapper.style.justifyContent = 'center';
@@ -475,6 +570,77 @@ export function initGameUI() {
     legend.appendChild(list);
     legendList = list;
     updateLegendColors(store.time.season);
+
+    const waterSection = document.createElement('details');
+    const waterSummary = document.createElement('summary');
+    waterSummary.textContent = 'Water';
+    waterSection.appendChild(waterSummary);
+
+    const waterContent = document.createElement('div');
+    waterContent.style.display = 'flex';
+    waterContent.style.flexDirection = 'column';
+    waterContent.style.alignItems = 'center';
+    waterSection.appendChild(waterContent);
+
+    const waterLevelLabel = document.createElement('div');
+    waterLevelLabel.textContent = 'Water Level';
+    waterContent.appendChild(waterLevelLabel);
+
+    const waterControls = document.createElement('div');
+    waterControls.style.display = 'flex';
+    waterControls.style.alignItems = 'center';
+    waterControls.style.justifyContent = 'center';
+    waterControls.style.marginTop = '5px';
+
+    const waterDown = document.createElement('button');
+    waterDown.type = 'button';
+    waterDown.textContent = '▼';
+    waterDown.style.width = '30px';
+    waterDown.style.height = '30px';
+    waterDown.style.padding = '0';
+
+    waterDisplay = document.createElement('button');
+    waterDisplay.type = 'button';
+    waterDisplay.style.margin = '0 5px';
+    waterDisplay.style.height = '30px';
+    waterDisplay.style.padding = '0 5px';
+
+    const waterUp = document.createElement('button');
+    waterUp.type = 'button';
+    waterUp.textContent = '▲';
+    waterUp.style.width = '30px';
+    waterUp.style.height = '30px';
+    waterUp.style.padding = '0';
+
+    waterControls.appendChild(waterDown);
+    waterControls.appendChild(waterDisplay);
+    waterControls.appendChild(waterUp);
+    waterContent.appendChild(waterControls);
+
+    waterFeaturesContainer = document.createElement('div');
+    waterFeaturesContainer.style.marginTop = '5px';
+    waterContent.appendChild(waterFeaturesContainer);
+
+    waterDown.addEventListener('click', () => {
+      waterLevel = Math.max(0, Math.round((waterLevel - 0.05) * 100) / 100);
+      updateWaterDisplay();
+      regenerateWater();
+    });
+    waterUp.addEventListener('click', () => {
+      waterLevel = Math.min(1, Math.round((waterLevel + 0.05) * 100) / 100);
+      updateWaterDisplay();
+      regenerateWater();
+    });
+    waterDisplay.addEventListener('click', () => {
+      waterLevel = waterLevelDefault;
+      updateWaterDisplay();
+      regenerateWater();
+    });
+
+    legend.appendChild(waterSection);
+
+    updateWaterDisplay();
+    updateWaterFeatures();
 
     mapWrapper.appendChild(legend);
     container.appendChild(mapWrapper);

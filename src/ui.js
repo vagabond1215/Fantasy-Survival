@@ -60,8 +60,18 @@ export function initSetupUI(onStart) {
     let scaleDisplay = null;
     let mapData = null;
     let waterDisplay = null;
+    let waterFeaturesContainer = null;
     let waterLevelDefault = getBiome(biomeSelect.select.value)?.elevation?.waterLevel ?? 0.3;
     let waterLevel = waterLevelDefault;
+    let waterFeatureCounts = {};
+    const WATER_FEATURE_TYPES = [
+      { name: 'River', keyword: 'river' },
+      { name: 'Creek', keyword: 'creek' },
+      { name: 'Lake', keyword: 'lake' },
+      { name: 'Spring', keyword: 'spring' },
+      { name: 'Estuary Branch', keyword: 'estuary' },
+      { name: 'Inlet', keyword: 'inlet' }
+    ];
     let mapSeed = Date.now().toString();
     let seedDisplay = null;
 
@@ -94,11 +104,26 @@ export function initSetupUI(onStart) {
     const list = document.createElement('ul');
     legend.appendChild(list);
 
+    const waterSection = document.createElement('details');
+    const waterSummary = document.createElement('summary');
+    waterSummary.textContent = 'Water';
+    waterSection.appendChild(waterSummary);
+
+    const waterContent = document.createElement('div');
+    waterContent.style.display = 'flex';
+    waterContent.style.flexDirection = 'column';
+    waterContent.style.alignItems = 'center';
+    waterSection.appendChild(waterContent);
+
+    const waterLevelLabel = document.createElement('div');
+    waterLevelLabel.textContent = 'Water Level';
+    waterContent.appendChild(waterLevelLabel);
+
     const waterControls = document.createElement('div');
     waterControls.style.display = 'flex';
     waterControls.style.alignItems = 'center';
     waterControls.style.justifyContent = 'center';
-    waterControls.style.marginTop = '10px';
+    waterControls.style.marginTop = '5px';
 
     const waterDown = document.createElement('button');
     waterDown.type = 'button';
@@ -123,7 +148,13 @@ export function initSetupUI(onStart) {
     waterControls.appendChild(waterDown);
     waterControls.appendChild(waterDisplay);
     waterControls.appendChild(waterUp);
-    legend.appendChild(waterControls);
+    waterContent.appendChild(waterControls);
+
+    waterFeaturesContainer = document.createElement('div');
+    waterFeaturesContainer.style.marginTop = '5px';
+    waterContent.appendChild(waterFeaturesContainer);
+
+    legend.appendChild(waterSection);
 
     const labels = {
       water: 'Bodies of Water',
@@ -134,6 +165,66 @@ export function initSetupUI(onStart) {
 
     const updateWaterDisplay = () => {
       if (waterDisplay) waterDisplay.textContent = `${Math.round(waterLevel * 100)}%`;
+    };
+
+    const updateWaterFeatures = () => {
+      if (!waterFeaturesContainer) return;
+      waterFeaturesContainer.innerHTML = '';
+      waterFeatureCounts = {};
+      const biomeFeatures = (getBiome(biomeSelect.select.value)?.features || []).map(f => f.toLowerCase());
+      WATER_FEATURE_TYPES.forEach(f => {
+        if (!biomeFeatures.some(bf => bf.includes(f.keyword))) return;
+        waterFeatureCounts[f.name] = 0;
+        const row = document.createElement('div');
+        row.style.display = 'flex';
+        row.style.alignItems = 'center';
+        row.style.justifyContent = 'center';
+        row.style.marginTop = '4px';
+
+        const label = document.createElement('span');
+        label.textContent = f.name;
+        label.style.marginRight = '5px';
+        row.appendChild(label);
+
+        const minus = document.createElement('button');
+        minus.type = 'button';
+        minus.textContent = '-';
+        minus.style.width = '30px';
+        minus.style.height = '30px';
+        minus.style.padding = '0';
+
+        const display = document.createElement('button');
+        display.type = 'button';
+        display.textContent = '0';
+        display.style.margin = '0 5px';
+        display.style.height = '30px';
+        display.style.padding = '0 5px';
+
+        const plus = document.createElement('button');
+        plus.type = 'button';
+        plus.textContent = '+';
+        plus.style.width = '30px';
+        plus.style.height = '30px';
+        plus.style.padding = '0';
+
+        minus.addEventListener('click', () => {
+          waterFeatureCounts[f.name] = Math.max(0, waterFeatureCounts[f.name] - 1);
+          display.textContent = waterFeatureCounts[f.name];
+        });
+        plus.addEventListener('click', () => {
+          waterFeatureCounts[f.name] = waterFeatureCounts[f.name] + 1;
+          display.textContent = waterFeatureCounts[f.name];
+        });
+        display.addEventListener('click', () => {
+          waterFeatureCounts[f.name] = 0;
+          display.textContent = '0';
+        });
+
+        row.appendChild(minus);
+        row.appendChild(display);
+        row.appendChild(plus);
+        waterFeaturesContainer.appendChild(row);
+      });
     };
 
     const resetWaterLevel = () => {
@@ -163,6 +254,7 @@ export function initSetupUI(onStart) {
     };
     updateLegend();
     resetWaterLevel();
+    updateWaterFeatures();
     mapWrapper.appendChild(legend);
     form.appendChild(mapWrapper);
 
@@ -402,6 +494,7 @@ export function initSetupUI(onStart) {
     biomeSelect.select.addEventListener('change', () => {
       updateBiomeInfo();
       resetWaterLevel();
+      updateWaterFeatures();
       generatePreview();
     });
     seasonSelect.select.addEventListener('change', generatePreview);
