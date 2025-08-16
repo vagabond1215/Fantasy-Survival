@@ -2,7 +2,13 @@ export const biomes = [
   {
     id: 'alpine',
     name: 'Alpine',
-    features: ['snow-capped peaks', 'glacial valley', 'rocky slopes'],
+    features: [
+      'snow-capped peaks',
+      'glacial valley',
+      'rocky slopes',
+      'alpine lake',
+      'mountain stream'
+    ],
     woodMod: 0.3,
     openLand: 0.2,
     food: 0.2,
@@ -12,7 +18,7 @@ export const biomes = [
   {
     id: 'boreal-taiga',
     name: 'Boreal (Taiga)',
-    features: ['conifer forest', 'bog', 'cold rivers'],
+    features: ['conifer forest', 'bog', 'cold rivers', 'glacial lake'],
     woodMod: 1.0,
     openLand: 0.3,
     food: 0.4,
@@ -22,7 +28,7 @@ export const biomes = [
   {
     id: 'coastal-temperate',
     name: 'Coastal (Temperate)',
-    features: ['rocky shore', 'tide pools', 'windy cliffs'],
+    features: ['rocky shore', 'tide pools', 'windy cliffs', 'sea inlet'],
     woodMod: 0.8,
     openLand: 0.5,
     food: 0.6,
@@ -32,7 +38,7 @@ export const biomes = [
   {
     id: 'coastal-tropical',
     name: 'Coastal (Tropical)',
-    features: ['sandy beaches', 'coral reefs', 'lagoon'],
+    features: ['sandy beaches', 'coral reefs', 'lagoon', 'tidal creek'],
     woodMod: 0.9,
     openLand: 0.5,
     food: 0.9,
@@ -42,7 +48,7 @@ export const biomes = [
   {
     id: 'flooded-grasslands',
     name: 'Flooded Grasslands / Swamp',
-    features: ['marsh', 'reed beds', 'shallow lakes'],
+    features: ['marsh', 'reed beds', 'shallow lakes', 'bog'],
     woodMod: 0.7,
     openLand: 0.4,
     food: 0.6,
@@ -52,7 +58,7 @@ export const biomes = [
   {
     id: 'island-temperate',
     name: 'Island (Temperate)',
-    features: ['pebble beach', 'forest interior', 'cliffs'],
+    features: ['pebble beach', 'forest interior', 'cliffs', 'tidal inlet'],
     woodMod: 0.8,
     openLand: 0.5,
     food: 0.7,
@@ -62,7 +68,7 @@ export const biomes = [
   {
     id: 'island-tropical',
     name: 'Island (Tropical)',
-    features: ['palm beach', 'volcanic ridge', 'lagoon'],
+    features: ['palm beach', 'volcanic ridge', 'lagoon', 'coral reef'],
     woodMod: 0.9,
     openLand: 0.5,
     food: 0.9,
@@ -72,7 +78,7 @@ export const biomes = [
   {
     id: 'mangrove',
     name: 'Mangrove',
-    features: ['mangrove forest', 'brackish water', 'mudflats'],
+    features: ['mangrove forest', 'brackish water', 'mudflats', 'tidal creek'],
     woodMod: 1.0,
     openLand: 0.3,
     food: 0.8,
@@ -82,7 +88,7 @@ export const biomes = [
   {
     id: 'mediterranean-woodland',
     name: 'Mediterranean Woodland',
-    features: ['scrubland', 'olive groves', 'rocky hills'],
+    features: ['scrubland', 'olive groves', 'rocky hills', 'seasonal stream'],
     woodMod: 0.9,
     openLand: 0.6,
     food: 0.7,
@@ -92,7 +98,7 @@ export const biomes = [
   {
     id: 'montane-cloud',
     name: 'Montane / Cloud',
-    features: ['misty forest', 'steep terrain', 'waterfalls'],
+    features: ['misty forest', 'steep terrain', 'waterfalls', 'cloud-fed springs'],
     woodMod: 0.8,
     openLand: 0.3,
     food: 0.5,
@@ -102,7 +108,7 @@ export const biomes = [
   {
     id: 'savanna',
     name: 'Savanna',
-    features: ['grassland', 'acacia trees', 'watering hole'],
+    features: ['grassland', 'acacia trees', 'watering hole', 'seasonal river'],
     woodMod: 0.6,
     openLand: 0.8,
     food: 0.5,
@@ -112,7 +118,7 @@ export const biomes = [
   {
     id: 'temperate-deciduous',
     name: 'Temperate Deciduous',
-    features: ['broadleaf forest', 'meadow', 'stream'],
+    features: ['broadleaf forest', 'meadow', 'stream', 'forest lake'],
     woodMod: 1.1,
     openLand: 0.6,
     food: 0.7,
@@ -122,7 +128,7 @@ export const biomes = [
   {
     id: 'temperate-rainforest',
     name: 'Temperate Rainforest',
-    features: ['wet forest', 'coastal cliffs', 'mossy ground'],
+    features: ['wet forest', 'coastal cliffs', 'mossy ground', 'rain-fed river'],
     woodMod: 1.1,
     openLand: 0.4,
     food: 0.8,
@@ -132,7 +138,7 @@ export const biomes = [
   {
     id: 'tropical-monsoon',
     name: 'Tropical Monsoon',
-    features: ['seasonal forest', 'river delta', 'monsoon rains'],
+    features: ['seasonal forest', 'river delta', 'monsoon rains', 'seasonal lagoon'],
     woodMod: 1.0,
     openLand: 0.5,
     food: 1.0,
@@ -142,7 +148,7 @@ export const biomes = [
   {
     id: 'tropical-rainforest',
     name: 'Tropical Rainforest',
-    features: ['dense jungle', 'river', 'rolling hills'],
+    features: ['dense jungle', 'river', 'rolling hills', 'hidden waterfall'],
     woodMod: 1.2,
     openLand: 0.3,
     food: 1.2,
