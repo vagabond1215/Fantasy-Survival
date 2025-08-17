@@ -412,7 +412,19 @@ export function initGameUI() {
       { name: 'Lake', keyword: 'lake' },
       { name: 'Spring', keyword: 'spring' },
       { name: 'Estuary Branch', keyword: 'estuary' },
-      { name: 'Inlet', keyword: 'inlet' }
+      { name: 'Inlet', keyword: 'inlet' },
+      { name: 'Waterfall', keyword: 'waterfall' },
+      { name: 'Lagoon', keyword: 'lagoon' },
+      { name: 'Marsh', keyword: 'marsh' },
+      { name: 'Bog', keyword: 'bog' },
+      { name: 'Tide Pool', keyword: 'tide' },
+      { name: 'Beach', keyword: 'beach' },
+      { name: 'Shore', keyword: 'shore' },
+      { name: 'Reef', keyword: 'reef' },
+      { name: 'Delta', keyword: 'delta' },
+      { name: 'Watering Hole', keyword: 'watering hole' },
+      { name: 'Stream', keyword: 'stream' },
+      { name: 'Mudflat', keyword: 'mudflat' }
     ];
     if (loc.map.season !== store.time.season) {
       const newMap = generateColorMap(
@@ -478,7 +490,7 @@ export function initGameUI() {
           display.textContent = waterFeatureCounts[f.name];
         });
         plus.addEventListener('click', () => {
-          waterFeatureCounts[f.name] += 1;
+          waterFeatureCounts[f.name] = Math.min(5, waterFeatureCounts[f.name] + 1);
           display.textContent = waterFeatureCounts[f.name];
         });
         display.addEventListener('click', () => {
