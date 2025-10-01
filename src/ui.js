@@ -88,6 +88,13 @@ export function initSetupUI(onStart) {
 
   mapSection.appendChild(seedRow);
 
+  const LEGEND_LABELS = {
+    water: 'Water',
+    open: 'Open Land',
+    forest: 'Forest',
+    ore: 'Ore Deposits'
+  };
+
   const mapView = createMapView(mapSection, {
     legendLabels: LEGEND_LABELS,
     showControls: true,
@@ -103,13 +110,6 @@ export function initSetupUI(onStart) {
   form.appendChild(startBtn);
 
   container.appendChild(form);
-
-  const LEGEND_LABELS = {
-    water: 'Water',
-    open: 'Open Land',
-    forest: 'Forest',
-    ore: 'Ore Deposits'
-  };
 
   function updateInfo() {
     const biome = getBiome(biomeSelect.select.value);
