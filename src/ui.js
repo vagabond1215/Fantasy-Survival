@@ -99,7 +99,24 @@ export function initSetupUI(onStart) {
     legendLabels: LEGEND_LABELS,
     showControls: true,
     showLegend: true,
-    idPrefix: 'setup-map'
+    idPrefix: 'setup-map',
+    fetchMap: ({ xStart, yStart, width, height, seed, season, context }) => {
+      const biomeId = context?.biomeId || biomeSelect.select.value;
+      const nextSeed = seed ?? mapSeed;
+      const nextSeason = season ?? seasonSelect.select.value;
+      return generateColorMap(
+        biomeId,
+        nextSeed,
+        xStart,
+        yStart,
+        width,
+        height,
+        nextSeason
+      );
+    },
+    onMapUpdate: updated => {
+      mapData = { ...updated };
+    }
   });
 
   form.appendChild(mapSection);
@@ -133,7 +150,11 @@ export function initSetupUI(onStart) {
 
   function renderMapPreview() {
     if (!mapData) return;
-    mapView.setMap(mapData);
+    mapView.setMap(mapData, {
+      biomeId: biomeSelect.select.value,
+      seed: mapData?.seed ?? mapSeed,
+      season: mapData?.season ?? seasonSelect.select.value
+    });
   }
 
   function generatePreview() {

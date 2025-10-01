@@ -37,21 +37,26 @@ export function createMapView(container, {
   showControls = true,
   showLegend = true,
   allowDrag = true,
-  idPrefix = 'map'
+  idPrefix = 'map',
+  fetchMap = null,
+  onMapUpdate = null
 } = {}) {
   if (!container) throw new Error('Container is required for map view');
 
   const state = {
     map: null,
-    initialized: false,
+    context: {},
+    home: { xStart: 0, yStart: 0 },
     drag: {
       active: false,
-      startX: 0,
-      startY: 0,
-      scrollLeft: 0,
-      scrollTop: 0
+      lastX: 0,
+      lastY: 0,
+      pendingX: 0,
+      pendingY: 0
     },
-    resizeHandler: null
+    resizeHandler: null,
+    fetchMap,
+    onMapUpdate
   };
 
   const mapWrapper = document.createElement('div');
@@ -59,10 +64,11 @@ export function createMapView(container, {
   mapWrapper.style.position = 'relative';
   mapWrapper.style.border = '1px solid var(--map-border, #ccc)';
   mapWrapper.style.background = 'var(--map-bg, #f4f4f4)';
-  mapWrapper.style.overflow = 'auto';
+  mapWrapper.style.overflow = 'hidden';
   mapWrapper.style.cursor = allowDrag ? 'grab' : 'default';
   mapWrapper.style.userSelect = 'none';
   mapWrapper.style.touchAction = allowDrag ? 'none' : 'auto';
+  mapWrapper.style.boxSizing = 'border-box';
 
   const mapDisplay = document.createElement('pre');
   mapDisplay.className = `${idPrefix}-display map-display`;
@@ -70,8 +76,11 @@ export function createMapView(container, {
   mapDisplay.style.fontFamily = '"Apple Color Emoji", "Segoe UI Emoji", sans-serif';
   mapDisplay.style.lineHeight = '1';
   mapDisplay.style.margin = '0';
-  mapDisplay.style.padding = '10px';
-  mapDisplay.style.display = 'inline-block';
+  mapDisplay.style.padding = '0';
+  mapDisplay.style.display = 'block';
+  mapDisplay.style.width = '100%';
+  mapDisplay.style.height = '100%';
+  mapDisplay.style.boxSizing = 'border-box';
   mapWrapper.appendChild(mapDisplay);
 
   container.appendChild(mapWrapper);
@@ -117,10 +126,8 @@ export function createMapView(container, {
     const rows = state.map.tiles?.length || 0;
     const cols = rows ? state.map.tiles[0].length : 0;
     if (!rows || !cols) return;
-    const horizontalPadding = 20;
-    const verticalPadding = 20;
-    const availableWidth = Math.max(0, mapWrapper.clientWidth - horizontalPadding);
-    const availableHeight = Math.max(0, mapWrapper.clientHeight - verticalPadding);
+    const availableWidth = Math.max(0, mapWrapper.clientWidth);
+    const availableHeight = Math.max(0, mapWrapper.clientHeight);
     if (!availableWidth || !availableHeight) return;
     const sizeForWidth = availableWidth / cols;
     const sizeForHeight = availableHeight / rows;
@@ -128,38 +135,55 @@ export function createMapView(container, {
     mapDisplay.style.fontSize = `${targetSize}px`;
   }
 
-  function updateWrapperSize({ preserveScroll = true } = {}) {
+  function updateWrapperSize() {
     if (!state.map) return;
     const size = computeViewportSize();
-    let leftRatio = 0;
-    let topRatio = 0;
-    if (preserveScroll) {
-      const maxLeft = Math.max(1, mapDisplay.scrollWidth - mapWrapper.clientWidth);
-      const maxTop = Math.max(1, mapDisplay.scrollHeight - mapWrapper.clientHeight);
-      leftRatio = mapWrapper.scrollLeft / maxLeft;
-      topRatio = mapWrapper.scrollTop / maxTop;
-    }
     mapWrapper.style.width = `${size}px`;
     mapWrapper.style.height = `${size}px`;
 
     requestFrame(() => {
-      if (preserveScroll) {
-        const maxLeft = Math.max(0, mapDisplay.scrollWidth - mapWrapper.clientWidth);
-        const maxTop = Math.max(0, mapDisplay.scrollHeight - mapWrapper.clientHeight);
-        mapWrapper.scrollLeft = leftRatio * maxLeft;
-        mapWrapper.scrollTop = topRatio * maxTop;
-      }
       updateFontSize();
     });
   }
 
+  function applyMap(nextMap) {
+    if (!nextMap || !nextMap.tiles) return;
+    state.map = { ...nextMap };
+    if (typeof state.onMapUpdate === 'function') {
+      state.onMapUpdate(state.map, state.context);
+    }
+    render();
+  }
+
+  function requestMapUpdate(xStart, yStart) {
+    if (!state.map) return;
+    const width = state.map.tiles?.[0]?.length || 0;
+    const height = state.map.tiles?.length || 0;
+    if (!width || !height) return;
+    const params = {
+      map: state.map,
+      context: state.context,
+      seed: state.map.seed,
+      season: state.map.season,
+      xStart,
+      yStart,
+      width,
+      height
+    };
+    if (typeof state.fetchMap === 'function') {
+      const result = state.fetchMap(params);
+      if (result && typeof result.then === 'function') {
+        result.then(applyMap);
+      } else {
+        applyMap(result);
+      }
+    } else {
+      applyMap({ ...state.map, xStart, yStart });
+    }
+  }
+
   function centerMap() {
-    requestFrame(() => {
-      const maxLeft = Math.max(0, mapDisplay.scrollWidth - mapWrapper.clientWidth);
-      const maxTop = Math.max(0, mapDisplay.scrollHeight - mapWrapper.clientHeight);
-      mapWrapper.scrollLeft = maxLeft / 2;
-      mapWrapper.scrollTop = maxTop / 2;
-    });
+    requestMapUpdate(state.home.xStart, state.home.yStart);
   }
 
   function render() {
@@ -167,22 +191,25 @@ export function createMapView(container, {
     const rows = state.map.tiles.map(row => row.join(''));
     mapDisplay.textContent = rows.join('\n');
     updateLegend(summarizeTerrain(state.map.types));
-    updateWrapperSize({ preserveScroll: state.initialized });
+    updateWrapperSize();
     requestFrame(updateFontSize);
-    if (!state.initialized) {
-      centerMap();
-      state.initialized = true;
-    }
+  }
+
+  function shiftViewport(dxTiles, dyTiles) {
+    if (!state.map || (!dxTiles && !dyTiles)) return;
+    const nextX = (state.map.xStart || 0) + dxTiles;
+    const nextY = (state.map.yStart || 0) + dyTiles;
+    requestMapUpdate(nextX, nextY);
   }
 
   function pan(dx, dy) {
-    const stepX = mapWrapper.clientWidth * 0.6;
-    const stepY = mapWrapper.clientHeight * 0.6;
-    mapWrapper.scrollBy({
-      left: dx * stepX,
-      top: dy * stepY,
-      behavior: 'smooth'
-    });
+    if (!state.map) return;
+    const cols = state.map.tiles?.[0]?.length || 0;
+    const rows = state.map.tiles?.length || 0;
+    if (!cols || !rows) return;
+    const stepX = Math.max(1, Math.round(cols * 0.6)) * dx;
+    const stepY = Math.max(1, Math.round(rows * 0.6)) * dy;
+    shiftViewport(stepX, stepY);
   }
 
   function attachNavButtons() {
@@ -211,9 +238,7 @@ export function createMapView(container, {
       btn.style.justifyContent = 'center';
       btn.addEventListener('click', () => {
         if (config.recenter) {
-          state.initialized = false;
           centerMap();
-          state.initialized = true;
         } else {
           pan(config.dx, config.dy);
         }
@@ -225,19 +250,34 @@ export function createMapView(container, {
   function handleDragStart(clientX, clientY) {
     if (!allowDrag) return;
     state.drag.active = true;
-    state.drag.startX = clientX;
-    state.drag.startY = clientY;
-    state.drag.scrollLeft = mapWrapper.scrollLeft;
-    state.drag.scrollTop = mapWrapper.scrollTop;
+    state.drag.lastX = clientX;
+    state.drag.lastY = clientY;
+    state.drag.pendingX = 0;
+    state.drag.pendingY = 0;
     mapWrapper.style.cursor = 'grabbing';
   }
 
   function updateDrag(clientX, clientY) {
     if (!state.drag.active) return;
-    const dx = clientX - state.drag.startX;
-    const dy = clientY - state.drag.startY;
-    mapWrapper.scrollLeft = state.drag.scrollLeft - dx;
-    mapWrapper.scrollTop = state.drag.scrollTop - dy;
+    const dx = clientX - state.drag.lastX;
+    const dy = clientY - state.drag.lastY;
+    state.drag.lastX = clientX;
+    state.drag.lastY = clientY;
+    state.drag.pendingX -= dx;
+    state.drag.pendingY -= dy;
+    const cols = state.map?.tiles?.[0]?.length || 0;
+    const rows = state.map?.tiles?.length || 0;
+    if (!cols || !rows) return;
+    const rect = mapDisplay.getBoundingClientRect();
+    const tileWidth = cols ? rect.width / cols : 0;
+    const tileHeight = rows ? rect.height / rows : 0;
+    if (!tileWidth || !tileHeight) return;
+    const tilesX = Math.trunc(state.drag.pendingX / tileWidth);
+    const tilesY = Math.trunc(state.drag.pendingY / tileHeight);
+    if (!tilesX && !tilesY) return;
+    state.drag.pendingX -= tilesX * tileWidth;
+    state.drag.pendingY -= tilesY * tileHeight;
+    shiftViewport(tilesX, tilesY);
   }
 
   function endDrag() {
@@ -287,18 +327,26 @@ export function createMapView(container, {
   attachNavButtons();
 
   if (typeof window !== 'undefined') {
-    state.resizeHandler = () => updateWrapperSize({ preserveScroll: true });
+    state.resizeHandler = () => {
+      updateWrapperSize();
+    };
     window.addEventListener('resize', state.resizeHandler);
   }
 
   return {
-    setMap(map) {
-      state.map = map;
-      state.initialized = false;
+    setMap(map, context = {}) {
+      state.map = map ? { ...map } : null;
+      state.context = { ...state.context, ...context };
+      if (state.map) {
+        state.home = {
+          xStart: state.map.xStart || 0,
+          yStart: state.map.yStart || 0
+        };
+      }
       render();
     },
     refresh() {
-      updateWrapperSize({ preserveScroll: true });
+      updateWrapperSize();
       updateFontSize();
     },
     center: centerMap,
