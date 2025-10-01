@@ -5,7 +5,7 @@
 
 import { biomes, getBiome } from './biomes.js';
 import { difficulties, difficultySettings } from './difficulty.js';
-import { generateColorMap, getFeatureColors, getBiomeBorderColor } from './map.js';
+import { generateColorMap, TERRAIN_SYMBOLS } from './map.js';
 
 const seasons = ['Spring', 'Summer', 'Autumn', 'Winter'];
 
@@ -45,490 +45,177 @@ export function initSetupUI(onStart) {
     form.appendChild(document.createElement('br'));
   });
 
-    const biomeInfo = document.createElement('p');
-    const diffInfo = document.createElement('p');
-    form.appendChild(biomeInfo);
-    form.appendChild(diffInfo);
+  const biomeInfo = document.createElement('p');
+  const diffInfo = document.createElement('p');
+  form.appendChild(biomeInfo);
+  form.appendChild(diffInfo);
 
-    // Map preview section
-    const MAP_DISPLAY_SIZE = 600;
-    const DEFAULT_MAP_SCALE = 100;
-    let mapScale = DEFAULT_MAP_SCALE;
-    let mapCanvas = null;
-    let mapOffsetX = 0;
-    let mapOffsetY = 0;
-    let scaleDisplay = null;
-    let mapData = null;
-    let waterDisplay = null;
-    let waterFeaturesContainer = null;
-    let waterLevelDefault = getBiome(biomeSelect.select.value)?.elevation?.waterLevel ?? 0.3;
-    let waterLevel = waterLevelDefault;
-    let waterFeatureCounts = {};
-    const WATER_FEATURE_TYPES = [
-      { name: 'River', keyword: 'river' },
-      { name: 'Creek', keyword: 'creek' },
-      { name: 'Lake', keyword: 'lake' },
-      { name: 'Spring', keyword: 'spring' },
-      { name: 'Estuary Branch', keyword: 'estuary' },
-      { name: 'Inlet', keyword: 'inlet' },
-      { name: 'Waterfall', keyword: 'waterfall' },
-      { name: 'Lagoon', keyword: 'lagoon' },
-      { name: 'Marsh', keyword: 'marsh' },
-      { name: 'Bog', keyword: 'bog' },
-      { name: 'Tide Pool', keyword: 'tide' },
-      { name: 'Beach', keyword: 'beach' },
-      { name: 'Shore', keyword: 'shore' },
-      { name: 'Reef', keyword: 'reef' },
-      { name: 'Delta', keyword: 'delta' },
-      { name: 'Watering Hole', keyword: 'watering hole' },
-      { name: 'Stream', keyword: 'stream' },
-      { name: 'Mudflat', keyword: 'mudflat' }
-    ];
-    let mapSeed = Date.now().toString();
-    let seedDisplay = null;
+  let mapData = null;
+  let mapSeed = Date.now().toString();
 
-    const mapWrapper = document.createElement('div');
-    mapWrapper.style.display = 'flex';
-    mapWrapper.style.justifyContent = 'center';
-    mapWrapper.style.alignItems = 'flex-start';
-    mapWrapper.style.marginTop = '10px';
+  const mapSection = document.createElement('section');
+  mapSection.style.marginTop = '12px';
 
-    const viewport = document.createElement('div');
-    viewport.style.width = `${MAP_DISPLAY_SIZE}px`;
-    viewport.style.height = `${MAP_DISPLAY_SIZE}px`;
-    viewport.style.overflow = 'hidden';
-    viewport.style.position = 'relative';
-    viewport.style.border = `4px solid ${getBiomeBorderColor(biomeSelect.select.value)}`;
+  const mapIntro = document.createElement('p');
+  mapIntro.textContent = 'Preview of the surrounding area rendered with emoji terrain symbols. Each icon represents one patch of terrain.';
+  mapSection.appendChild(mapIntro);
 
-    const canvas = document.createElement('canvas');
-    canvas.style.position = 'absolute';
-    canvas.style.imageRendering = 'pixelated';
-    canvas.style.display = 'block';
-    canvas.style.margin = '0 auto';
-    mapCanvas = canvas;
-    viewport.appendChild(canvas);
-    mapWrapper.appendChild(viewport);
+  const seedRow = document.createElement('div');
+  seedRow.style.display = 'flex';
+  seedRow.style.flexWrap = 'wrap';
+  seedRow.style.alignItems = 'center';
+  seedRow.style.gap = '6px';
 
-    const legend = document.createElement('div');
-    legend.style.marginLeft = '20px';
-    const title = document.createElement('h3');
-    legend.appendChild(title);
-    const list = document.createElement('ul');
-    legend.appendChild(list);
+  const seedLabel = document.createElement('label');
+  seedLabel.textContent = 'Map Seed: ';
+  const seedInput = document.createElement('input');
+  seedInput.type = 'text';
+  seedInput.value = mapSeed;
+  seedInput.size = 24;
+  seedLabel.appendChild(seedInput);
+  seedRow.appendChild(seedLabel);
 
-    const waterSection = document.createElement('details');
-    const waterSummary = document.createElement('summary');
-    waterSummary.textContent = 'Water';
-    waterSection.appendChild(waterSummary);
+  const applySeedBtn = document.createElement('button');
+  applySeedBtn.type = 'button';
+  applySeedBtn.textContent = 'Apply';
+  seedRow.appendChild(applySeedBtn);
 
-    const waterContent = document.createElement('div');
-    waterContent.style.display = 'flex';
-    waterContent.style.flexDirection = 'column';
-    waterContent.style.alignItems = 'center';
-    waterSection.appendChild(waterContent);
+  const randomSeedBtn = document.createElement('button');
+  randomSeedBtn.type = 'button';
+  randomSeedBtn.textContent = 'Randomize';
+  seedRow.appendChild(randomSeedBtn);
 
-    const waterLevelLabel = document.createElement('div');
-    waterLevelLabel.textContent = 'Water Level';
-    waterContent.appendChild(waterLevelLabel);
+  mapSection.appendChild(seedRow);
 
-    const waterControls = document.createElement('div');
-    waterControls.style.display = 'flex';
-    waterControls.style.alignItems = 'center';
-    waterControls.style.justifyContent = 'center';
-    waterControls.style.marginTop = '5px';
+  const mapPreview = document.createElement('pre');
+  mapPreview.id = 'setup-map-preview';
+  mapPreview.style.whiteSpace = 'pre';
+  mapPreview.style.fontFamily = '"Apple Color Emoji", "Segoe UI Emoji", sans-serif';
+  mapPreview.style.fontSize = '16px';
+  mapPreview.style.background = '#f4f4f4';
+  mapPreview.style.padding = '10px';
+  mapPreview.style.border = '1px solid #ccc';
+  mapPreview.style.maxHeight = '400px';
+  mapPreview.style.overflowY = 'auto';
+  mapSection.appendChild(mapPreview);
 
-    const waterDown = document.createElement('button');
-    waterDown.type = 'button';
-    waterDown.textContent = '▼';
-    waterDown.style.width = '30px';
-    waterDown.style.height = '30px';
-    waterDown.style.padding = '0';
+  const legendTitle = document.createElement('h4');
+  legendTitle.textContent = 'Legend';
+  mapSection.appendChild(legendTitle);
 
-    waterDisplay = document.createElement('button');
-    waterDisplay.type = 'button';
-    waterDisplay.style.margin = '0 5px';
-    waterDisplay.style.height = '30px';
-    waterDisplay.style.padding = '0 5px';
+  const legendList = document.createElement('ul');
+  mapSection.appendChild(legendList);
 
-    const waterUp = document.createElement('button');
-    waterUp.type = 'button';
-    waterUp.textContent = '▲';
-    waterUp.style.width = '30px';
-    waterUp.style.height = '30px';
-    waterUp.style.padding = '0';
+  form.appendChild(mapSection);
 
-    waterControls.appendChild(waterDown);
-    waterControls.appendChild(waterDisplay);
-    waterControls.appendChild(waterUp);
-    waterContent.appendChild(waterControls);
+  const startBtn = document.createElement('button');
+  startBtn.type = 'submit';
+  startBtn.textContent = 'Start';
+  form.appendChild(startBtn);
 
-    waterFeaturesContainer = document.createElement('div');
-    waterFeaturesContainer.style.marginTop = '5px';
-    waterContent.appendChild(waterFeaturesContainer);
+  container.appendChild(form);
 
-    legend.appendChild(waterSection);
+  const LEGEND_LABELS = {
+    water: 'Water',
+    open: 'Open Land',
+    forest: 'Forest',
+    ore: 'Ore Deposits'
+  };
 
-    const labels = {
-      water: 'Bodies of Water',
-      open: 'Open Land',
-      forest: 'Forest',
-      ore: 'Ore Deposits'
-    };
-
-    const updateWaterDisplay = () => {
-      if (waterDisplay) waterDisplay.textContent = `${Math.round(waterLevel * 100)}%`;
-    };
-
-    const updateWaterFeatures = () => {
-      if (!waterFeaturesContainer) return;
-      waterFeaturesContainer.innerHTML = '';
-      waterFeatureCounts = {};
-      const biomeFeatures = (getBiome(biomeSelect.select.value)?.features || []).map(f => f.toLowerCase());
-      WATER_FEATURE_TYPES.forEach(f => {
-        if (!biomeFeatures.some(bf => bf.includes(f.keyword))) return;
-        waterFeatureCounts[f.name] = 0;
-        const row = document.createElement('div');
-        row.style.display = 'flex';
-        row.style.alignItems = 'center';
-        row.style.justifyContent = 'center';
-        row.style.marginTop = '4px';
-
-        const label = document.createElement('span');
-        label.textContent = f.name;
-        label.style.marginRight = '5px';
-        row.appendChild(label);
-
-        const minus = document.createElement('button');
-        minus.type = 'button';
-        minus.textContent = '-';
-        minus.style.width = '30px';
-        minus.style.height = '30px';
-        minus.style.padding = '0';
-
-        const display = document.createElement('button');
-        display.type = 'button';
-        display.textContent = '0';
-        display.style.margin = '0 5px';
-        display.style.height = '30px';
-        display.style.padding = '0 5px';
-
-        const plus = document.createElement('button');
-        plus.type = 'button';
-        plus.textContent = '+';
-        plus.style.width = '30px';
-        plus.style.height = '30px';
-        plus.style.padding = '0';
-
-        minus.addEventListener('click', () => {
-          waterFeatureCounts[f.name] = Math.max(0, waterFeatureCounts[f.name] - 1);
-          display.textContent = waterFeatureCounts[f.name];
-        });
-        plus.addEventListener('click', () => {
-          waterFeatureCounts[f.name] = Math.min(5, waterFeatureCounts[f.name] + 1);
-          display.textContent = waterFeatureCounts[f.name];
-        });
-        display.addEventListener('click', () => {
-          waterFeatureCounts[f.name] = 0;
-          display.textContent = '0';
-        });
-
-        row.appendChild(minus);
-        row.appendChild(display);
-        row.appendChild(plus);
-        waterFeaturesContainer.appendChild(row);
+  const summarizeTerrain = (types = []) => {
+    const counts = { water: 0, open: 0, forest: 0, ore: 0 };
+    types.forEach(row => {
+      row.forEach(type => {
+        if (type in counts) counts[type] += 1;
       });
-    };
-
-    const resetWaterLevel = () => {
-      waterLevelDefault = getBiome(biomeSelect.select.value)?.elevation?.waterLevel ?? 0.3;
-      waterLevel = waterLevelDefault;
-      updateWaterDisplay();
-    };
-    const updateSeedDisplay = () => {
-      if (seedDisplay) seedDisplay.textContent = mapSeed;
-    };
-    const updateLegend = () => {
-      list.innerHTML = '';
-      const colors = getFeatureColors(biomeSelect.select.value, seasonSelect.select.value);
-      Object.entries(colors).forEach(([key, color]) => {
-        const li = document.createElement('li');
-        const swatch = document.createElement('span');
-        swatch.style.display = 'inline-block';
-        swatch.style.width = '12px';
-        swatch.style.height = '12px';
-        swatch.style.backgroundColor = color;
-        swatch.style.marginRight = '6px';
-        li.appendChild(swatch);
-        li.appendChild(document.createTextNode(labels[key] || key));
-        list.appendChild(li);
-      });
-      title.textContent = getBiome(biomeSelect.select.value)?.name || biomeSelect.select.value;
-    };
-    updateLegend();
-    resetWaterLevel();
-    updateWaterFeatures();
-    mapWrapper.appendChild(legend);
-    form.appendChild(mapWrapper);
-
-    // Zoom controls
-    const zoomControls = document.createElement('div');
-    zoomControls.style.textAlign = 'center';
-    zoomControls.style.marginTop = '5px';
-    zoomControls.style.display = 'flex';
-    zoomControls.style.justifyContent = 'center';
-    zoomControls.style.alignItems = 'center';
-
-    const BTN_SIZE = '30px';
-
-    const centerBtn = document.createElement('button');
-    centerBtn.type = 'button';
-    centerBtn.textContent = '🏠';
-    centerBtn.style.width = BTN_SIZE;
-    centerBtn.style.height = BTN_SIZE;
-    centerBtn.style.padding = '0';
-    centerBtn.style.lineHeight = BTN_SIZE;
-    centerBtn.style.boxSizing = 'border-box';
-
-    const zoomOut = document.createElement('button');
-    zoomOut.type = 'button';
-    zoomOut.textContent = '-';
-    zoomOut.style.width = BTN_SIZE;
-    zoomOut.style.height = BTN_SIZE;
-    zoomOut.style.padding = '0';
-    zoomOut.style.lineHeight = BTN_SIZE;
-    zoomOut.style.boxSizing = 'border-box';
-
-    scaleDisplay = document.createElement('button');
-    scaleDisplay.type = 'button';
-    scaleDisplay.style.margin = '0 5px';
-    scaleDisplay.style.height = BTN_SIZE;
-    scaleDisplay.style.lineHeight = BTN_SIZE;
-    scaleDisplay.style.padding = '0 5px';
-    scaleDisplay.style.boxSizing = 'border-box';
-
-    const zoomIn = document.createElement('button');
-    zoomIn.type = 'button';
-    zoomIn.textContent = '+';
-    zoomIn.style.width = BTN_SIZE;
-    zoomIn.style.height = BTN_SIZE;
-    zoomIn.style.padding = '0';
-    zoomIn.style.lineHeight = BTN_SIZE;
-    zoomIn.style.boxSizing = 'border-box';
-
-    const randomSeedBtn = document.createElement('button');
-    randomSeedBtn.type = 'button';
-    randomSeedBtn.textContent = '🎲';
-    randomSeedBtn.style.width = BTN_SIZE;
-    randomSeedBtn.style.height = BTN_SIZE;
-    randomSeedBtn.style.padding = '0';
-    randomSeedBtn.style.lineHeight = BTN_SIZE;
-    randomSeedBtn.style.boxSizing = 'border-box';
-
-    seedDisplay = document.createElement('button');
-    seedDisplay.type = 'button';
-    seedDisplay.style.margin = '0 5px';
-    seedDisplay.style.height = BTN_SIZE;
-    seedDisplay.style.lineHeight = BTN_SIZE;
-    seedDisplay.style.padding = '0 5px';
-    seedDisplay.style.boxSizing = 'border-box';
-
-    const generateBtn = document.createElement('button');
-    generateBtn.type = 'button';
-    generateBtn.textContent = 'Generate';
-    generateBtn.style.height = BTN_SIZE;
-    generateBtn.style.lineHeight = BTN_SIZE;
-    generateBtn.style.padding = '0 5px';
-    generateBtn.style.boxSizing = 'border-box';
-
-    zoomControls.appendChild(randomSeedBtn);
-    zoomControls.appendChild(seedDisplay);
-    zoomControls.appendChild(generateBtn);
-    zoomControls.appendChild(centerBtn);
-    zoomControls.appendChild(zoomOut);
-    zoomControls.appendChild(scaleDisplay);
-    zoomControls.appendChild(zoomIn);
-    form.appendChild(zoomControls);
-
-    const startBtn = document.createElement('button');
-    startBtn.type = 'submit';
-    startBtn.textContent = 'Start';
-    form.appendChild(startBtn);
-
-    // Map interaction helpers
-    const renderMap = () => {
-      if (!mapCanvas || !mapData) return;
-      const pixels = mapData.pixels;
-      mapCanvas.width = pixels[0].length;
-      mapCanvas.height = pixels.length;
-      mapCanvas.style.width = `${mapCanvas.width}px`;
-      mapCanvas.style.height = `${mapCanvas.height}px`;
-      const ctx = mapCanvas.getContext('2d');
-      const imgData = ctx.createImageData(mapCanvas.width, mapCanvas.height);
-      for (let y = 0; y < mapCanvas.height; y++) {
-        for (let x = 0; x < mapCanvas.width; x++) {
-          const color = pixels[y][x];
-          const idx = (y * mapCanvas.width + x) * 4;
-          imgData.data[idx] = parseInt(color.slice(1, 3), 16);
-          imgData.data[idx + 1] = parseInt(color.slice(3, 5), 16);
-          imgData.data[idx + 2] = parseInt(color.slice(5, 7), 16);
-          imgData.data[idx + 3] = 255;
-        }
-      }
-      ctx.putImageData(imgData, 0, 0);
-    };
-
-    const centerMap = () => {
-      if (!mapData) return;
-      const zoomFactor = DEFAULT_MAP_SCALE / mapScale;
-      const centerX = MAP_DISPLAY_SIZE / 2;
-      const centerY = MAP_DISPLAY_SIZE / 2;
-      const startPixelX = -mapData.xStart;
-      const startPixelY = -mapData.yStart;
-      mapOffsetX = centerX - startPixelX * zoomFactor;
-      mapOffsetY = centerY - startPixelY * zoomFactor;
-    };
-
-    const updateMapDisplay = () => {
-      if (mapCanvas) {
-        const zoomFactor = DEFAULT_MAP_SCALE / mapScale;
-        mapCanvas.style.transform = `translate(${mapOffsetX}px, ${mapOffsetY}px) scale(${zoomFactor})`;
-        mapCanvas.style.transformOrigin = '0 0';
-      }
-      if (scaleDisplay) scaleDisplay.textContent = `${mapScale}m`;
-    };
-
-    const zoomMap = delta => {
-      mapScale = Math.max(10, mapScale + delta);
-      updateMapDisplay();
-    };
-
-    const generatePreview = () => {
-      const biomeId = biomeSelect.select.value;
-      mapData = generateColorMap(
-        biomeId,
-        mapSeed,
-        -MAP_DISPLAY_SIZE / 2,
-        -MAP_DISPLAY_SIZE / 2,
-        MAP_DISPLAY_SIZE,
-        MAP_DISPLAY_SIZE,
-        seasonSelect.select.value,
-        waterLevel
-      );
-      renderMap();
-      centerMap();
-      updateMapDisplay();
-      viewport.style.border = `4px solid ${getBiomeBorderColor(biomeId, seasonSelect.select.value)}`;
-      updateLegend();
-    };
-
-    waterDown.addEventListener('click', () => {
-      waterLevel = Math.max(0, Math.round((waterLevel - 0.05) * 100) / 100);
-      updateWaterDisplay();
-      generatePreview();
     });
-    waterUp.addEventListener('click', () => {
-      waterLevel = Math.min(1, Math.round((waterLevel + 0.05) * 100) / 100);
-      updateWaterDisplay();
-      generatePreview();
-    });
-    waterDisplay.addEventListener('click', () => {
-      waterLevel = waterLevelDefault;
-      updateWaterDisplay();
-      generatePreview();
-    });
+    return counts;
+  };
 
-    centerBtn.addEventListener('click', () => {
-      centerMap();
-      updateMapDisplay();
-    });
-    zoomOut.addEventListener('click', () => zoomMap(10));
-    zoomIn.addEventListener('click', () => zoomMap(-10));
-    scaleDisplay.addEventListener('click', () => {
-      mapScale = DEFAULT_MAP_SCALE;
-      updateMapDisplay();
-    });
-    generateBtn.addEventListener('click', generatePreview);
-    randomSeedBtn.addEventListener('click', () => {
-      mapSeed = Date.now().toString();
-      updateSeedDisplay();
-      generatePreview();
-    });
-    seedDisplay.addEventListener('click', () => {
-      const input = prompt('Enter seed:', mapSeed);
-      if (input !== null && input !== '') {
-        mapSeed = input;
-        updateSeedDisplay();
-        generatePreview();
-      }
-    });
-
-    let dragging = false;
-    let lastX = 0;
-    let lastY = 0;
-    const startDrag = (x, y) => { dragging = true; lastX = x; lastY = y; };
-    const moveDrag = (x, y) => {
-      if (!dragging) return;
-      mapOffsetX += x - lastX;
-      mapOffsetY += y - lastY;
-      lastX = x;
-      lastY = y;
-      updateMapDisplay();
-    };
-    const endDrag = () => { dragging = false; };
-    canvas.addEventListener('mousedown', e => startDrag(e.clientX, e.clientY));
-    document.addEventListener('mousemove', e => moveDrag(e.clientX, e.clientY));
-    document.addEventListener('mouseup', endDrag);
-    canvas.addEventListener('touchstart', e => { const t = e.touches[0]; startDrag(t.clientX, t.clientY); e.preventDefault(); });
-    document.addEventListener('touchmove', e => { const t = e.touches[0]; moveDrag(t.clientX, t.clientY); e.preventDefault(); });
-    document.addEventListener('touchend', endDrag);
-
-  const formatDays = d => (d >= 7 ? `${d / 7} week${d >= 14 ? 's' : ''}` : `${d} day${d !== 1 ? 's' : ''}`);
-
-  const updateBiomeInfo = () => {
-    const b = biomes.find(x => x.id === biomeSelect.select.value);
-    if (!b) {
+  function updateInfo() {
+    const biome = getBiome(biomeSelect.select.value);
+    if (biome) {
+      const desc = biome.description ? `${biome.description} ` : '';
+      const features = biome.features?.length ? `Features: ${biome.features.join(', ')}.` : '';
+      biomeInfo.textContent = `${biome.name}: ${desc}${features}`;
+    } else {
       biomeInfo.textContent = '';
-      return;
     }
-    biomeInfo.innerHTML = `<strong>${b.name}</strong>: ${b.description}<br>Open land: ${b.openLand}<br>Food resources: ${b.food}`;
-  };
 
-  const updateDiffInfo = () => {
-    const id = diffSelect.select.value;
-    const cfg = difficultySettings[id];
-    const name = diffSelect.select.options[diffSelect.select.selectedIndex].textContent;
-    const tools = Object.entries(cfg.tools)
-      .map(([t, q]) => `${q} ${t}`)
-      .join(', ') || 'None';
-    diffInfo.innerHTML = `<strong>Difficulty:</strong> ${name}<br>Starting people: ${cfg.people}<br>Food: ${formatDays(cfg.foodDays)} stock<br>Firewood: ${formatDays(cfg.firewoodDays)} stock<br>Tools: ${tools}`;
-  };
+    const diffId = diffSelect.select.value;
+    const diff = difficultySettings[diffId];
+    const diffName = diffSelect.select.options[diffSelect.select.selectedIndex]?.textContent || diffId;
+    if (diff) {
+      diffInfo.textContent = `${diffName} difficulty – ${diff.people} settlers, ${diff.foodDays} days of food, ${diff.firewoodDays} days of firewood.`;
+    } else {
+      diffInfo.textContent = '';
+    }
+  }
 
-    biomeSelect.select.addEventListener('change', () => {
-      updateBiomeInfo();
-      resetWaterLevel();
-      updateWaterFeatures();
-      generatePreview();
+  function renderMapPreview() {
+    if (!mapData) return;
+    mapPreview.textContent = mapData.tiles.map(row => row.join('')).join('\n');
+    legendList.innerHTML = '';
+    const counts = summarizeTerrain(mapData.types);
+    Object.entries(TERRAIN_SYMBOLS).forEach(([type, symbol]) => {
+      const li = document.createElement('li');
+      const label = LEGEND_LABELS[type] || type;
+      li.textContent = `${symbol} – ${label} (${counts[type] ?? 0})`;
+      legendList.appendChild(li);
     });
-    seasonSelect.select.addEventListener('change', generatePreview);
-    diffSelect.select.addEventListener('change', updateDiffInfo);
-    updateBiomeInfo();
-    updateDiffInfo();
-    resetWaterLevel();
-    updateSeedDisplay();
+  }
+
+  function generatePreview() {
+    mapData = generateColorMap(
+      biomeSelect.select.value,
+      mapSeed,
+      0,
+      0,
+      80,
+      40,
+      seasonSelect.select.value
+    );
+    renderMapPreview();
+  }
+
+  applySeedBtn.addEventListener('click', () => {
+    mapSeed = seedInput.value.trim() || Date.now().toString();
+    seedInput.value = mapSeed;
     generatePreview();
+  });
+
+  randomSeedBtn.addEventListener('click', () => {
+    mapSeed = Date.now().toString();
+    seedInput.value = mapSeed;
+    generatePreview();
+  });
+
+  seedInput.addEventListener('keydown', e => {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      applySeedBtn.click();
+    }
+  });
+
+  biomeSelect.select.addEventListener('change', () => {
+    updateInfo();
+    generatePreview();
+  });
+  seasonSelect.select.addEventListener('change', generatePreview);
+  diffSelect.select.addEventListener('change', updateInfo);
 
   form.addEventListener('submit', e => {
     e.preventDefault();
-    const settings = {
+    applySeedBtn.click();
+    onStart({
       biome: biomeSelect.select.value,
       season: seasonSelect.select.value,
       difficulty: diffSelect.select.value,
-      seed: mapData?.seed || mapSeed
-    };
-    form.remove();
-    if (typeof onStart === 'function') onStart(settings);
+      seed: mapSeed
+    });
   });
 
-  container.appendChild(form);
+  updateInfo();
+  generatePreview();
 }
 

@@ -4,13 +4,15 @@ import { addItem } from './inventory.js';
 import { registerBuildingType } from './buildings.js';
 import { unlockTechnology } from './technology.js';
 import { generateLocation } from './location.js';
-import { harvestWood } from './resources.js';
+import { calculateStartingGoods, harvestWood } from './resources.js';
 import { initSetupUI } from './ui.js';
 import { saveGame, loadGame, clearSave } from './persistence.js';
 import { shelterTypes } from './shelters.js';
 import { difficultySettings } from './difficulty.js';
 import { initGameUI, showJobs, closeJobs } from './gameUI.js';
 import { initTopMenu, initBottomMenu } from './menu.js';
+import { resetToDawn } from './time.js';
+import { resetOrders } from './orders.js';
 
 function startGame(settings = {}) {
   const diff = settings.difficulty || 'normal';
@@ -20,13 +22,12 @@ function startGame(settings = {}) {
     addPerson({ id: `p${i}`, age: 20 + i, sex: i % 2 ? 'M' : 'F', job: null, home: null, family: [] });
   }
 
-  const foodPerPersonPerDay = 1;
-  addItem('food', cfg.people * cfg.foodDays * foodPerPersonPerDay);
-  addItem('firewood', cfg.people * cfg.firewoodDays);
-
-  Object.entries(cfg.tools).forEach(([item, qty]) => addItem(item, qty));
+  const startingGoods = calculateStartingGoods(cfg);
+  Object.entries(startingGoods).forEach(([item, qty]) => addItem(item, qty));
 
   if (settings.season) store.time.season = settings.season;
+  store.time.day = 1;
+  resetToDawn();
   if (settings.biome) {
     generateLocation('loc1', settings.biome, store.time.season, settings.seed);
   } else if (store.locations.size === 0) {
@@ -39,6 +40,8 @@ function startGame(settings = {}) {
   store.jobs = { scavenge: 0 };
   store.buildQueue = 0;
   store.haulQueue = 0;
+  resetOrders();
+  store.eventLog = [];
 
   const loc = [...store.locations.values()][0];
   const wood = harvestWood(1, loc?.biome || 'temperate-deciduous');

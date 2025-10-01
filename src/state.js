@@ -5,9 +5,12 @@ class DataStore {
     this.inventory = new Map();
     this.locations = new Map();
     this.technologies = new Map();
-    this.time = { day: 0, season: 'Spring' };
+    this.time = { day: 0, hour: 6, season: 'Spring' };
     this.difficulty = 'normal';
     this.jobs = {};
+    this.orders = [];
+    this.eventLog = [];
+    this.orderSeq = 0;
   }
 
   addItem(collection, item) {
@@ -47,7 +50,10 @@ class DataStore {
       technologies: [...this.technologies.entries()],
       time: this.time,
       difficulty: this.difficulty,
-      jobs: this.jobs
+      jobs: this.jobs,
+      orders: this.orders,
+      eventLog: this.eventLog,
+      orderSeq: this.orderSeq
     };
   }
 
@@ -58,9 +64,12 @@ class DataStore {
     this.inventory = new Map(data.inventory || []);
     this.locations = new Map(data.locations || []);
     this.technologies = new Map(data.technologies || []);
-    this.time = data.time || { day: 0, season: 'Spring' };
+    this.time = { day: 0, hour: 6, season: 'Spring', ...(data.time || {}) };
     this.difficulty = data.difficulty || 'normal';
     this.jobs = data.jobs || {};
+    this.orders = data.orders || [];
+    this.eventLog = data.eventLog || [];
+    this.orderSeq = data.orderSeq || 0;
   }
 }
 

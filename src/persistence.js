@@ -22,12 +22,16 @@ export function loadGame() {
     if (!data) return false;
     store.deserialize(JSON.parse(data));
     for (const loc of store.locations.values()) {
-      if (!loc.map || !loc.map.pixels) {
+      if (!loc.map || !loc.map.tiles) {
         loc.map = generateColorMap(loc.biome);
       } else {
         if (!loc.map.seed) loc.map.seed = Date.now();
         if (loc.map.xStart === undefined) loc.map.xStart = 0;
         if (loc.map.yStart === undefined) loc.map.yStart = 0;
+        if (!loc.map.types) {
+          // Regenerate map if terrain types are missing (legacy saves).
+          loc.map = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart, loc.map.yStart);
+        }
       }
     }
     refreshStats();

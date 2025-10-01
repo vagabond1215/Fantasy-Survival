@@ -1,6 +1,8 @@
 import store from './state.js';
 
 const seasons = ['Spring', 'Summer', 'Autumn', 'Winter'];
+const HOURS_PER_DAY = 24;
+const DAWN_HOUR = 6;
 
 export function advanceDay() {
   store.time.day += 1;
@@ -10,6 +12,27 @@ export function advanceDay() {
   }
 }
 
+export function advanceHours(hours = 1) {
+  const increment = Math.max(0, Number.isFinite(hours) ? hours : 0);
+  store.time.hour += increment;
+  while (store.time.hour >= HOURS_PER_DAY) {
+    store.time.hour -= HOURS_PER_DAY;
+    advanceDay();
+  }
+}
+
 export function info() {
   return { ...store.time };
+}
+
+export function resetToDawn() {
+  store.time.hour = DAWN_HOUR;
+}
+
+export function isMealTime() {
+  return store.time.hour === 12;
+}
+
+export function isNightfall() {
+  return store.time.hour >= 20;
 }
