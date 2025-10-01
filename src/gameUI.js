@@ -48,6 +48,19 @@ let buildOptionsContainer = null;
 let projectList = null;
 let completedList = null;
 let lockedList = null;
+let constructionSummaryContainer = null;
+let constructionModal = null;
+let constructionModalContent = null;
+let openConstructionModal = () => {};
+let closeConstructionModal = () => {};
+
+export function showConstructionDashboard() {
+  openConstructionModal();
+}
+
+export function hideConstructionDashboard() {
+  closeConstructionModal();
+}
 
 function renderTextMap() {
   const loc = allLocations()[0];
@@ -372,7 +385,197 @@ function createBuildCard(type, info) {
   return card;
 }
 
+function ensureConstructionModal() {
+  if (constructionModal) return;
+
+  constructionModal = document.createElement('div');
+  constructionModal.id = 'construction-dashboard';
+  Object.assign(constructionModal.style, {
+    position: 'fixed',
+    top: '0',
+    left: '0',
+    right: '0',
+    bottom: '0',
+    background: 'rgba(0, 0, 0, 0.5)',
+    display: 'none',
+    alignItems: 'flex-start',
+    justifyContent: 'center',
+    overflowY: 'auto',
+    padding: '40px 16px',
+    zIndex: '2000'
+  });
+  constructionModal.addEventListener('click', event => {
+    if (event.target === constructionModal) {
+      closeConstructionModal();
+    }
+  });
+
+  constructionModalContent = document.createElement('div');
+  Object.assign(constructionModalContent.style, {
+    background: 'var(--menu-bg)',
+    color: 'var(--text-color)',
+    borderRadius: '8px',
+    boxShadow: '0 6px 20px rgba(0, 0, 0, 0.3)',
+    maxWidth: '960px',
+    width: '100%',
+    padding: '24px',
+    boxSizing: 'border-box'
+  });
+
+  const headerRow = document.createElement('div');
+  headerRow.style.display = 'flex';
+  headerRow.style.justifyContent = 'space-between';
+  headerRow.style.alignItems = 'center';
+
+  const title = document.createElement('h3');
+  title.textContent = 'Construction Planner';
+  headerRow.appendChild(title);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'Close';
+  closeBtn.addEventListener('click', () => {
+    closeConstructionModal();
+  });
+  headerRow.appendChild(closeBtn);
+
+  constructionModalContent.appendChild(headerRow);
+
+  const buildBlurb = document.createElement('p');
+  buildBlurb.textContent = 'Plan, upgrade, and review settlement structures. Projects consume materials over time and unlock more sophisticated buildings as the village advances.';
+  constructionModalContent.appendChild(buildBlurb);
+
+  const buildSection = document.createElement('section');
+  buildSection.id = 'build-menu';
+
+  buildOptionsContainer = document.createElement('div');
+  buildOptionsContainer.id = 'build-options';
+  buildOptionsContainer.style.display = 'grid';
+  buildOptionsContainer.style.gridTemplateColumns = 'repeat(auto-fit, minmax(260px, 1fr))';
+  buildOptionsContainer.style.gap = '12px';
+  buildSection.appendChild(buildOptionsContainer);
+
+  const projectHeading = document.createElement('h4');
+  projectHeading.textContent = 'Active Projects';
+  buildSection.appendChild(projectHeading);
+
+  projectList = document.createElement('div');
+  projectList.id = 'build-projects';
+  buildSection.appendChild(projectList);
+
+  const completedHeading = document.createElement('h4');
+  completedHeading.textContent = 'Completed Structures';
+  buildSection.appendChild(completedHeading);
+
+  completedList = document.createElement('div');
+  completedList.id = 'completed-buildings';
+  buildSection.appendChild(completedList);
+
+  const lockedHeading = document.createElement('h4');
+  lockedHeading.textContent = 'Locked or Unavailable';
+  buildSection.appendChild(lockedHeading);
+
+  lockedList = document.createElement('div');
+  lockedList.id = 'locked-buildings';
+  buildSection.appendChild(lockedList);
+
+  constructionModalContent.appendChild(buildSection);
+  constructionModal.appendChild(constructionModalContent);
+  document.body.appendChild(constructionModal);
+
+  closeConstructionModal = () => {
+    if (constructionModal) {
+      constructionModal.style.display = 'none';
+    }
+  };
+
+  openConstructionModal = () => {
+    ensureConstructionModal();
+    renderBuildMenu();
+    if (constructionModal) {
+      constructionModal.style.display = 'flex';
+      constructionModalContent?.scrollTo({ top: 0 });
+    }
+  };
+
+  closeConstructionModal();
+}
+
+function renderConstructionSummary(projects = []) {
+  if (!constructionSummaryContainer) return;
+  constructionSummaryContainer.innerHTML = '';
+  if (!projects.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No structures are currently under construction.';
+    constructionSummaryContainer.appendChild(empty);
+    return;
+  }
+
+  const list = document.createElement('ul');
+  list.style.listStyle = 'none';
+  list.style.padding = '0';
+  list.style.margin = '0';
+
+  projects.forEach(project => {
+    const type = getBuildingType(project.typeId);
+    const name = type?.name || project.typeId;
+    const icon = type?.icon ? `${type.icon} ` : '';
+    const totalLabor = project.totalLaborHours || 0;
+    const progressHours = Math.min(totalLabor, project.progressHours || 0);
+    const progress = totalLabor ? Math.round((progressHours / totalLabor) * 100) : 0;
+
+    const item = document.createElement('li');
+    item.style.display = 'flex';
+    item.style.flexWrap = 'wrap';
+    item.style.gap = '8px';
+    item.style.alignItems = 'center';
+
+    const label = document.createElement('span');
+    label.textContent = `${icon}${name} ${progress}%`;
+    item.appendChild(label);
+
+    const progressHoursRounded = Math.round((progressHours || 0) * 10) / 10;
+    const totalLaborRounded = Math.round((totalLabor || 0) * 10) / 10;
+    const laborIcon = getResourceIcon('construction progress');
+    const laborSymbol = laborIcon?.icon || '🏗️';
+    const laborQuote = document.createElement('span');
+    laborQuote.style.whiteSpace = 'nowrap';
+    laborQuote.textContent = `"${progressHoursRounded} / ${totalLaborRounded} ${laborSymbol}"`;
+    item.appendChild(laborQuote);
+
+    const required = project.requiredResources || {};
+    const consumed = project.consumedResources || {};
+    const resourceNames = Object.keys(required);
+
+    if (resourceNames.length) {
+      resourceNames.forEach(resource => {
+        const total = required[resource] || 0;
+        const used = Math.min(total, consumed[resource] || 0);
+        const iconInfo = getResourceIcon(resource);
+        const iconSymbol = iconInfo?.icon || resource;
+        const usedRounded = Math.round((used || 0) * 10) / 10;
+        const totalRounded = Math.round((total || 0) * 10) / 10;
+        const quote = document.createElement('span');
+        quote.style.whiteSpace = 'nowrap';
+        quote.textContent = `"${usedRounded} / ${totalRounded} ${iconSymbol}"`;
+        item.appendChild(quote);
+      });
+    } else {
+      const note = document.createElement('span');
+      note.textContent = '(No material requirements)';
+      item.appendChild(note);
+    }
+
+    list.appendChild(item);
+  });
+
+  constructionSummaryContainer.appendChild(list);
+}
+
 function renderBuildMenu() {
+  const projects = getBuildings({ statuses: ['under-construction'] });
+  renderConstructionSummary(projects);
+
   if (!buildOptionsContainer || !projectList || !completedList || !lockedList) return;
 
   const entries = getAllBuildingTypes().map(type => ({ type, info: evaluateBuilding(type.id) })).filter(entry => entry.info);
@@ -391,7 +594,6 @@ function renderBuildMenu() {
   }
 
   projectList.innerHTML = '';
-  const projects = getBuildings({ statuses: ['under-construction'] });
   if (!projects.length) {
     const empty = document.createElement('p');
     empty.textContent = 'No projects are currently underway.';
@@ -733,6 +935,7 @@ export function showJobs() {
   if (ordersSection) {
     ordersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
   }
+  hideConstructionDashboard();
   showBackButton(false);
 }
 
@@ -806,48 +1009,24 @@ export function initGameUI() {
     renderTextMap();
   }
 
-  const buildSection = document.createElement('section');
-  buildSection.id = 'build-menu';
-  const buildTitle = document.createElement('h3');
-  buildTitle.textContent = 'Construction Planner';
-  buildSection.appendChild(buildTitle);
+  ensureConstructionModal();
+  closeConstructionModal();
 
-  const buildBlurb = document.createElement('p');
-  buildBlurb.textContent = 'Plan, upgrade, and review settlement structures. Projects consume materials over time and unlock more sophisticated buildings as the village advances.';
-  buildSection.appendChild(buildBlurb);
+  const summarySection = document.createElement('section');
+  summarySection.id = 'construction-summary';
+  const summaryTitle = document.createElement('h3');
+  summaryTitle.textContent = 'Construction Status';
+  summarySection.appendChild(summaryTitle);
 
-  buildOptionsContainer = document.createElement('div');
-  buildOptionsContainer.id = 'build-options';
-  buildOptionsContainer.style.display = 'grid';
-  buildOptionsContainer.style.gridTemplateColumns = 'repeat(auto-fit, minmax(260px, 1fr))';
-  buildOptionsContainer.style.gap = '12px';
-  buildSection.appendChild(buildOptionsContainer);
+  const summaryBlurb = document.createElement('p');
+  summaryBlurb.textContent = 'Current building efforts at a glance. Open the Construction dashboard for full planning tools.';
+  summarySection.appendChild(summaryBlurb);
 
-  const projectHeading = document.createElement('h4');
-  projectHeading.textContent = 'Active Projects';
-  buildSection.appendChild(projectHeading);
+  constructionSummaryContainer = document.createElement('div');
+  constructionSummaryContainer.id = 'construction-summary-list';
+  summarySection.appendChild(constructionSummaryContainer);
 
-  projectList = document.createElement('div');
-  projectList.id = 'build-projects';
-  buildSection.appendChild(projectList);
-
-  const completedHeading = document.createElement('h4');
-  completedHeading.textContent = 'Completed Structures';
-  buildSection.appendChild(completedHeading);
-
-  completedList = document.createElement('div');
-  completedList.id = 'completed-buildings';
-  buildSection.appendChild(completedList);
-
-  const lockedHeading = document.createElement('h4');
-  lockedHeading.textContent = 'Locked or Unavailable';
-  buildSection.appendChild(lockedHeading);
-
-  lockedList = document.createElement('div');
-  lockedList.id = 'locked-buildings';
-  buildSection.appendChild(lockedList);
-
-  container.appendChild(buildSection);
+  container.appendChild(summarySection);
 
   timeBanner = document.createElement('div');
   timeBanner.id = 'time-banner';

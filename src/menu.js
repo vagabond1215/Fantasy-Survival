@@ -17,13 +17,17 @@ function applyTheme() {
 export function showBackButton(show) {
   const back = document.getElementById('back-btn');
   const menuWrapper = document.getElementById('menu-wrapper');
+  const constructionBtn = document.getElementById('construction-btn');
   if (back && menuWrapper) {
     back.style.display = show ? 'inline-block' : 'none';
     menuWrapper.style.display = show ? 'none' : 'inline-block';
   }
+  if (constructionBtn) {
+    constructionBtn.style.display = show ? 'none' : 'inline-block';
+  }
 }
 
-export function initTopMenu(onMenu, onBack, onReset) {
+export function initTopMenu(onMenu, onBack, onReset, onConstruction) {
   const bar = document.getElementById('top-menu');
   if (!bar) return;
   applyTheme();
@@ -78,6 +82,14 @@ export function initTopMenu(onMenu, onBack, onReset) {
     applyZoom();
   });
 
+  const constructionBtn = document.createElement('button');
+  constructionBtn.id = 'construction-btn';
+  constructionBtn.textContent = 'Construction';
+  Object.assign(constructionBtn.style, { height: squareStyle.height });
+  constructionBtn.addEventListener('click', () => {
+    if (typeof onConstruction === 'function') onConstruction();
+  });
+
   const menuBtn = document.createElement('button');
   menuBtn.id = 'menu-btn';
   menuBtn.textContent = 'Menu';
@@ -117,26 +129,26 @@ export function initTopMenu(onMenu, onBack, onReset) {
   }
   menuBtn.addEventListener('click', () => toggleMenu());
 
-    if (typeof onMenu === 'function') {
-      const jobsBtn = document.createElement('button');
-      jobsBtn.textContent = 'Jobs';
-      Object.assign(jobsBtn.style, { height: squareStyle.height });
-      jobsBtn.addEventListener('click', () => {
-        toggleMenu(false);
-        onMenu();
-        showBackButton(true);
-      });
-      dropdown.appendChild(jobsBtn);
-    }
-
-    const resetBtn = document.createElement('button');
-    resetBtn.textContent = 'New Game';
-    Object.assign(resetBtn.style, { height: squareStyle.height });
-    resetBtn.addEventListener('click', () => {
+  if (typeof onMenu === 'function') {
+    const jobsBtn = document.createElement('button');
+    jobsBtn.textContent = 'Jobs';
+    Object.assign(jobsBtn.style, { height: squareStyle.height });
+    jobsBtn.addEventListener('click', () => {
       toggleMenu(false);
-      if (typeof onReset === 'function') onReset();
+      onMenu();
+      showBackButton(true);
     });
-    dropdown.appendChild(resetBtn);
+    dropdown.appendChild(jobsBtn);
+  }
+
+  const resetBtn = document.createElement('button');
+  resetBtn.textContent = 'New Game';
+  Object.assign(resetBtn.style, { height: squareStyle.height });
+  resetBtn.addEventListener('click', () => {
+    toggleMenu(false);
+    if (typeof onReset === 'function') onReset();
+  });
+  dropdown.appendChild(resetBtn);
 
   const backBtn = document.createElement('button');
   backBtn.id = 'back-btn';
@@ -152,6 +164,7 @@ export function initTopMenu(onMenu, onBack, onReset) {
   bar.appendChild(themeBtn);
   bar.appendChild(zoomOut);
   bar.appendChild(zoomIn);
+  bar.appendChild(constructionBtn);
   bar.appendChild(menuWrapper);
   bar.appendChild(backBtn);
   applyZoom();

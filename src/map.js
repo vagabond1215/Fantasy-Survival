@@ -120,7 +120,13 @@ export function generateColorMap(
         const oreVal = oreNoise(seed, gx, gy, 12);
         if (oreVal > 0.85 && elevation >= waterLevel) type = 'ore';
       }
-      row.push(TERRAIN_SYMBOLS[type] || '?');
+
+      if (gx === 0 && gy === 0) {
+        type = 'open';
+      }
+
+      const symbol = gx === 0 && gy === 0 ? '🚩' : TERRAIN_SYMBOLS[type] || '?';
+      row.push(symbol);
       typeRow.push(type);
     }
     tiles.push(row);
