@@ -8,7 +8,7 @@ import { calculateStartingGoods, harvestWood } from './resources.js';
 import { initSetupUI } from './ui.js';
 import { saveGame, loadGame, clearSave } from './persistence.js';
 import { difficultySettings } from './difficulty.js';
-import { initGameUI, showJobs, closeJobs } from './gameUI.js';
+import { initGameUI, showJobs, closeJobs, showConstructionDashboard } from './gameUI.js';
 import { initTopMenu, initBottomMenu } from './menu.js';
 import { resetToDawn } from './time.js';
 import { resetOrders } from './orders.js';
@@ -56,7 +56,7 @@ function init() {
   initTopMenu(showJobs, closeJobs, () => {
     clearSave();
     window.location.reload();
-  });
+  }, showConstructionDashboard);
   initBottomMenu();
   if (!loadGame()) {
     initSetupUI(startGame);
