@@ -25,6 +25,10 @@ export function info() {
   return { ...store.time };
 }
 
+// Provide a backwards-compatible alias for modules that import `timeInfo`.
+// This is useful for legacy code that still expects the older export name.
+export { info as timeInfo };
+
 export function resetToDawn() {
   store.time.hour = DAWN_HOUR;
 }
