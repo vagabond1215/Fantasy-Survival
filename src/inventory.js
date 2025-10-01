@@ -9,7 +9,7 @@ function upsert(record) {
 }
 
 export function addItem(name, quantity = 0) {
-  const record = store.getItem('inventory', name) || { id: name, quantity: 0, demand: 0 };
+  const record = store.getItem('inventory', name) || { id: name, quantity: 0, demand: 0, expectedChange: 0 };
   record.quantity += quantity;
   upsert(record);
 }
@@ -21,5 +21,13 @@ export function adjustDemand(name, amount) {
 }
 
 export function getItem(name) {
-  return store.getItem('inventory', name) || { quantity: 0, demand: 0 };
+  const record = store.getItem('inventory', name);
+  if (!record) return { quantity: 0, demand: 0, expectedChange: 0 };
+  return { ...record };
+}
+
+export function setExpectedChange(name, change = 0) {
+  const record = store.getItem('inventory', name) || { id: name, quantity: 0, demand: 0, expectedChange: 0 };
+  record.expectedChange = change;
+  upsert(record);
 }

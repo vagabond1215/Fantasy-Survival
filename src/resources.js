@@ -45,6 +45,21 @@ const SCAVENGE_RESOURCES = [
   { name: 'pebbles', weight: 1 }
 ];
 
+const SCAVENGE_DISTRIBUTION = {
+  firewood: 0.25,
+  food: 0.4,
+  'small stones': 0.2,
+  pebbles: 0.15
+};
+
+const AVERAGE_LOAD_FACTOR = 0.95;
+const HUNTING_FOOD_PER_WORKER_HOUR = 3;
+const HUNTING_HIDE_PER_WORKER_HOUR = 0.35;
+const CRAFTING_GOODS_PER_WORKER_HOUR = 0.5;
+const CRAFTING_FIREWOOD_CONSUMPTION_PER_WORKER_HOUR = 0.5;
+const BUILDING_WOOD_CONSUMPTION_PER_WORKER_HOUR = 3;
+const BUILDING_PROGRESS_PER_WORKER_HOUR = 0.3;
+
 function randomScavengeDistribution() {
   const total = 0.9 + Math.random() * 0.1; // 90-100% of capacity
   const weights = SCAVENGE_RESOURCES.map(() => Math.random());
@@ -78,6 +93,124 @@ export function scavengeResources(workers = 0) {
   SCAVENGE_RESOURCES.forEach(r => {
     totals[r.name] = Math.round(totals[r.name]);
   });
+  return totals;
+}
+
+function resourceWeightLookup(name) {
+  const entry = SCAVENGE_RESOURCES.find(r => r.name === name);
+  return entry ? entry.weight : 1;
+}
+
+function addToTotals(target, deltas = {}) {
+  Object.entries(deltas).forEach(([name, amount]) => {
+    if (!Number.isFinite(amount) || amount === 0) return;
+    target[name] = (target[name] || 0) + amount;
+  });
+  return target;
+}
+
+function multiplyResources(map, factor) {
+  const result = {};
+  Object.entries(map).forEach(([name, amount]) => {
+    result[name] = amount * factor;
+  });
+  return result;
+}
+
+function expectedScavengePerHour(workers = 0) {
+  const perWorkerLoadPerHour = (EFFECTIVE_CAPACITY * AVERAGE_LOAD_FACTOR) / 8;
+  const totals = {};
+  Object.entries(SCAVENGE_DISTRIBUTION).forEach(([name, share]) => {
+    const weight = perWorkerLoadPerHour * share;
+    totals[name] = (weight / resourceWeightLookup(name)) * workers;
+  });
+  return totals;
+}
+
+export function expectedScavengeYield(workers = 0, hours = 8) {
+  if (hours <= 0) return {};
+  const perHour = expectedScavengePerHour(workers);
+  return multiplyResources(perHour, hours);
+}
+
+export function calculateStartingGoods(config = {}) {
+  const { people = 0, foodDays = 0, firewoodDays = 0, tools = {} } = config;
+  const items = {};
+  const foodPerPersonPerDay = 1;
+  if (people > 0 && foodDays > 0) {
+    items.food = people * foodDays * foodPerPersonPerDay;
+  }
+  if (people > 0 && firewoodDays > 0) {
+    items.firewood = people * firewoodDays;
+  }
+  Object.entries(tools).forEach(([name, qty]) => {
+    if (!qty) return;
+    items[name] = (items[name] || 0) + qty;
+  });
+  return items;
+}
+
+function huntingPerHour(order) {
+  const workers = order?.workers || 0;
+  return {
+    food: workers * HUNTING_FOOD_PER_WORKER_HOUR,
+    hides: workers * HUNTING_HIDE_PER_WORKER_HOUR
+  };
+}
+
+function craftingPerHour(order) {
+  const workers = order?.workers || 0;
+  return {
+    'crafted goods': workers * CRAFTING_GOODS_PER_WORKER_HOUR,
+    firewood: -workers * CRAFTING_FIREWOOD_CONSUMPTION_PER_WORKER_HOUR
+  };
+}
+
+function buildingPerHour(order) {
+  const workers = order?.workers || 0;
+  return {
+    wood: -workers * BUILDING_WOOD_CONSUMPTION_PER_WORKER_HOUR,
+    'construction progress': workers * BUILDING_PROGRESS_PER_WORKER_HOUR
+  };
+}
+
+export function getOrderHourlyEffect(order) {
+  if (!order) return {};
+  switch (order.type) {
+    case 'gathering':
+      return expectedScavengePerHour(order.workers);
+    case 'hunting':
+      return huntingPerHour(order);
+    case 'crafting':
+      return craftingPerHour(order);
+    case 'building':
+      return buildingPerHour(order);
+    case 'combat':
+    default:
+      return {};
+  }
+}
+
+export function calculateOrderDelta(order, hours = 1) {
+  if (!order || hours <= 0) return {};
+  const perHour = getOrderHourlyEffect(order);
+  return multiplyResources(perHour, hours);
+}
+
+export function calculateExpectedInventoryChanges(orders = []) {
+  const totals = {};
+  orders
+    .filter(o => o.status === 'pending' || o.status === 'active')
+    .forEach(order => {
+      const hours = order.status === 'pending' ? order.durationHours : order.remainingHours;
+      addToTotals(totals, calculateOrderDelta(order, hours));
+    });
+  return totals;
+}
+
+export function applyResourceDelta(delta = {}) {
+  const totals = {};
+  addToTotals(totals, delta);
   return totals;
 }
 
