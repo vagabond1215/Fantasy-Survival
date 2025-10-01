@@ -17,11 +17,60 @@ function summarizeTerrain(types = []) {
   return counts;
 }
 
-function computeViewportSize() {
-  if (typeof window === 'undefined') return 320;
-  const widthAllowance = Math.max(220, window.innerWidth - 80);
-  const heightAllowance = Math.max(220, window.innerHeight - 260);
-  return Math.max(220, Math.min(widthAllowance, heightAllowance));
+function computeViewportDimensions(cols = 0, rows = 0) {
+  const MIN_SIZE = 220;
+  const hasDimensions = cols > 0 && rows > 0;
+  const aspectRatio = hasDimensions ? rows / cols : 1;
+
+  if (typeof window === 'undefined') {
+    const base = 320;
+    const width = hasDimensions ? base : Math.max(MIN_SIZE, base);
+    const height = hasDimensions
+      ? Math.max(MIN_SIZE, base * aspectRatio)
+      : Math.max(MIN_SIZE, base);
+    return { width, height };
+  }
+
+  const widthAllowance = Math.max(MIN_SIZE, window.innerWidth - 80);
+  const heightAllowance = Math.max(MIN_SIZE, window.innerHeight - 260);
+
+  if (!hasDimensions) {
+    const size = Math.max(MIN_SIZE, Math.min(widthAllowance, heightAllowance));
+    return { width: size, height: size };
+  }
+
+  let width = widthAllowance;
+  let height = width * aspectRatio;
+
+  if (height > heightAllowance) {
+    height = heightAllowance;
+    width = height / aspectRatio;
+  }
+
+  if (width > widthAllowance) {
+    width = widthAllowance;
+    height = width * aspectRatio;
+  }
+
+  if (height < MIN_SIZE) {
+    height = MIN_SIZE;
+    width = height / aspectRatio;
+    if (width > widthAllowance) {
+      width = widthAllowance;
+      height = Math.max(MIN_SIZE, width * aspectRatio);
+    }
+  }
+
+  if (width < MIN_SIZE) {
+    width = MIN_SIZE;
+    height = width * aspectRatio;
+    if (height > heightAllowance) {
+      height = heightAllowance;
+      width = Math.max(MIN_SIZE, height / aspectRatio);
+    }
+  }
+
+  return { width, height };
 }
 
 function requestFrame(callback) {
@@ -137,9 +186,11 @@ export function createMapView(container, {
 
   function updateWrapperSize() {
     if (!state.map) return;
-    const size = computeViewportSize();
-    mapWrapper.style.width = `${size}px`;
-    mapWrapper.style.height = `${size}px`;
+    const cols = state.map.tiles?.[0]?.length || 0;
+    const rows = state.map.tiles?.length || 0;
+    const { width, height } = computeViewportDimensions(cols, rows);
+    mapWrapper.style.width = `${width}px`;
+    mapWrapper.style.height = `${height}px`;
 
     requestFrame(() => {
       updateFontSize();
