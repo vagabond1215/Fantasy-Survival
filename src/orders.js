@@ -34,7 +34,7 @@ export function getActiveOrder() {
   return store.orders.find(o => o.status === 'active') || null;
 }
 
-export function addOrder({ type, workers = 1, hours = 4, notes = '' }) {
+export function addOrder({ type, workers = 1, hours = 4, notes = '', metadata = null }) {
   ensureOrderState();
   const id = nextOrderId();
   const order = {
@@ -44,7 +44,8 @@ export function addOrder({ type, workers = 1, hours = 4, notes = '' }) {
     durationHours: Math.max(1, Math.ceil(hours)),
     remainingHours: Math.max(1, Math.ceil(hours)),
     notes,
-    status: 'pending'
+    status: 'pending',
+    metadata: metadata || null
   };
   store.orders.push(order);
   return { ...order };

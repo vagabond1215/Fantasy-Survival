@@ -15,6 +15,18 @@ import {
   getActiveOrder
 } from './orders.js';
 import { calculateOrderDelta, calculateExpectedInventoryChanges } from './resources.js';
+import { createMapView } from './mapView.js';
+import {
+  evaluateBuilding,
+  beginConstruction,
+  getBuildings,
+  getBuildingType,
+  recordBuildingProgress,
+  recordResourceConsumption,
+  markBuildingComplete,
+  getAllBuildingTypes
+} from './buildings.js';
+import { getResourceIcon } from './icons.js';
 
 const LEGEND_LABELS = {
   water: 'Water',
@@ -25,130 +37,22 @@ const LEGEND_LABELS = {
 
 const ENEMY_EVENT_CHANCE_PER_HOUR = 0.05;
 
-let mapWrapper = null;
-let mapDisplay = null;
-let legendList = null;
+let mapView = null;
 let lastSeason = null;
 let ordersList = null;
 let inventoryPanel = null;
 let eventLogList = null;
 let timeBanner = null;
 let startBtn = null;
-let mapControls = null;
-let mapInitialized = false;
-let mapResizeHandler = null;
-let dragListenersAttached = false;
-let isDraggingMap = false;
-const dragState = {
-  startX: 0,
-  startY: 0,
-  scrollLeft: 0,
-  scrollTop: 0
-};
-
-function requestFrame(callback) {
-  if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
-    window.requestAnimationFrame(callback);
-  } else {
-    setTimeout(callback, 0);
-  }
-}
-
-function summarizeTerrain(types = []) {
-  const counts = { water: 0, open: 0, forest: 0, ore: 0 };
-  types.forEach(row => {
-    row.forEach(type => {
-      if (type in counts) counts[type] += 1;
-    });
-  });
-  return counts;
-}
-
-function updateLegend(counts = summarizeTerrain(store.locations.values().next().value?.map?.types || [])) {
-  if (!legendList) return;
-  legendList.innerHTML = '';
-  Object.entries(TERRAIN_SYMBOLS).forEach(([type, symbol]) => {
-    const li = document.createElement('li');
-    const label = LEGEND_LABELS[type] || type;
-    const amount = counts[type] ?? 0;
-    li.textContent = `${symbol} – ${label} (${amount})`;
-    legendList.appendChild(li);
-  });
-}
-
-function computeMapViewportSize() {
-  if (typeof window === 'undefined') return 320;
-  const widthAllowance = Math.max(200, window.innerWidth - 80);
-  const heightAllowance = Math.max(200, window.innerHeight - 240);
-  return Math.max(220, Math.min(widthAllowance, heightAllowance));
-}
-
-function updateMapFontSize() {
-  if (!mapWrapper || !mapDisplay) return;
-  const loc = allLocations()[0];
-  const rows = loc?.map?.tiles?.length || 0;
-  const cols = rows ? loc.map.tiles[0].length : 0;
-  if (!rows || !cols) return;
-
-  const horizontalPadding = 20;
-  const verticalPadding = 20;
-  const availableWidth = Math.max(0, mapWrapper.clientWidth - horizontalPadding);
-  const availableHeight = Math.max(0, mapWrapper.clientHeight - verticalPadding);
-  if (!availableWidth || !availableHeight) return;
-
-  const sizeForWidth = availableWidth / cols;
-  const sizeForHeight = availableHeight / rows;
-  const targetSize = Math.max(8, Math.min(sizeForWidth, sizeForHeight));
-  mapDisplay.style.fontSize = `${targetSize}px`;
-}
-
-function updateMapWrapperSize({ preserveScroll = true } = {}) {
-  if (!mapWrapper || !mapDisplay) return;
-  const size = computeMapViewportSize();
-  let leftRatio = 0;
-  let topRatio = 0;
-  if (preserveScroll) {
-    const maxLeft = Math.max(1, mapDisplay.scrollWidth - mapWrapper.clientWidth);
-    const maxTop = Math.max(1, mapDisplay.scrollHeight - mapWrapper.clientHeight);
-    leftRatio = mapWrapper.scrollLeft / maxLeft;
-    topRatio = mapWrapper.scrollTop / maxTop;
-  }
-  mapWrapper.style.width = `${size}px`;
-  mapWrapper.style.height = `${size}px`;
-
-  requestFrame(() => {
-    if (preserveScroll) {
-      const maxLeft = Math.max(0, mapDisplay.scrollWidth - mapWrapper.clientWidth);
-      const maxTop = Math.max(0, mapDisplay.scrollHeight - mapWrapper.clientHeight);
-      mapWrapper.scrollLeft = leftRatio * maxLeft;
-      mapWrapper.scrollTop = topRatio * maxTop;
-    }
-    updateMapFontSize();
-  });
-}
-
-function centerMap() {
-  if (!mapWrapper || !mapDisplay) return;
-  requestFrame(() => {
-    const maxLeft = Math.max(0, mapDisplay.scrollWidth - mapWrapper.clientWidth);
-    const maxTop = Math.max(0, mapDisplay.scrollHeight - mapWrapper.clientHeight);
-    mapWrapper.scrollLeft = maxLeft / 2;
-    mapWrapper.scrollTop = maxTop / 2;
-  });
-}
+let buildOptionsContainer = null;
+let projectList = null;
+let completedList = null;
+let lockedList = null;
 
 function renderTextMap() {
   const loc = allLocations()[0];
-  if (!loc || !mapDisplay) return;
-  const rows = loc.map.tiles.map(row => row.join(''));
-  mapDisplay.textContent = rows.join('\n');
-  updateLegend(summarizeTerrain(loc.map.types));
-  updateMapWrapperSize({ preserveScroll: mapInitialized });
-  requestFrame(updateMapFontSize);
-  if (!mapInitialized) {
-    centerMap();
-    mapInitialized = true;
-  }
+  if (!loc || !mapView) return;
+  mapView.setMap(loc.map);
 }
 
 function formatHour(hour = 0) {
@@ -223,11 +127,330 @@ function renderInventory() {
       const expectedRounded = Math.round(expected * 10) / 10;
       const expectedText = expectedRounded > 0 ? `+${expectedRounded}` : expectedRounded;
       const quantity = Math.round(item.quantity * 10) / 10;
-      tr.innerHTML = `<td>${item.id}</td><td>${quantity}</td><td>${expectedText}</td>`;
+
+      const nameCell = document.createElement('td');
+      const iconInfo = getResourceIcon(item.id);
+      if (iconInfo) {
+        const iconSpan = document.createElement('span');
+        iconSpan.textContent = iconInfo.icon;
+        iconSpan.title = iconInfo.label;
+        iconSpan.setAttribute('role', 'img');
+        iconSpan.setAttribute('aria-label', iconInfo.label);
+        nameCell.appendChild(iconSpan);
+      } else {
+        nameCell.textContent = item.id;
+      }
+
+      const qtyCell = document.createElement('td');
+      qtyCell.textContent = quantity;
+
+      const expectedCell = document.createElement('td');
+      expectedCell.textContent = expectedText;
+
+      tr.appendChild(nameCell);
+      tr.appendChild(qtyCell);
+      tr.appendChild(expectedCell);
       table.appendChild(tr);
     });
   }
   inventoryPanel.appendChild(table);
+}
+
+function formatSigned(value = 0) {
+  const rounded = Math.round(value * 10) / 10;
+  if (rounded > 0) return `+${rounded}`;
+  return `${rounded}`;
+}
+
+function createInfoLine(label, content) {
+  const line = document.createElement('p');
+  const strong = document.createElement('strong');
+  strong.textContent = `${label}: `;
+  line.appendChild(strong);
+  if (content instanceof Node) {
+    line.appendChild(content);
+  } else {
+    line.appendChild(document.createTextNode(content));
+  }
+  return line;
+}
+
+function createResourceBadges(resources = {}) {
+  const entries = Object.entries(resources).filter(([, amount]) => amount && amount !== 0);
+  const wrapper = document.createElement('span');
+  if (!entries.length) {
+    wrapper.textContent = 'None';
+    return wrapper;
+  }
+  entries.forEach(([name, amount], index) => {
+    const badge = document.createElement('span');
+    badge.style.display = 'inline-flex';
+    badge.style.alignItems = 'center';
+    badge.style.gap = '4px';
+    badge.style.marginRight = '8px';
+    const rounded = Math.round(amount * 10) / 10;
+    const iconInfo = getResourceIcon(name);
+    if (iconInfo) {
+      const iconSpan = document.createElement('span');
+      iconSpan.textContent = iconInfo.icon;
+      iconSpan.title = iconInfo.label;
+      iconSpan.setAttribute('role', 'img');
+      iconSpan.setAttribute('aria-label', iconInfo.label);
+      badge.appendChild(iconSpan);
+      const qty = document.createElement('span');
+      qty.textContent = `×${rounded}`;
+      badge.appendChild(qty);
+    } else {
+      badge.textContent = `${rounded} ${name}`;
+    }
+    wrapper.appendChild(badge);
+    if (index === entries.length - 1) {
+      badge.style.marginRight = '0';
+    }
+  });
+  return wrapper;
+}
+
+function describeEffects(effects = {}) {
+  const lines = [];
+  const simpleKeys = [
+    ['occupancy', value => `Occupancy ${formatSigned(value)}`],
+    ['comfort', value => `Comfort ${formatSigned(value)}`],
+    ['survivability', value => `Survivability ${formatSigned(value)}`],
+    ['appeal', value => `Appeal ${formatSigned(value)}`],
+    ['safety', value => `Safety ${formatSigned(value)}`],
+    ['maxWorkers', value => `Supports ${value} workers`]
+  ];
+  simpleKeys.forEach(([key, formatter]) => {
+    if (effects[key]) lines.push(formatter(effects[key]));
+  });
+  if (effects.supply) {
+    Object.entries(effects.supply).forEach(([name, amount]) => {
+      lines.push(`Supply ${name} ${formatSigned(amount)}`);
+    });
+  }
+  if (effects.demand) {
+    Object.entries(effects.demand).forEach(([name, amount]) => {
+      lines.push(`Demand ${name} ${formatSigned(amount)}`);
+    });
+  }
+  if (effects.capacity) {
+    Object.entries(effects.capacity).forEach(([name, amount]) => {
+      lines.push(`Capacity ${name} ${formatSigned(amount)}`);
+    });
+  }
+  if (effects.storage) {
+    Object.entries(effects.storage).forEach(([name, amount]) => {
+      lines.push(`Storage ${name} ${formatSigned(amount)}`);
+    });
+  }
+  if (effects.unlocks) {
+    const unlocks = Array.isArray(effects.unlocks) ? effects.unlocks : [effects.unlocks];
+    lines.push(`Unlocks: ${unlocks.join(', ')}`);
+  }
+  return lines;
+}
+
+function createBuildCard(type, info) {
+  const card = document.createElement('article');
+  card.className = 'build-card';
+  card.style.border = '1px solid var(--map-border)';
+  card.style.padding = '8px';
+  card.style.borderRadius = '6px';
+  card.style.background = 'var(--map-bg)';
+  card.style.color = 'var(--text-color)';
+
+  const title = document.createElement('h4');
+  title.textContent = `${type.icon ? `${type.icon} ` : ''}${type.name}`;
+  card.appendChild(title);
+
+  if (type.description) {
+    const desc = document.createElement('p');
+    desc.textContent = type.description;
+    card.appendChild(desc);
+  }
+
+  card.appendChild(createInfoLine('Labor', `${type.stats.totalLaborHours} worker-hours`));
+  card.appendChild(createInfoLine('Minimum Builders', type.stats.minBuilders));
+  card.appendChild(createInfoLine('Resources', createResourceBadges(type.stats.totalResources)));
+
+  const effectLines = describeEffects(type.effects);
+  if (effectLines.length) {
+    const effectTitle = document.createElement('p');
+    effectTitle.innerHTML = '<strong>Effects:</strong>';
+    card.appendChild(effectTitle);
+    const list = document.createElement('ul');
+    effectLines.forEach(line => {
+      const li = document.createElement('li');
+      li.textContent = line;
+      list.appendChild(li);
+    });
+    card.appendChild(list);
+  }
+
+  if (type.stats.components?.length) {
+    const details = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = 'Core components';
+    details.appendChild(summary);
+    type.stats.components.forEach(component => {
+      const section = document.createElement('div');
+      section.style.marginBottom = '6px';
+      const heading = document.createElement('p');
+      heading.innerHTML = `<strong>${component.name}:</strong> ${component.description}`;
+      section.appendChild(heading);
+      section.appendChild(createInfoLine('Labor', `${component.laborHours} hrs @ ≥${component.minBuilders} builders`));
+      section.appendChild(createInfoLine('Resources', createResourceBadges(component.resources)));
+      details.appendChild(section);
+    });
+    card.appendChild(details);
+  }
+
+  if (type.stats.addons?.length) {
+    const addonDetails = document.createElement('details');
+    const summary = document.createElement('summary');
+    summary.textContent = 'Optional upgrades';
+    addonDetails.appendChild(summary);
+    type.stats.addons.forEach(addon => {
+      const section = document.createElement('div');
+      section.style.marginBottom = '6px';
+      const heading = document.createElement('p');
+      heading.innerHTML = `<strong>${addon.name}:</strong> ${addon.description}`;
+      section.appendChild(heading);
+      section.appendChild(createInfoLine('Labor', `${addon.laborHours} hrs @ ≥${addon.minBuilders} builders`));
+      if (addon.effects) {
+        const addonEffects = describeEffects(addon.effects);
+        if (addonEffects.length) {
+          const list = document.createElement('ul');
+          addonEffects.forEach(line => {
+            const li = document.createElement('li');
+            li.textContent = line;
+            list.appendChild(li);
+          });
+          section.appendChild(list);
+        }
+      }
+      section.appendChild(createInfoLine('Resources', createResourceBadges(addon.resources)));
+      addonDetails.appendChild(section);
+    });
+    card.appendChild(addonDetails);
+  }
+
+  const missingResources = info.resourceStatus?.missing || [];
+  if (missingResources.length) {
+    const deficits = Object.fromEntries(
+      missingResources.map(entry => [entry.name, entry.required - entry.available])
+    );
+    const deficitLine = createInfoLine('Needed', createResourceBadges(deficits));
+    card.appendChild(deficitLine);
+  }
+
+  const buildBtn = document.createElement('button');
+  buildBtn.textContent = `Build ${type.name}`;
+  buildBtn.disabled = !info.hasResources;
+  if (!info.hasResources) {
+    buildBtn.title = 'Gather more resources to begin construction.';
+  }
+  buildBtn.addEventListener('click', () => {
+    try {
+      const { order } = beginConstruction(type.id, { workers: type.stats.minBuilders });
+      queueOrder(order);
+      logEvent(`Construction started on the ${type.name}.`);
+      updateInventoryExpectations();
+      render();
+    } catch (err) {
+      console.warn(err);
+      alert(err.message);
+    }
+  });
+  card.appendChild(buildBtn);
+
+  return card;
+}
+
+function renderBuildMenu() {
+  if (!buildOptionsContainer || !projectList || !completedList || !lockedList) return;
+
+  const entries = getAllBuildingTypes().map(type => ({ type, info: evaluateBuilding(type.id) })).filter(entry => entry.info);
+
+  buildOptionsContainer.innerHTML = '';
+  const available = entries.filter(entry => entry.info.unlocked && entry.info.locationOk && entry.info.canBuildMore);
+  if (!available.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No structures are currently available to build.';
+    buildOptionsContainer.appendChild(empty);
+  } else {
+    available.forEach(entry => {
+      const card = createBuildCard(entry.type, entry.info);
+      buildOptionsContainer.appendChild(card);
+    });
+  }
+
+  projectList.innerHTML = '';
+  const projects = getBuildings({ statuses: ['under-construction'] });
+  if (!projects.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No projects are currently underway.';
+    projectList.appendChild(empty);
+  } else {
+    const list = document.createElement('ul');
+    projects.forEach(project => {
+      const type = getBuildingType(project.typeId);
+      const li = document.createElement('li');
+      const progress = project.totalLaborHours ? Math.round((project.progressHours / project.totalLaborHours) * 100) : 0;
+      const worked = Math.round(project.progressHours * 10) / 10;
+      const total = Math.round(project.totalLaborHours * 10) / 10;
+      li.textContent = `${type?.icon ? `${type.icon} ` : ''}${type?.name || project.typeId} – ${progress}% complete (${worked}/${total} worker-hours, ${project.assignedWorkers} builders)`;
+      list.appendChild(li);
+    });
+    projectList.appendChild(list);
+  }
+
+  completedList.innerHTML = '';
+  const completed = getBuildings({ statuses: ['completed'] });
+  if (!completed.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No completed structures yet.';
+    completedList.appendChild(empty);
+  } else {
+    const list = document.createElement('ul');
+    completed.forEach(entry => {
+      const type = getBuildingType(entry.typeId);
+      const li = document.createElement('li');
+      const name = type?.name || entry.typeId;
+      li.textContent = `${type?.icon ? `${type.icon} ` : ''}${name}`;
+      list.appendChild(li);
+    });
+    completedList.appendChild(list);
+  }
+
+  lockedList.innerHTML = '';
+  const blocked = entries.filter(entry => !entry.info.unlocked || !entry.info.locationOk || !entry.info.canBuildMore);
+  if (!blocked.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'All known structures are available.';
+    lockedList.appendChild(empty);
+  } else {
+    const list = document.createElement('ul');
+    blocked.forEach(({ type, info }) => {
+      const li = document.createElement('li');
+      const name = `${type.icon ? `${type.icon} ` : ''}${type.name}`;
+      const reasons = [];
+      if (!info.unlocked) {
+        reasons.push('Prerequisites not yet met');
+      }
+      if (info.unlocked && !info.locationOk) {
+        const tags = type.requirements?.locationTags?.join(', ') || 'special terrain';
+        reasons.push(`Requires terrain with: ${tags}`);
+      }
+      if (info.unlocked && !info.canBuildMore) {
+        reasons.push('Maximum built for now');
+      }
+      li.textContent = `${name} – ${reasons.join('; ')}`;
+      list.appendChild(li);
+    });
+    lockedList.appendChild(list);
+  }
 }
 
 function capitalize(str = '') {
@@ -289,7 +512,6 @@ function ensureSeasonalMap() {
   );
   loc.map = { ...map, ...newMap };
   lastSeason = t.season;
-  mapInitialized = false;
   renderTextMap();
 }
 
@@ -303,6 +525,7 @@ function render() {
   ensureSeasonalMap();
   renderTimeBanner();
   renderTextMap();
+  renderBuildMenu();
   renderOrders();
   renderInventoryExpectations();
   renderEventLog();
@@ -351,10 +574,28 @@ function processOrderCycle() {
     if (!Number.isFinite(step) || step <= 0) step = 1;
 
     const delta = calculateOrderDelta(active, step);
-    Object.entries(delta).forEach(([resource, amount]) => {
-      if (!amount) return;
-      addItem(resource, amount);
-    });
+    const isBuilding = active.type === 'building' && active.metadata?.projectId;
+    if (isBuilding) {
+      const consumption = {};
+      Object.entries(delta).forEach(([resource, amount]) => {
+        if (!amount) return;
+        if (resource === 'construction progress') return;
+        addItem(resource, amount);
+        if (amount < 0) {
+          consumption[resource] = (consumption[resource] || 0) + Math.abs(amount);
+        }
+      });
+      const progressPerWorker = active.metadata?.progressPerWorkerHour ?? 1;
+      recordBuildingProgress(active.metadata.projectId, step * active.workers * progressPerWorker);
+      if (Object.keys(consumption).length) {
+        recordResourceConsumption(active.metadata.projectId, consumption);
+      }
+    } else {
+      Object.entries(delta).forEach(([resource, amount]) => {
+        if (!amount) return;
+        addItem(resource, amount);
+      });
+    }
 
     updateOrder(active.id, {
       remainingHours: Math.max(0, active.remainingHours - step)
@@ -365,7 +606,13 @@ function processOrderCycle() {
     active = getActiveOrder();
     if (active && active.remainingHours <= 0) {
       updateOrder(active.id, { status: 'completed', remainingHours: 0 });
-      event = `${capitalize(active.type)} order completed.`;
+      if (active.type === 'building' && active.metadata?.projectId) {
+        const project = markBuildingComplete(active.metadata.projectId);
+        const typeName = active.metadata?.typeName || project?.typeId || 'Building';
+        event = `${typeName} completed.`;
+      } else {
+        event = `${capitalize(active.type)} order completed.`;
+      }
       break;
     }
 
@@ -522,167 +769,61 @@ export function initGameUI() {
     instructions.textContent = 'Use the arrows or drag across the map to explore. Tap the crosshair to recenter the view.';
     mapSection.appendChild(instructions);
 
-    mapWrapper = document.createElement('div');
-    mapWrapper.id = 'map-wrapper';
-    mapWrapper.style.position = 'relative';
-    mapWrapper.style.border = '1px solid #ccc';
-    mapWrapper.style.background = '#f4f4f4';
-    mapWrapper.style.overflow = 'auto';
-    mapWrapper.style.cursor = 'grab';
-    mapWrapper.style.userSelect = 'none';
-    mapWrapper.style.touchAction = 'none';
-    mapSection.appendChild(mapWrapper);
-
-    mapDisplay = document.createElement('pre');
-    mapDisplay.id = 'map-display';
-    mapDisplay.style.whiteSpace = 'pre';
-    mapDisplay.style.fontFamily = '"Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-    mapDisplay.style.lineHeight = '1';
-    mapDisplay.style.margin = '0';
-    mapDisplay.style.padding = '10px';
-    mapDisplay.style.display = 'inline-block';
-    mapWrapper.appendChild(mapDisplay);
-
-    mapControls = document.createElement('div');
-    mapControls.id = 'map-controls';
-    mapControls.style.display = 'grid';
-    mapControls.style.gridTemplateColumns = 'repeat(3, 48px)';
-    mapControls.style.gridAutoRows = '48px';
-    mapControls.style.gap = '6px';
-    mapControls.style.margin = '8px auto 0';
-    mapControls.style.justifyContent = 'center';
-    mapSection.appendChild(mapControls);
-
-    const navButtons = [
-      { label: '↖', dx: -1, dy: -1, aria: 'Pan northwest' },
-      { label: '↑', dx: 0, dy: -1, aria: 'Pan north' },
-      { label: '↗', dx: 1, dy: -1, aria: 'Pan northeast' },
-      { label: '←', dx: -1, dy: 0, aria: 'Pan west' },
-      { label: '🎯', recenter: true, aria: 'Recenter map' },
-      { label: '→', dx: 1, dy: 0, aria: 'Pan east' },
-      { label: '↙', dx: -1, dy: 1, aria: 'Pan southwest' },
-      { label: '↓', dx: 0, dy: 1, aria: 'Pan south' },
-      { label: '↘', dx: 1, dy: 1, aria: 'Pan southeast' }
-    ];
-
-    function panMap(dx, dy) {
-      if (!mapWrapper) return;
-      const stepX = mapWrapper.clientWidth * 0.6;
-      const stepY = mapWrapper.clientHeight * 0.6;
-      mapWrapper.scrollBy({
-        left: dx * stepX,
-        top: dy * stepY,
-        behavior: 'smooth'
-      });
-    }
-
-    function createNavButton(config) {
-      const btn = document.createElement('button');
-      btn.type = 'button';
-      btn.textContent = config.label;
-      btn.setAttribute('aria-label', config.aria);
-      btn.style.width = '48px';
-      btn.style.height = '48px';
-      btn.style.fontSize = '18px';
-      btn.style.display = 'flex';
-      btn.style.alignItems = 'center';
-      btn.style.justifyContent = 'center';
-      btn.addEventListener('click', () => {
-        if (config.recenter) {
-          mapInitialized = false;
-          centerMap();
-          mapInitialized = true;
-        } else {
-          panMap(config.dx, config.dy);
-        }
-      });
-      mapControls.appendChild(btn);
-    }
-
-    navButtons.forEach(createNavButton);
-
-    function startDrag(clientX, clientY) {
-      if (!mapWrapper) return;
-      isDraggingMap = true;
-      dragState.startX = clientX;
-      dragState.startY = clientY;
-      dragState.scrollLeft = mapWrapper.scrollLeft;
-      dragState.scrollTop = mapWrapper.scrollTop;
-      mapWrapper.style.cursor = 'grabbing';
-    }
-
-    function handleMouseDown(event) {
-      event.preventDefault();
-      startDrag(event.clientX, event.clientY);
-    }
-
-    function handleTouchStart(event) {
-      if (!event.touches?.length) return;
-      const touch = event.touches[0];
-      startDrag(touch.clientX, touch.clientY);
-      event.preventDefault();
-    }
-
-    function updateDrag(clientX, clientY) {
-      if (!isDraggingMap || !mapWrapper) return;
-      const dx = clientX - dragState.startX;
-      const dy = clientY - dragState.startY;
-      mapWrapper.scrollLeft = dragState.scrollLeft - dx;
-      mapWrapper.scrollTop = dragState.scrollTop - dy;
-    }
-
-    function handleMouseMove(event) {
-      if (!isDraggingMap) return;
-      event.preventDefault();
-      updateDrag(event.clientX, event.clientY);
-    }
-
-    function handleTouchMove(event) {
-      if (!isDraggingMap || !event.touches?.length) return;
-      const touch = event.touches[0];
-      updateDrag(touch.clientX, touch.clientY);
-      event.preventDefault();
-    }
-
-    function endDrag() {
-      if (!isDraggingMap || !mapWrapper) return;
-      isDraggingMap = false;
-      mapWrapper.style.cursor = 'grab';
-    }
-
-    mapWrapper.addEventListener('mousedown', handleMouseDown);
-    mapWrapper.addEventListener('touchstart', handleTouchStart, { passive: false });
-
-    if (!dragListenersAttached) {
-      window.addEventListener('mousemove', handleMouseMove);
-      window.addEventListener('mouseup', endDrag);
-      window.addEventListener('touchmove', handleTouchMove, { passive: false });
-      window.addEventListener('touchend', endDrag);
-      window.addEventListener('touchcancel', endDrag);
-      dragListenersAttached = true;
-    }
-
-    if (mapResizeHandler) {
-      window.removeEventListener('resize', mapResizeHandler);
-    }
-    mapResizeHandler = () => updateMapWrapperSize({ preserveScroll: true });
-    window.addEventListener('resize', mapResizeHandler);
-
-    mapInitialized = false;
-    updateMapWrapperSize({ preserveScroll: false });
-    renderTextMap();
-
-    const legendTitle = document.createElement('h4');
-    legendTitle.textContent = 'Legend';
-    mapSection.appendChild(legendTitle);
-
-    legendList = document.createElement('ul');
-    mapSection.appendChild(legendList);
+    mapView = createMapView(mapSection, {
+      legendLabels: LEGEND_LABELS,
+      showControls: true,
+      showLegend: true,
+      idPrefix: 'game-map'
+    });
+    mapView.setMap(loc.map);
 
     container.appendChild(mapSection);
     lastSeason = store.time.season;
     renderTextMap();
   }
+
+  const buildSection = document.createElement('section');
+  buildSection.id = 'build-menu';
+  const buildTitle = document.createElement('h3');
+  buildTitle.textContent = 'Construction Planner';
+  buildSection.appendChild(buildTitle);
+
+  const buildBlurb = document.createElement('p');
+  buildBlurb.textContent = 'Plan, upgrade, and review settlement structures. Projects consume materials over time and unlock more sophisticated buildings as the village advances.';
+  buildSection.appendChild(buildBlurb);
+
+  buildOptionsContainer = document.createElement('div');
+  buildOptionsContainer.id = 'build-options';
+  buildOptionsContainer.style.display = 'grid';
+  buildOptionsContainer.style.gridTemplateColumns = 'repeat(auto-fit, minmax(260px, 1fr))';
+  buildOptionsContainer.style.gap = '12px';
+  buildSection.appendChild(buildOptionsContainer);
+
+  const projectHeading = document.createElement('h4');
+  projectHeading.textContent = 'Active Projects';
+  buildSection.appendChild(projectHeading);
+
+  projectList = document.createElement('div');
+  projectList.id = 'build-projects';
+  buildSection.appendChild(projectList);
+
+  const completedHeading = document.createElement('h4');
+  completedHeading.textContent = 'Completed Structures';
+  buildSection.appendChild(completedHeading);
+
+  completedList = document.createElement('div');
+  completedList.id = 'completed-buildings';
+  buildSection.appendChild(completedList);
+
+  const lockedHeading = document.createElement('h4');
+  lockedHeading.textContent = 'Locked or Unavailable';
+  buildSection.appendChild(lockedHeading);
+
+  lockedList = document.createElement('div');
+  lockedList.id = 'locked-buildings';
+  buildSection.appendChild(lockedList);
+
+  container.appendChild(buildSection);
 
   timeBanner = document.createElement('div');
   timeBanner.id = 'time-banner';

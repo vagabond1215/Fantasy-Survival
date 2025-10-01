@@ -168,10 +168,15 @@ function craftingPerHour(order) {
 
 function buildingPerHour(order) {
   const workers = order?.workers || 0;
-  return {
-    wood: -workers * BUILDING_WOOD_CONSUMPTION_PER_WORKER_HOUR,
-    'construction progress': workers * BUILDING_PROGRESS_PER_WORKER_HOUR
-  };
+  const perHour = {};
+  const perWorkerResources = order?.metadata?.perWorkerHourResources || {};
+  Object.entries(perWorkerResources).forEach(([name, amount]) => {
+    if (!amount) return;
+    perHour[name] = -amount * workers;
+  });
+  const progressPerWorker = order?.metadata?.progressPerWorkerHour ?? BUILDING_PROGRESS_PER_WORKER_HOUR;
+  perHour['construction progress'] = workers * progressPerWorker;
+  return perHour;
 }
 
 export function getOrderHourlyEffect(order) {

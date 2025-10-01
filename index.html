@@ -8,11 +8,15 @@
       --bg-color: #fff;
       --text-color: #000;
       --menu-bg: #eee;
+      --map-bg: #f3f3f3;
+      --map-border: #ccc;
     }
     body.dark {
       --bg-color: #222;
       --text-color: #eee;
       --menu-bg: #333;
+      --map-bg: #3a3a3a;
+      --map-border: #555;
     }
     body {
       background: var(--bg-color);
@@ -20,6 +24,15 @@
     }
     #top-menu, #bottom-menu {
       background: var(--menu-bg);
+    }
+    .map-wrapper {
+      border: 1px solid var(--map-border);
+      background: var(--map-bg);
+      color: var(--text-color);
+    }
+    .map-display {
+      background: var(--map-bg);
+      color: var(--text-color);
     }
   </style>
 </head>

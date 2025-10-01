@@ -1,13 +1,12 @@
 import store from './state.js';
 import { addPerson } from './people.js';
 import { addItem } from './inventory.js';
-import { registerBuildingType } from './buildings.js';
+import { refreshBuildingUnlocks } from './buildings.js';
 import { unlockTechnology } from './technology.js';
 import { generateLocation } from './location.js';
 import { calculateStartingGoods, harvestWood } from './resources.js';
 import { initSetupUI } from './ui.js';
 import { saveGame, loadGame, clearSave } from './persistence.js';
-import { shelterTypes } from './shelters.js';
 import { difficultySettings } from './difficulty.js';
 import { initGameUI, showJobs, closeJobs } from './gameUI.js';
 import { initTopMenu, initBottomMenu } from './menu.js';
@@ -33,8 +32,8 @@ function startGame(settings = {}) {
   } else if (store.locations.size === 0) {
     generateLocation('loc1', 'temperate-deciduous', store.time.season, settings.seed);
   }
-  shelterTypes.forEach(registerBuildingType);
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
+  refreshBuildingUnlocks();
   store.difficulty = diff;
   // Initialize available jobs, starting with scavenging
   store.jobs = { scavenge: 0 };
