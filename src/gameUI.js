@@ -52,7 +52,11 @@ let lockedList = null;
 function renderTextMap() {
   const loc = allLocations()[0];
   if (!loc || !mapView) return;
-  mapView.setMap(loc.map);
+  mapView.setMap(loc.map, {
+    biomeId: loc.biome,
+    seed: loc.map?.seed,
+    season: loc.map?.season
+  });
 }
 
 function formatHour(hour = 0) {
@@ -773,9 +777,29 @@ export function initGameUI() {
       legendLabels: LEGEND_LABELS,
       showControls: true,
       showLegend: true,
-      idPrefix: 'game-map'
+      idPrefix: 'game-map',
+      fetchMap: ({ xStart, yStart, width, height, seed, season }) => {
+        const baseSeed = seed ?? loc.map?.seed ?? Date.now();
+        const baseSeason = season ?? store.time.season;
+        return generateColorMap(
+          loc.biome,
+          baseSeed,
+          xStart,
+          yStart,
+          width,
+          height,
+          baseSeason
+        );
+      },
+      onMapUpdate: updated => {
+        loc.map = { ...loc.map, ...updated };
+      }
     });
-    mapView.setMap(loc.map);
+    mapView.setMap(loc.map, {
+      biomeId: loc.biome,
+      seed: loc.map?.seed,
+      season: loc.map?.season
+    });
 
     container.appendChild(mapSection);
     lastSeason = store.time.season;
