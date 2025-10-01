@@ -11,6 +11,9 @@ class DataStore {
     this.orders = [];
     this.eventLog = [];
     this.orderSeq = 0;
+    this.unlockedBuildings = new Set();
+    this.research = new Set();
+    this.buildingSeq = 0;
   }
 
   addItem(collection, item) {
@@ -53,7 +56,10 @@ class DataStore {
       jobs: this.jobs,
       orders: this.orders,
       eventLog: this.eventLog,
-      orderSeq: this.orderSeq
+      orderSeq: this.orderSeq,
+      unlockedBuildings: [...this.unlockedBuildings],
+      research: [...this.research],
+      buildingSeq: this.buildingSeq
     };
   }
 
@@ -70,6 +76,9 @@ class DataStore {
     this.orders = data.orders || [];
     this.eventLog = data.eventLog || [];
     this.orderSeq = data.orderSeq || 0;
+    this.unlockedBuildings = new Set(data.unlockedBuildings || []);
+    this.research = new Set(data.research || []);
+    this.buildingSeq = data.buildingSeq || 0;
   }
 }
 

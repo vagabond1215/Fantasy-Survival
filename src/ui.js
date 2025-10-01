@@ -6,6 +6,7 @@
 import { biomes, getBiome } from './biomes.js';
 import { difficulties, difficultySettings } from './difficulty.js';
 import { generateColorMap, TERRAIN_SYMBOLS } from './map.js';
+import { createMapView } from './mapView.js';
 
 const seasons = ['Spring', 'Summer', 'Autumn', 'Winter'];
 
@@ -87,24 +88,12 @@ export function initSetupUI(onStart) {
 
   mapSection.appendChild(seedRow);
 
-  const mapPreview = document.createElement('pre');
-  mapPreview.id = 'setup-map-preview';
-  mapPreview.style.whiteSpace = 'pre';
-  mapPreview.style.fontFamily = '"Apple Color Emoji", "Segoe UI Emoji", sans-serif';
-  mapPreview.style.fontSize = '16px';
-  mapPreview.style.background = '#f4f4f4';
-  mapPreview.style.padding = '10px';
-  mapPreview.style.border = '1px solid #ccc';
-  mapPreview.style.maxHeight = '400px';
-  mapPreview.style.overflowY = 'auto';
-  mapSection.appendChild(mapPreview);
-
-  const legendTitle = document.createElement('h4');
-  legendTitle.textContent = 'Legend';
-  mapSection.appendChild(legendTitle);
-
-  const legendList = document.createElement('ul');
-  mapSection.appendChild(legendList);
+  const mapView = createMapView(mapSection, {
+    legendLabels: LEGEND_LABELS,
+    showControls: true,
+    showLegend: true,
+    idPrefix: 'setup-map'
+  });
 
   form.appendChild(mapSection);
 
@@ -120,16 +109,6 @@ export function initSetupUI(onStart) {
     open: 'Open Land',
     forest: 'Forest',
     ore: 'Ore Deposits'
-  };
-
-  const summarizeTerrain = (types = []) => {
-    const counts = { water: 0, open: 0, forest: 0, ore: 0 };
-    types.forEach(row => {
-      row.forEach(type => {
-        if (type in counts) counts[type] += 1;
-      });
-    });
-    return counts;
   };
 
   function updateInfo() {
@@ -154,15 +133,7 @@ export function initSetupUI(onStart) {
 
   function renderMapPreview() {
     if (!mapData) return;
-    mapPreview.textContent = mapData.tiles.map(row => row.join('')).join('\n');
-    legendList.innerHTML = '';
-    const counts = summarizeTerrain(mapData.types);
-    Object.entries(TERRAIN_SYMBOLS).forEach(([type, symbol]) => {
-      const li = document.createElement('li');
-      const label = LEGEND_LABELS[type] || type;
-      li.textContent = `${symbol} – ${label} (${counts[type] ?? 0})`;
-      legendList.appendChild(li);
-    });
+    mapView.setMap(mapData);
   }
 
   function generatePreview() {

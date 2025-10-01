@@ -1,6 +1,7 @@
 import store from './state.js';
 import { refreshStats } from './people.js';
 import { generateColorMap } from './map.js';
+import { refreshBuildingUnlocks } from './buildings.js';
 
 const SAVE_KEY = 'fantasy-survival-save';
 
@@ -35,6 +36,7 @@ export function loadGame() {
       }
     }
     refreshStats();
+    refreshBuildingUnlocks();
     return true;
   } catch (err) {
     console.error('Failed to load game', err);
