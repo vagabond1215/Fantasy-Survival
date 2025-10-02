@@ -973,7 +973,7 @@ export function initGameUI() {
     }
 
     const instructions = document.createElement('p');
-    instructions.textContent = 'Use the arrows or drag across the map to explore. Tap the crosshair to recenter the view.';
+    instructions.textContent = 'Use the arrows or drag across the map to explore. Tap the crosshair to recenter the view and adjust the zoom controls to change scale.';
     mapSection.appendChild(instructions);
 
     mapView = createMapView(mapSection, {

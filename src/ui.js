@@ -58,7 +58,7 @@ export function initSetupUI(onStart) {
   mapSection.style.marginTop = '12px';
 
   const mapIntro = document.createElement('p');
-  mapIntro.textContent = 'Preview of the surrounding area rendered with emoji terrain symbols. Each icon represents one patch of terrain.';
+  mapIntro.textContent = 'Preview of the surrounding area rendered with emoji terrain symbols. Each icon represents one patch of terrain. Use the navigation and zoom controls to examine different parts of the map.';
   mapSection.appendChild(mapIntro);
 
   const seedRow = document.createElement('div');
