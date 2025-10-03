@@ -2,11 +2,14 @@ let zoomLevel = 1;
 let theme = localStorage.getItem('theme') || 'light';
 
 let actionBar = null;
+let settingsWrapper = null;
+let menuWrapper = null;
 let settingsPanel = null;
 let menuPanel = null;
 let settingsTrigger = null;
 let menuTrigger = null;
-let themeButtonEntry = null;
+let themeToggleButtons = { light: null, dark: null };
+let zoomDisplayButton = null;
 let backMenuButton = null;
 let constructionMenuButton = null;
 let listenersBound = false;
@@ -17,18 +20,18 @@ function applyZoom() {
     content.style.transform = `scale(${zoomLevel})`;
     content.style.transformOrigin = 'top left';
   }
+  updateZoomDisplay();
 }
 
 function updateThemeButtonVisuals() {
-  if (!themeButtonEntry) return;
   const isLight = theme === 'light';
-  if (themeButtonEntry.iconSpan) {
-    themeButtonEntry.iconSpan.textContent = isLight ? '🌙' : '☀️';
+  if (themeToggleButtons.light) {
+    themeToggleButtons.light.classList.toggle('active', isLight);
+    themeToggleButtons.light.setAttribute('aria-pressed', String(isLight));
   }
-  if (themeButtonEntry.labelSpan) {
-    themeButtonEntry.labelSpan.textContent = isLight
-      ? 'Switch to Dark Mode'
-      : 'Switch to Light Mode';
+  if (themeToggleButtons.dark) {
+    themeToggleButtons.dark.classList.toggle('active', !isLight);
+    themeToggleButtons.dark.setAttribute('aria-pressed', String(!isLight));
   }
 }
 
@@ -38,12 +41,23 @@ function applyTheme() {
   updateThemeButtonVisuals();
 }
 
+function updateZoomDisplay() {
+  if (!zoomDisplayButton) return;
+  const percent = Math.round(zoomLevel * 100);
+  zoomDisplayButton.textContent = `${percent}%`;
+  zoomDisplayButton.setAttribute(
+    'aria-label',
+    `Reset zoom to 100% (current ${percent}%)`
+  );
+}
+
 function createIconTrigger(icon, label) {
   const button = document.createElement('button');
   button.type = 'button';
   button.textContent = icon;
   button.setAttribute('aria-label', label);
   button.title = label;
+  button.className = 'menu-trigger';
   return button;
 }
 
@@ -69,6 +83,7 @@ function createIconControl(icon, label, onClick) {
   button.textContent = icon;
   button.setAttribute('aria-label', label);
   button.title = label;
+  button.classList.add('menu-icon-button');
   if (typeof onClick === 'function') {
     button.addEventListener('click', onClick);
   }
@@ -121,7 +136,10 @@ function ensureActionBar() {
   }
 
   actionBar = document.createElement('div');
-  actionBar.className = 'floating-action-bar';
+  actionBar.className = 'menu-action-group';
+
+  settingsWrapper = document.createElement('div');
+  settingsWrapper.className = 'menu-action';
 
   settingsTrigger = createIconTrigger('⚙️', 'Settings');
   settingsTrigger.id = 'settings-btn';
@@ -132,6 +150,15 @@ function ensureActionBar() {
     togglePanel(settingsPanel, settingsTrigger);
   });
 
+  settingsPanel = document.createElement('div');
+  settingsPanel.className = 'menu-panel settings-panel';
+  settingsPanel.setAttribute('aria-hidden', 'true');
+
+  settingsWrapper.append(settingsTrigger, settingsPanel);
+
+  menuWrapper = document.createElement('div');
+  menuWrapper.className = 'menu-action';
+
   menuTrigger = createIconTrigger('☰', 'Game menu');
   menuTrigger.id = 'menu-btn';
   menuTrigger.setAttribute('aria-expanded', 'false');
@@ -141,16 +168,14 @@ function ensureActionBar() {
     togglePanel(menuPanel, menuTrigger);
   });
 
-  settingsPanel = document.createElement('div');
-  settingsPanel.className = 'floating-panel settings-panel';
-  settingsPanel.setAttribute('aria-hidden', 'true');
-
   menuPanel = document.createElement('div');
   menuPanel.id = 'dropdown-menu';
-  menuPanel.className = 'floating-panel menu-panel';
+  menuPanel.className = 'menu-panel menu-panel-list';
   menuPanel.setAttribute('aria-hidden', 'true');
 
-  actionBar.append(settingsTrigger, menuTrigger, settingsPanel, menuPanel);
+  menuWrapper.append(menuTrigger, menuPanel);
+
+  actionBar.append(settingsWrapper, menuWrapper);
 
   if (!listenersBound) {
     document.addEventListener('click', handleDocumentClick);
@@ -165,14 +190,28 @@ function buildSettingsPanel() {
   if (!settingsPanel) return;
   settingsPanel.innerHTML = '';
 
-  themeButtonEntry = createPanelButton('🌙', 'Switch to Dark Mode', () => {
-    theme = theme === 'light' ? 'dark' : 'light';
-    applyTheme();
-    closePanels();
-  });
-  themeButtonEntry.button.id = 'theme-btn';
-  themeButtonEntry.button.setAttribute('aria-label', 'Toggle color theme');
-  settingsPanel.appendChild(themeButtonEntry.button);
+  themeToggleButtons = { light: null, dark: null };
+
+  const themeRow = document.createElement('div');
+  themeRow.className = 'theme-toggle-row';
+
+  const createThemeButton = (icon, mode, label) => {
+    const button = createIconControl(icon, label, () => {
+      theme = mode;
+      applyTheme();
+      closePanels();
+    });
+    button.classList.add('theme-toggle-button');
+    button.setAttribute('aria-pressed', 'false');
+    button.dataset.themeMode = mode;
+    return button;
+  };
+
+  themeToggleButtons.light = createThemeButton('☀️', 'light', 'Use light theme');
+  themeToggleButtons.dark = createThemeButton('🌙', 'dark', 'Use dark theme');
+
+  themeRow.append(themeToggleButtons.light, themeToggleButtons.dark);
+  settingsPanel.appendChild(themeRow);
   updateThemeButtonVisuals();
 
   const zoomRow = document.createElement('div');
@@ -181,12 +220,22 @@ function buildSettingsPanel() {
     zoomLevel = Math.max(0.5, Math.round((zoomLevel - 0.1) * 10) / 10);
     applyZoom();
   });
+  zoomOut.classList.add('zoom-button');
+
+  zoomDisplayButton = createIconControl('100%', 'Reset zoom to 100%', () => {
+    zoomLevel = 1;
+    applyZoom();
+  });
+  zoomDisplayButton.classList.add('zoom-display-button');
+
   const zoomIn = createIconControl('➕', 'Zoom in', () => {
     zoomLevel = Math.min(2, Math.round((zoomLevel + 0.1) * 10) / 10);
     applyZoom();
   });
-  zoomRow.append(zoomOut, zoomIn);
+  zoomIn.classList.add('zoom-button');
+  zoomRow.append(zoomOut, zoomDisplayButton, zoomIn);
   settingsPanel.appendChild(zoomRow);
+  updateZoomDisplay();
 }
 
 function buildMenuPanel(onMenu, onBack, onReset, onConstruction, onProfile, onLog) {

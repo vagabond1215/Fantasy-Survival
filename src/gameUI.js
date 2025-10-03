@@ -1339,6 +1339,8 @@ export function initGameUI() {
       minWidth: '0'
     });
 
+    container.appendChild(mapSection);
+
     mapView = createMapView(mapSection, {
       legendLabels: LEGEND_LABELS,
       showControls: true,
@@ -1369,7 +1371,6 @@ export function initGameUI() {
       season: loc.map?.season
     });
 
-    container.appendChild(mapSection);
     lastSeason = store.time.season;
     renderTextMap();
   }
