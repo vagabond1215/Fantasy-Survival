@@ -50,7 +50,8 @@ export function loadGame() {
           width,
           height,
           loc.map.season ?? store.time.season,
-          loc.map.waterLevel
+          loc.map.waterLevel,
+          loc.map.viewport
         );
       }
     }

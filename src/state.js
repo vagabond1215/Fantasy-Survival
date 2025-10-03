@@ -5,7 +5,7 @@ class DataStore {
     this.inventory = new Map();
     this.locations = new Map();
     this.technologies = new Map();
-    this.time = { day: 1, month: 1, year: 1, hour: 6, season: 'Spring', weather: 'Clear' };
+    this.time = { day: 1, month: 1, year: 410, hour: 6, season: 'Thawbound', weather: 'Clear' };
     this.difficulty = 'normal';
     this.jobs = {};
     this.orders = [];
@@ -74,9 +74,9 @@ class DataStore {
     this.time = {
       day: 1,
       month: 1,
-      year: 1,
+      year: 410,
       hour: 6,
-      season: 'Spring',
+      season: 'Thawbound',
       weather: 'Clear',
       ...savedTime
     };

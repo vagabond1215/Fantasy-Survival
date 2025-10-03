@@ -17,7 +17,7 @@ import {
   showLogPopup
 } from './gameUI.js';
 import { initTopMenu, initBottomMenu } from './menu.js';
-import { resetToDawn, getSeasonDetails, getSeasonForMonth } from './time.js';
+import { resetToDawn, getSeasonDetails, getSeasonForMonth, randomDarkAgeYear } from './time.js';
 import { resetOrders } from './orders.js';
 
 function startGame(settings = {}) {
@@ -33,7 +33,7 @@ function startGame(settings = {}) {
 
   store.time.day = 1;
   store.time.month = 1;
-  store.time.year = 1;
+  store.time.year = randomDarkAgeYear();
   store.time.weather = 'Clear';
   if (settings.season) {
     store.time.season = settings.season;
