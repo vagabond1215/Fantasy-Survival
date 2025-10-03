@@ -1,6 +1,6 @@
 import store from './state.js';
 import { refreshStats } from './people.js';
-import { generateColorMap } from './map.js';
+import { computeCenteredStart, DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, generateColorMap } from './map.js';
 import { refreshBuildingUnlocks } from './buildings.js';
 
 const SAVE_KEY = 'fantasy-survival-save';
@@ -25,14 +25,33 @@ export function loadGame() {
     for (const loc of store.locations.values()) {
       if (!loc.map || !loc.map.tiles) {
         loc.map = generateColorMap(loc.biome);
-      } else {
-        if (!loc.map.seed) loc.map.seed = Date.now();
-        if (loc.map.xStart === undefined) loc.map.xStart = 0;
-        if (loc.map.yStart === undefined) loc.map.yStart = 0;
-        if (!loc.map.types) {
-          // Regenerate map if terrain types are missing (legacy saves).
-          loc.map = generateColorMap(loc.biome, loc.map.seed, loc.map.xStart, loc.map.yStart);
-        }
+        continue;
+      }
+
+      if (!loc.map.seed) loc.map.seed = Date.now();
+
+      const width = loc.map.tiles?.[0]?.length || DEFAULT_MAP_WIDTH;
+      const height = loc.map.tiles?.length || DEFAULT_MAP_HEIGHT;
+      const { xStart: centeredX, yStart: centeredY } = computeCenteredStart(width, height);
+
+      if (!Number.isFinite(loc.map.xStart)) loc.map.xStart = centeredX;
+      if (!Number.isFinite(loc.map.yStart)) loc.map.yStart = centeredY;
+
+      const needsRecentering = loc.map.xStart === 0 && loc.map.yStart === 0;
+
+      if (!loc.map.types || needsRecentering) {
+        // Regenerate map if terrain types are missing (legacy saves) or if the
+        // map still uses the legacy origin placement.
+        loc.map = generateColorMap(
+          loc.biome,
+          loc.map.seed,
+          needsRecentering ? centeredX : loc.map.xStart,
+          needsRecentering ? centeredY : loc.map.yStart,
+          width,
+          height,
+          loc.map.season ?? store.time.season,
+          loc.map.waterLevel
+        );
       }
     }
     refreshStats();

@@ -282,10 +282,10 @@ function renderEventLog() {
     const li = document.createElement('li');
     const dayText = padNumber(entry.day ?? 1);
     const monthText = padNumber(entry.month ?? 1);
-    const yearText = entry.year ?? 1;
+    const yearText = padNumber(entry.year ?? 1);
     const descriptorParts = [entry.season, entry.weather].filter(Boolean);
     const descriptor = descriptorParts.length ? ` (${descriptorParts.join(' • ')})` : '';
-    li.textContent = `Day ${dayText} / Month ${monthText} / Year ${yearText}${descriptor} – ${formatHour(entry.hour)} – ${entry.message}`;
+    li.textContent = `${dayText}/${monthText}/${yearText}${descriptor} – ${formatHour(entry.hour)} – ${entry.message}`;
     eventLogList.appendChild(li);
   });
 }
@@ -904,21 +904,23 @@ function renderTimeBanner() {
   const seasonDetails = getSeasonDetails(t.season);
   const weatherDetails = getWeatherDetails(t.weather);
   const dayPeriod = getDayPeriod(t.hour);
+  const yearText = padNumber(t.year, 2);
+  const dateText = `${padNumber(t.day)}/${padNumber(t.month)}/${yearText}`;
 
   const chips = [
     {
       icon: '🗓️',
-      text: `Day ${padNumber(t.day)} / Month ${padNumber(t.month)} / Year ${t.year}`,
-      title: 'Current date'
+      text: dateText,
+      title: `Current date: ${dateText}`
     },
     {
       icon: seasonDetails.icon,
-      text: seasonDetails.name,
+      text: '',
       title: `${seasonDetails.name} season`
     },
     {
       icon: weatherDetails.icon,
-      text: weatherDetails.name,
+      text: '',
       title: `Weather: ${weatherDetails.name}`
     },
     {
@@ -934,10 +936,12 @@ function renderTimeBanner() {
     if (chip.title) chipEl.title = chip.title;
     const iconEl = document.createElement('span');
     iconEl.textContent = chip.icon;
-    const textEl = document.createElement('span');
-    textEl.textContent = chip.text;
     chipEl.appendChild(iconEl);
-    chipEl.appendChild(textEl);
+    if (chip.text !== undefined && chip.text !== null && chip.text !== '') {
+      const textEl = document.createElement('span');
+      textEl.textContent = chip.text;
+      chipEl.appendChild(textEl);
+    }
     banner.appendChild(chipEl);
   });
 }
