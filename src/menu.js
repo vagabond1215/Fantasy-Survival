@@ -1,6 +1,16 @@
 let zoomLevel = 1;
 let theme = localStorage.getItem('theme') || 'light';
 
+let actionBar = null;
+let settingsPanel = null;
+let menuPanel = null;
+let settingsTrigger = null;
+let menuTrigger = null;
+let themeButtonEntry = null;
+let backMenuButton = null;
+let constructionMenuButton = null;
+let listenersBound = false;
+
 function applyZoom() {
   const content = document.getElementById('content');
   if (content) {
@@ -9,21 +19,260 @@ function applyZoom() {
   }
 }
 
+function updateThemeButtonVisuals() {
+  if (!themeButtonEntry) return;
+  const isLight = theme === 'light';
+  if (themeButtonEntry.iconSpan) {
+    themeButtonEntry.iconSpan.textContent = isLight ? '🌙' : '☀️';
+  }
+  if (themeButtonEntry.labelSpan) {
+    themeButtonEntry.labelSpan.textContent = isLight
+      ? 'Switch to Dark Mode'
+      : 'Switch to Light Mode';
+  }
+}
+
 function applyTheme() {
   document.body.className = theme;
   localStorage.setItem('theme', theme);
+  updateThemeButtonVisuals();
+}
+
+function createIconTrigger(icon, label) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = icon;
+  button.setAttribute('aria-label', label);
+  button.title = label;
+  return button;
+}
+
+function createPanelButton(icon, label, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  const iconSpan = document.createElement('span');
+  iconSpan.className = 'panel-icon';
+  iconSpan.textContent = icon;
+  const labelSpan = document.createElement('span');
+  labelSpan.className = 'panel-label';
+  labelSpan.textContent = label;
+  button.append(iconSpan, labelSpan);
+  if (typeof onClick === 'function') {
+    button.addEventListener('click', onClick);
+  }
+  return { button, iconSpan, labelSpan };
+}
+
+function createIconControl(icon, label, onClick) {
+  const button = document.createElement('button');
+  button.type = 'button';
+  button.textContent = icon;
+  button.setAttribute('aria-label', label);
+  button.title = label;
+  if (typeof onClick === 'function') {
+    button.addEventListener('click', onClick);
+  }
+  return button;
+}
+
+function closePanels() {
+  if (settingsPanel) {
+    settingsPanel.classList.remove('open');
+    settingsPanel.setAttribute('aria-hidden', 'true');
+  }
+  if (menuPanel) {
+    menuPanel.classList.remove('open');
+    menuPanel.setAttribute('aria-hidden', 'true');
+  }
+  if (settingsTrigger) {
+    settingsTrigger.setAttribute('aria-expanded', 'false');
+  }
+  if (menuTrigger) {
+    menuTrigger.setAttribute('aria-expanded', 'false');
+  }
+}
+
+function togglePanel(panel, trigger) {
+  if (!panel || !trigger) return;
+  const isOpen = panel.classList.contains('open');
+  closePanels();
+  if (!isOpen) {
+    panel.classList.add('open');
+    panel.setAttribute('aria-hidden', 'false');
+    trigger.setAttribute('aria-expanded', 'true');
+  }
+}
+
+function handleDocumentClick(event) {
+  if (!actionBar) return;
+  if (actionBar.contains(event.target)) return;
+  closePanels();
+}
+
+function handleKeyDown(event) {
+  if (event.key === 'Escape') {
+    closePanels();
+  }
+}
+
+function ensureActionBar() {
+  if (actionBar) {
+    return actionBar;
+  }
+
+  actionBar = document.createElement('div');
+  actionBar.className = 'floating-action-bar';
+
+  settingsTrigger = createIconTrigger('⚙️', 'Settings');
+  settingsTrigger.id = 'settings-btn';
+  settingsTrigger.setAttribute('aria-expanded', 'false');
+  settingsTrigger.setAttribute('aria-haspopup', 'true');
+  settingsTrigger.addEventListener('click', event => {
+    event.stopPropagation();
+    togglePanel(settingsPanel, settingsTrigger);
+  });
+
+  menuTrigger = createIconTrigger('☰', 'Game menu');
+  menuTrigger.id = 'menu-btn';
+  menuTrigger.setAttribute('aria-expanded', 'false');
+  menuTrigger.setAttribute('aria-haspopup', 'true');
+  menuTrigger.addEventListener('click', event => {
+    event.stopPropagation();
+    togglePanel(menuPanel, menuTrigger);
+  });
+
+  settingsPanel = document.createElement('div');
+  settingsPanel.className = 'floating-panel settings-panel';
+  settingsPanel.setAttribute('aria-hidden', 'true');
+
+  menuPanel = document.createElement('div');
+  menuPanel.id = 'dropdown-menu';
+  menuPanel.className = 'floating-panel menu-panel';
+  menuPanel.setAttribute('aria-hidden', 'true');
+
+  actionBar.append(settingsTrigger, menuTrigger, settingsPanel, menuPanel);
+
+  if (!listenersBound) {
+    document.addEventListener('click', handleDocumentClick);
+    document.addEventListener('keydown', handleKeyDown);
+    listenersBound = true;
+  }
+
+  return actionBar;
+}
+
+function buildSettingsPanel() {
+  if (!settingsPanel) return;
+  settingsPanel.innerHTML = '';
+
+  themeButtonEntry = createPanelButton('🌙', 'Switch to Dark Mode', () => {
+    theme = theme === 'light' ? 'dark' : 'light';
+    applyTheme();
+    closePanels();
+  });
+  themeButtonEntry.button.id = 'theme-btn';
+  themeButtonEntry.button.setAttribute('aria-label', 'Toggle color theme');
+  settingsPanel.appendChild(themeButtonEntry.button);
+  updateThemeButtonVisuals();
+
+  const zoomRow = document.createElement('div');
+  zoomRow.className = 'icon-row';
+  const zoomOut = createIconControl('➖', 'Zoom out', () => {
+    zoomLevel = Math.max(0.5, Math.round((zoomLevel - 0.1) * 10) / 10);
+    applyZoom();
+  });
+  const zoomIn = createIconControl('➕', 'Zoom in', () => {
+    zoomLevel = Math.min(2, Math.round((zoomLevel + 0.1) * 10) / 10);
+    applyZoom();
+  });
+  zoomRow.append(zoomOut, zoomIn);
+  settingsPanel.appendChild(zoomRow);
+}
+
+function buildMenuPanel(onMenu, onBack, onReset, onConstruction, onProfile, onLog) {
+  if (!menuPanel) return;
+  menuPanel.innerHTML = '';
+
+  backMenuButton = null;
+  constructionMenuButton = null;
+
+  if (typeof onBack === 'function') {
+    const backEntry = createPanelButton('↩', 'Back', () => {
+      closePanels();
+      onBack();
+      showBackButton(false);
+    });
+    backEntry.button.id = 'back-btn';
+    backEntry.button.style.display = 'none';
+    menuPanel.appendChild(backEntry.button);
+    backMenuButton = backEntry.button;
+  }
+
+  if (typeof onMenu === 'function') {
+    const jobsEntry = createPanelButton('👷', 'Jobs', () => {
+      closePanels();
+      onMenu();
+      showBackButton(true);
+    });
+    jobsEntry.button.id = 'jobs-btn';
+    menuPanel.appendChild(jobsEntry.button);
+  }
+
+  if (typeof onConstruction === 'function') {
+    const constructionEntry = createPanelButton('🏗️', 'Construction', () => {
+      closePanels();
+      onConstruction();
+    });
+    constructionEntry.button.id = 'construction-btn';
+    menuPanel.appendChild(constructionEntry.button);
+    constructionMenuButton = constructionEntry.button;
+  }
+
+  if (typeof onProfile === 'function') {
+    const profileEntry = createPanelButton('👤', 'Profile', () => {
+      closePanels();
+      onProfile();
+    });
+    profileEntry.button.id = 'profile-btn';
+    menuPanel.appendChild(profileEntry.button);
+  }
+
+  if (typeof onLog === 'function') {
+    const logEntry = createPanelButton('📜', 'Log', () => {
+      closePanels();
+      onLog();
+    });
+    logEntry.button.id = 'log-btn';
+    menuPanel.appendChild(logEntry.button);
+  }
+
+  const resetEntry = createPanelButton('🔄', 'New Game', () => {
+    closePanels();
+    if (typeof onReset === 'function') {
+      onReset();
+    }
+  });
+  resetEntry.button.id = 'reset-btn';
+  menuPanel.appendChild(resetEntry.button);
+}
+
+export function mountMenuActions(hostElement) {
+  if (!hostElement) return;
+  const bar = ensureActionBar();
+  if (bar.parentElement !== hostElement) {
+    if (bar.parentElement) {
+      bar.parentElement.removeChild(bar);
+    }
+    hostElement.appendChild(bar);
+  }
 }
 
 export function showBackButton(show) {
-  const back = document.getElementById('back-btn');
-  const menuWrapper = document.getElementById('menu-wrapper');
-  const constructionBtn = document.getElementById('construction-btn');
-  if (back && menuWrapper) {
-    back.style.display = show ? 'inline-block' : 'none';
-    menuWrapper.style.display = show ? 'none' : 'inline-block';
+  if (backMenuButton) {
+    backMenuButton.style.display = show ? 'flex' : 'none';
   }
-  if (constructionBtn) {
-    constructionBtn.style.display = show ? 'none' : 'inline-block';
+  if (constructionMenuButton) {
+    constructionMenuButton.style.display = show ? 'none' : 'flex';
   }
 }
 
@@ -31,164 +280,11 @@ export function initTopMenu(onMenu, onBack, onReset, onConstruction, onProfile, 
   const bar = document.getElementById('top-menu');
   if (!bar) return;
   applyTheme();
+  ensureActionBar();
+  buildSettingsPanel();
+  buildMenuPanel(onMenu, onBack, onReset, onConstruction, onProfile, onLog);
   bar.innerHTML = '';
-  Object.assign(bar.style, {
-    position: 'fixed',
-    top: '0',
-    left: '0',
-    right: '0',
-    background: 'var(--menu-bg)',
-    padding: '4px',
-    display: 'flex',
-    gap: '4px',
-    zIndex: '1000',
-    alignItems: 'flex-start'
-  });
-
-  const squareStyle = {
-    width: '32px',
-    height: '32px',
-    display: 'flex',
-    alignItems: 'center',
-    justifyContent: 'center',
-    padding: '0'
-  };
-  const themeBtn = document.createElement('button');
-  themeBtn.id = 'theme-btn';
-  Object.assign(themeBtn.style, squareStyle);
-  const updateThemeIcon = () => {
-    themeBtn.textContent = theme === 'light' ? '🌙' : '☀️';
-  };
-  updateThemeIcon();
-  themeBtn.addEventListener('click', () => {
-    theme = theme === 'light' ? 'dark' : 'light';
-    applyTheme();
-    updateThemeIcon();
-  });
-
-  const zoomOut = document.createElement('button');
-  zoomOut.textContent = '-';
-  Object.assign(zoomOut.style, squareStyle);
-  zoomOut.addEventListener('click', () => {
-    zoomLevel = Math.max(0.5, Math.round((zoomLevel - 0.1) * 10) / 10);
-    applyZoom();
-  });
-
-  const zoomIn = document.createElement('button');
-  zoomIn.textContent = '+';
-  Object.assign(zoomIn.style, squareStyle);
-  zoomIn.addEventListener('click', () => {
-    zoomLevel = Math.min(2, Math.round((zoomLevel + 0.1) * 10) / 10);
-    applyZoom();
-  });
-
-  const constructionBtn = document.createElement('button');
-  constructionBtn.id = 'construction-btn';
-  constructionBtn.textContent = 'Construction';
-  Object.assign(constructionBtn.style, { height: squareStyle.height });
-  constructionBtn.addEventListener('click', () => {
-    if (typeof onConstruction === 'function') onConstruction();
-  });
-
-  const menuBtn = document.createElement('button');
-  menuBtn.id = 'menu-btn';
-  menuBtn.textContent = 'Menu';
-  Object.assign(menuBtn.style, { height: squareStyle.height });
-
-  const menuWrapper = document.createElement('div');
-  menuWrapper.id = 'menu-wrapper';
-  menuWrapper.style.position = 'relative';
-  menuWrapper.appendChild(menuBtn);
-
-  const dropdown = document.createElement('div');
-  dropdown.id = 'dropdown-menu';
-  Object.assign(dropdown.style, {
-    position: 'absolute',
-    top: '100%',
-    left: '0',
-    background: 'var(--menu-bg)',
-    display: 'none',
-    flexDirection: 'column',
-    overflow: 'hidden',
-    maxHeight: '0',
-    transition: 'max-height 0.3s ease-out',
-    zIndex: '1001'
-  });
-  menuWrapper.appendChild(dropdown);
-
-  let menuOpen = false;
-  function toggleMenu(open) {
-    menuOpen = open !== undefined ? open : !menuOpen;
-    if (menuOpen) {
-      dropdown.style.display = 'flex';
-      dropdown.style.maxHeight = dropdown.scrollHeight + 'px';
-    } else {
-      dropdown.style.maxHeight = '0';
-      setTimeout(() => { if (!menuOpen) dropdown.style.display = 'none'; }, 300);
-    }
-  }
-  menuBtn.addEventListener('click', () => toggleMenu());
-
-  if (typeof onProfile === 'function') {
-    const profileBtn = document.createElement('button');
-    profileBtn.textContent = 'Profile';
-    Object.assign(profileBtn.style, { height: squareStyle.height });
-    profileBtn.addEventListener('click', () => {
-      toggleMenu(false);
-      onProfile();
-    });
-    dropdown.appendChild(profileBtn);
-  }
-
-  if (typeof onLog === 'function') {
-    const logBtn = document.createElement('button');
-    logBtn.textContent = 'Log';
-    Object.assign(logBtn.style, { height: squareStyle.height });
-    logBtn.addEventListener('click', () => {
-      toggleMenu(false);
-      onLog();
-    });
-    dropdown.appendChild(logBtn);
-  }
-
-  if (typeof onMenu === 'function') {
-    const jobsBtn = document.createElement('button');
-    jobsBtn.textContent = 'Jobs';
-    Object.assign(jobsBtn.style, { height: squareStyle.height });
-    jobsBtn.addEventListener('click', () => {
-      toggleMenu(false);
-      onMenu();
-      showBackButton(true);
-    });
-    dropdown.appendChild(jobsBtn);
-  }
-
-  const resetBtn = document.createElement('button');
-  resetBtn.textContent = 'New Game';
-  Object.assign(resetBtn.style, { height: squareStyle.height });
-  resetBtn.addEventListener('click', () => {
-    toggleMenu(false);
-    if (typeof onReset === 'function') onReset();
-  });
-  dropdown.appendChild(resetBtn);
-
-  const backBtn = document.createElement('button');
-  backBtn.id = 'back-btn';
-  backBtn.textContent = 'Back';
-  Object.assign(backBtn.style, { height: squareStyle.height, display: 'none' });
-  if (typeof onBack === 'function') {
-    backBtn.addEventListener('click', () => {
-      onBack();
-      showBackButton(false);
-    });
-  }
-
-  bar.appendChild(themeBtn);
-  bar.appendChild(zoomOut);
-  bar.appendChild(zoomIn);
-  bar.appendChild(constructionBtn);
-  bar.appendChild(menuWrapper);
-  bar.appendChild(backBtn);
+  bar.style.display = 'none';
   applyZoom();
 }
 
@@ -215,4 +311,3 @@ export function initBottomMenu(onRest) {
     bar.appendChild(restBtn);
   }
 }
-

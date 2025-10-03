@@ -53,7 +53,22 @@
       flex-wrap: wrap;
       gap: 12px;
       align-items: center;
+      justify-content: space-between;
       margin: 0;
+    }
+    #time-banner .time-chip-group {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 12px;
+      align-items: center;
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+    #time-banner .time-actions {
+      display: flex;
+      flex: 0 0 auto;
+      align-items: center;
+      justify-content: flex-end;
     }
     #time-banner .time-chip {
       display: inline-flex;
@@ -69,6 +84,102 @@
     }
     #time-banner .time-chip span:last-child {
       font-weight: 500;
+    }
+    .floating-action-bar {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      background: var(--bg-color);
+      border: 1px solid var(--map-border);
+      border-radius: 999px;
+      padding: 4px 6px;
+      box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
+      position: relative;
+    }
+    .floating-action-bar button {
+      width: 32px;
+      height: 32px;
+      border-radius: 999px;
+      border: none;
+      background: transparent;
+      color: inherit;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      font-size: 18px;
+      cursor: pointer;
+      transition: background 0.2s ease, transform 0.1s ease;
+    }
+    .floating-action-bar button:hover {
+      background: rgba(0, 0, 0, 0.08);
+    }
+    body.dark .floating-action-bar button:hover {
+      background: rgba(255, 255, 255, 0.15);
+    }
+    .floating-action-bar button:focus-visible {
+      outline: 2px solid #4a90e2;
+      outline-offset: 2px;
+    }
+    .floating-panel {
+      position: absolute;
+      top: calc(100% + 6px);
+      right: 0;
+      background: var(--menu-bg);
+      border: 1px solid var(--map-border);
+      border-radius: 12px;
+      padding: 8px;
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.18);
+      min-width: 180px;
+      display: none;
+      flex-direction: column;
+      gap: 6px;
+      z-index: 1200;
+    }
+    .floating-panel.open {
+      display: flex;
+    }
+    .floating-panel button {
+      border-radius: 8px;
+      border: 1px solid transparent;
+      background: transparent;
+      padding: 6px 10px;
+      text-align: left;
+      font-size: 0.95rem;
+      cursor: pointer;
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      color: inherit;
+    }
+    .floating-panel button:hover {
+      background: rgba(0, 0, 0, 0.08);
+    }
+    body.dark .floating-panel button:hover {
+      background: rgba(255, 255, 255, 0.12);
+    }
+    .floating-panel button:focus-visible {
+      outline: 2px solid #4a90e2;
+      outline-offset: 2px;
+    }
+    .floating-panel .panel-icon {
+      width: 1.5em;
+      text-align: center;
+    }
+    .floating-panel .panel-label {
+      flex: 1 1 auto;
+    }
+    .floating-panel .icon-row {
+      display: flex;
+      gap: 6px;
+    }
+    .floating-panel .icon-row button {
+      flex: 1 1 auto;
+      padding: 6px 0;
+      justify-content: center;
+      text-align: center;
+      font-size: 1.1rem;
+      display: inline-flex;
+      align-items: center;
     }
     #game {
       display: grid;

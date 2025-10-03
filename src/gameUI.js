@@ -12,7 +12,7 @@ import {
   resetToDawn
 } from './time.js';
 import store from './state.js';
-import { showBackButton } from './menu.js';
+import { showBackButton, mountMenuActions } from './menu.js';
 import { allLocations } from './location.js';
 import { generateColorMap, TERRAIN_SYMBOLS } from './map.js';
 import { getBiome } from './biomes.js';
@@ -54,6 +54,8 @@ let ordersList = null;
 let inventoryPanel = null;
 let eventLogList = null;
 let timeBanner = null;
+let timeBannerChipsContainer = null;
+let timeBannerActionsContainer = null;
 let startBtn = null;
 let buildOptionsContainer = null;
 let projectList = null;
@@ -95,6 +97,27 @@ function ensureTimeBannerElement() {
       }
     }
   }
+  if (!timeBannerChipsContainer) {
+    timeBannerChipsContainer = document.createElement('div');
+    timeBannerChipsContainer.className = 'time-chip-group';
+  }
+  if (timeBannerChipsContainer.parentElement !== timeBanner) {
+    if (timeBannerChipsContainer.parentElement) {
+      timeBannerChipsContainer.parentElement.removeChild(timeBannerChipsContainer);
+    }
+    timeBanner.insertBefore(timeBannerChipsContainer, timeBanner.firstChild);
+  }
+  if (!timeBannerActionsContainer) {
+    timeBannerActionsContainer = document.createElement('div');
+    timeBannerActionsContainer.className = 'time-actions';
+  }
+  if (timeBannerActionsContainer.parentElement !== timeBanner) {
+    if (timeBannerActionsContainer.parentElement) {
+      timeBannerActionsContainer.parentElement.removeChild(timeBannerActionsContainer);
+    }
+    timeBanner.appendChild(timeBannerActionsContainer);
+  }
+  mountMenuActions(timeBannerActionsContainer);
   return timeBanner;
 }
 
@@ -914,7 +937,8 @@ function ensureSeasonalMap() {
 function renderTimeBanner() {
   const banner = ensureTimeBannerElement();
   if (!banner) return;
-  banner.innerHTML = '';
+  const chipsContainer = timeBannerChipsContainer || banner;
+  chipsContainer.replaceChildren();
   const t = timeInfo();
   const seasonDetails = getSeasonDetails(t.season);
   const weatherDetails = getWeatherDetails(t.weather);
@@ -966,7 +990,7 @@ function renderTimeBanner() {
       textEl.textContent = chip.text;
       chipEl.appendChild(textEl);
     }
-    banner.appendChild(chipEl);
+    chipsContainer.appendChild(chipEl);
   });
 }
 
