@@ -3,6 +3,7 @@ import {
   advanceDay,
   advanceHours,
   getDayPeriod,
+  getMonthName,
   getSeasonDetails,
   getWeatherDetails,
   info as timeInfo,
@@ -232,10 +233,22 @@ function renderTextMap() {
   });
 }
 
-function formatHour(hour = 0) {
-  const normalized = ((hour % 24) + 24) % 24;
-  const h = Math.floor(normalized);
-  return `${padNumber(h)}:00`;
+function formatHour(hour = 0, options = {}) {
+  const { separator = ':' } = options;
+  const numeric = Number.isFinite(hour) ? Number(hour) : 0;
+  const normalized = ((numeric % 24) + 24) % 24;
+  let wholeHours = Math.floor(normalized);
+  let minutes = Math.round((normalized - wholeHours) * 60);
+  if (minutes >= 60) {
+    minutes -= 60;
+    wholeHours = (wholeHours + 1) % 24;
+  }
+  const hourText = padNumber(wholeHours);
+  const minuteText = padNumber(minutes);
+  if (!separator) {
+    return `${hourText}${minuteText}`;
+  }
+  return `${hourText}${separator}${minuteText}`;
 }
 
 function padNumber(value, digits = 2) {
@@ -280,12 +293,13 @@ function renderEventLog() {
   }
   log.forEach(entry => {
     const li = document.createElement('li');
-    const dayText = padNumber(entry.day ?? 1);
-    const monthText = padNumber(entry.month ?? 1);
-    const yearText = padNumber(entry.year ?? 1);
+    const dayNumber = Number.isFinite(entry.day) ? Math.max(1, Math.floor(entry.day)) : 1;
+    const monthName = getMonthName(entry.month ?? 1);
+    const yearNumber = Number.isFinite(entry.year) ? Math.floor(entry.year) : 0;
     const descriptorParts = [entry.season, entry.weather].filter(Boolean);
     const descriptor = descriptorParts.length ? ` (${descriptorParts.join(' • ')})` : '';
-    li.textContent = `${dayText}/${monthText}/${yearText}${descriptor} – ${formatHour(entry.hour)} – ${entry.message}`;
+    const dateText = `${dayNumber} ${monthName} ${yearNumber}`;
+    li.textContent = `${dateText}${descriptor} – ${formatHour(entry.hour)} – ${entry.message}`;
     eventLogList.appendChild(li);
   });
 }
@@ -889,7 +903,8 @@ function ensureSeasonalMap() {
     map.tiles[0].length,
     map.tiles.length,
     t.season,
-    map.waterLevel
+    map.waterLevel,
+    map.viewport
   );
   loc.map = { ...map, ...newMap };
   lastSeason = t.season;
@@ -904,29 +919,31 @@ function renderTimeBanner() {
   const seasonDetails = getSeasonDetails(t.season);
   const weatherDetails = getWeatherDetails(t.weather);
   const dayPeriod = getDayPeriod(t.hour);
-  const yearText = padNumber(t.year, 2);
-  const dateText = `${padNumber(t.day)}/${padNumber(t.month)}/${yearText}`;
+  const monthName = t.monthName || getMonthName(t.month);
+  const dayNumber = Number.isFinite(t.day) ? Math.max(1, Math.floor(t.day)) : 1;
+  const yearNumber = Number.isFinite(t.year) ? Math.floor(t.year) : 0;
+  const compactTime = formatHour(t.hour, { separator: '' });
+  const readableTime = formatHour(t.hour);
+  const monthDisplay = monthName || 'Unknown Month';
+  const dateDisplay = [compactTime, dayNumber, monthDisplay, yearNumber]
+    .filter(value => value !== null && value !== undefined && `${value}`.trim() !== '')
+    .join(' ');
 
   const chips = [
     {
-      icon: '🗓️',
-      text: dateText,
-      title: `Current date: ${dateText}`
+      icon: dayPeriod.icon,
+      text: dateDisplay,
+      title: `${dayPeriod.label} at ${readableTime} on ${dayNumber} ${monthDisplay}, Year ${yearNumber}`
     },
     {
       icon: seasonDetails.icon,
-      text: '',
+      text: seasonDetails.name,
       title: `${seasonDetails.name} season`
     },
     {
       icon: weatherDetails.icon,
-      text: '',
+      text: weatherDetails.name,
       title: `Weather: ${weatherDetails.name}`
-    },
-    {
-      icon: dayPeriod.icon,
-      text: `${formatHour(t.hour)} ${dayPeriod.label}`,
-      title: `Time of day: ${dayPeriod.label}`
     }
   ];
 
@@ -1275,7 +1292,9 @@ export function initGameUI() {
         loc.map.yStart,
         loc.map.tiles[0].length,
         loc.map.tiles.length,
-        store.time.season
+        store.time.season,
+        loc.map.waterLevel,
+        loc.map.viewport
       );
       loc.map = { ...loc.map, ...newMap };
     }
@@ -1294,7 +1313,7 @@ export function initGameUI() {
       showControls: true,
       showLegend: true,
       idPrefix: 'game-map',
-      fetchMap: ({ xStart, yStart, width, height, seed, season }) => {
+      fetchMap: ({ xStart, yStart, width, height, seed, season, viewport }) => {
         const baseSeed = seed ?? loc.map?.seed ?? Date.now();
         const baseSeason = season ?? store.time.season;
         return generateColorMap(
@@ -1304,7 +1323,9 @@ export function initGameUI() {
           yStart,
           width,
           height,
-          baseSeason
+          baseSeason,
+          loc.map?.waterLevel,
+          viewport
         );
       },
       onMapUpdate: updated => {

@@ -1,4 +1,4 @@
-import { TERRAIN_SYMBOLS } from './map.js';
+import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS } from './map.js';
 
 const LEGEND_DEFAULTS = {
   water: 'Water',
@@ -7,7 +7,8 @@ const LEGEND_DEFAULTS = {
   ore: 'Ore Deposits'
 };
 
-const MAP_SCALE_FACTOR = 1.5;
+const BUFFER_MARGIN = 12;
+const DEFAULT_VIEWPORT_SIZE = DEFAULT_MAP_WIDTH;
 
 function summarizeTerrain(types = []) {
   const counts = { water: 0, open: 0, forest: 0, ore: 0 };
@@ -21,13 +22,10 @@ function summarizeTerrain(types = []) {
 
 function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
   const MIN_SIZE = 220;
-  const hasDimensions = cols > 0 && rows > 0;
 
   if (typeof window === 'undefined') {
-    const base = 320;
-    const size = Math.max(MIN_SIZE, base) * MAP_SCALE_FACTOR;
-    const rounded = Math.round(size);
-    return { width: rounded, height: rounded };
+    const fallback = Math.max(MIN_SIZE, 320);
+    return { width: fallback, height: fallback };
   }
 
   const widthAllowance = Math.max(
@@ -35,38 +33,16 @@ function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
     Number.isFinite(availableWidth) && availableWidth > 0 ? availableWidth : window.innerWidth - 80
   );
   const heightAllowance = Math.max(MIN_SIZE, window.innerHeight - 260);
-  const fallbackSize = Math.max(MIN_SIZE, Math.min(widthAllowance, heightAllowance));
 
-  if (!hasDimensions) {
-    const scaledFallback = Math.max(
-      MIN_SIZE,
-      Math.min(widthAllowance, heightAllowance, fallbackSize * MAP_SCALE_FACTOR)
-    );
-    const rounded = Math.round(scaledFallback);
-    return { width: rounded, height: rounded };
-  }
-
-  const tileWidthLimit = widthAllowance / cols;
-  const tileHeightLimit = heightAllowance / rows;
-  const tileSize = Math.max(1, Math.min(tileWidthLimit, tileHeightLimit));
-  const width = Math.max(MIN_SIZE, Math.min(widthAllowance, tileSize * cols));
-  const height = Math.max(MIN_SIZE, Math.min(heightAllowance, tileSize * rows));
-  const baseSquare = Math.max(MIN_SIZE, Math.min(fallbackSize, Math.min(width, height)));
-  const scaledSide = Math.max(
+  const widthDrivenSide = Math.max(MIN_SIZE, Math.round(widthAllowance));
+  const viewportLimitedSide = Math.max(
     MIN_SIZE,
-    Math.min(widthAllowance, heightAllowance, baseSquare * MAP_SCALE_FACTOR)
+    Math.min(widthDrivenSide, Math.round(heightAllowance))
   );
-  const dominant = Math.max(cols, rows) || 1;
-  const tileScale = scaledSide / dominant;
-  const minWidth = Math.round((MIN_SIZE * cols) / dominant);
-  const minHeight = Math.round((MIN_SIZE * rows) / dominant);
-  const derivedWidth = Math.max(minWidth, Math.round(tileScale * cols));
-  const derivedHeight = Math.max(minHeight, Math.round(tileScale * rows));
 
-  return {
-    width: Math.max(1, Math.min(widthAllowance, derivedWidth)),
-    height: Math.max(1, Math.min(heightAllowance, derivedHeight))
-  };
+  const finalSide = Math.max(MIN_SIZE, viewportLimitedSide);
+
+  return { width: finalSide, height: finalSide };
 }
 
 function requestFrame(callback) {
@@ -75,6 +51,60 @@ function requestFrame(callback) {
   } else {
     setTimeout(callback, 0);
   }
+}
+
+function toInteger(value, fallback = 0) {
+  return Number.isFinite(value) ? Math.trunc(value) : fallback;
+}
+
+function getMatrixDimensions(matrix = []) {
+  const rows = Array.isArray(matrix) ? matrix.length : 0;
+  const cols = rows ? matrix[0]?.length || 0 : 0;
+  return { cols, rows };
+}
+
+function sliceMatrix(matrix = [], offsetX = 0, offsetY = 0, width = 0, height = 0) {
+  if (!Array.isArray(matrix) || !matrix.length || width <= 0 || height <= 0) {
+    return [];
+  }
+  const result = [];
+  for (let row = 0; row < height; row++) {
+    const source = matrix[offsetY + row];
+    if (!Array.isArray(source)) break;
+    result.push(source.slice(offsetX, offsetX + width));
+  }
+  return result;
+}
+
+function extractBufferMap(mapLike) {
+  if (!mapLike) return null;
+  const candidate = mapLike.buffer?.tiles?.length ? mapLike.buffer : mapLike;
+  if (!candidate?.tiles?.length) return null;
+  const { cols, rows } = getMatrixDimensions(candidate.tiles);
+  const normalizedTypes = candidate.types?.length ? candidate.types : null;
+  const normalizedElevations = candidate.elevations?.length ? candidate.elevations : null;
+  return {
+    ...candidate,
+    tiles: candidate.tiles,
+    types: normalizedTypes,
+    elevations: normalizedElevations,
+    width: candidate.width ?? cols,
+    height: candidate.height ?? rows,
+    xStart: toInteger(candidate.xStart, 0),
+    yStart: toInteger(candidate.yStart, 0)
+  };
+}
+
+function deriveViewportSize(buffer, fallbackWidth = 0, fallbackHeight = 0) {
+  if (fallbackWidth && fallbackHeight) {
+    return { width: fallbackWidth, height: fallbackHeight };
+  }
+  const { cols, rows } = getMatrixDimensions(buffer?.tiles);
+  if (cols || rows) {
+    const target = Math.max(cols, rows);
+    return { width: target, height: target };
+  }
+  return { width: DEFAULT_VIEWPORT_SIZE, height: DEFAULT_VIEWPORT_SIZE };
 }
 
 export function createMapView(container, {
@@ -99,9 +129,11 @@ export function createMapView(container, {
 
   const state = {
     map: null,
+    buffer: null,
     context: {},
     home: { xStart: 0, yStart: 0 },
     focus: { x: 0, y: 0 },
+    viewport: { width: 0, height: 0, xStart: 0, yStart: 0 },
     drag: {
       active: false,
       lastX: 0,
@@ -112,10 +144,246 @@ export function createMapView(container, {
     resizeHandler: null,
     fetchMap,
     onMapUpdate,
+    bufferMargin: BUFFER_MARGIN,
     zoom: 1,
     minZoom: 0.5,
     maxZoom: 3
   };
+
+  const getVisibleDimensions = () => {
+    const rows = state.map?.tiles?.length || 0;
+    const cols = rows ? state.map.tiles[0]?.length || 0 : 0;
+    return { cols, rows };
+  };
+
+  function ensureViewportDimensions(buffer) {
+    const derived = deriveViewportSize(buffer, state.viewport.width, state.viewport.height);
+    state.viewport.width = Math.max(1, toInteger(derived.width, DEFAULT_VIEWPORT_SIZE));
+    state.viewport.height = Math.max(1, toInteger(derived.height, DEFAULT_VIEWPORT_SIZE));
+  }
+
+  function clampViewportWithinBuffer(buffer) {
+    if (!buffer?.tiles?.length) return null;
+    const dims = getMatrixDimensions(buffer.tiles);
+    if (!dims.cols || !dims.rows) return null;
+
+    const width = Math.min(Math.max(1, state.viewport.width || DEFAULT_VIEWPORT_SIZE), dims.cols);
+    const height = Math.min(Math.max(1, state.viewport.height || DEFAULT_VIEWPORT_SIZE), dims.rows);
+
+    state.viewport.width = width;
+    state.viewport.height = height;
+
+    const originX = buffer.xStart ?? 0;
+    const originY = buffer.yStart ?? 0;
+    const maxOffsetX = Math.max(0, dims.cols - width);
+    const maxOffsetY = Math.max(0, dims.rows - height);
+
+    let offsetX = toInteger(state.viewport.xStart, originX) - originX;
+    let offsetY = toInteger(state.viewport.yStart, originY) - originY;
+
+    offsetX = Math.max(0, Math.min(maxOffsetX, offsetX));
+    offsetY = Math.max(0, Math.min(maxOffsetY, offsetY));
+
+    state.viewport.xStart = originX + offsetX;
+    state.viewport.yStart = originY + offsetY;
+
+    return {
+      offsetX,
+      offsetY,
+      originX,
+      originY,
+      width,
+      height
+    };
+  }
+
+  function updateVisibleFromBuffer() {
+    if (!state.buffer?.tiles?.length) return false;
+    const clamped = clampViewportWithinBuffer(state.buffer);
+    if (!clamped) return false;
+
+    const { offsetX, offsetY, width, height } = clamped;
+    const tiles = sliceMatrix(state.buffer.tiles, offsetX, offsetY, width, height);
+    if (!tiles.length) return false;
+
+    const types = state.buffer.types?.length
+      ? sliceMatrix(state.buffer.types, offsetX, offsetY, width, height)
+      : null;
+    const elevations = state.buffer.elevations?.length
+      ? sliceMatrix(state.buffer.elevations, offsetX, offsetY, width, height)
+      : null;
+
+    state.map = {
+      ...state.map,
+      seed: state.buffer.seed ?? state.map?.seed,
+      season: state.buffer.season ?? state.map?.season,
+      waterLevel: state.buffer.waterLevel ?? state.map?.waterLevel,
+      tiles,
+      types,
+      elevations,
+      xStart: state.viewport.xStart,
+      yStart: state.viewport.yStart,
+      width,
+      height,
+      viewport: { ...state.viewport }
+    };
+
+    return true;
+  }
+
+  function buildUpdatePayload() {
+    if (!state.map) return null;
+    const payload = {
+      seed: state.map.seed,
+      season: state.map.season,
+      waterLevel: state.map.waterLevel,
+      tiles: state.map.tiles,
+      types: state.map.types,
+      elevations: state.map.elevations,
+      xStart: state.map.xStart,
+      yStart: state.map.yStart,
+      width: state.map.width,
+      height: state.map.height,
+      viewport: { ...state.viewport }
+    };
+
+    if (state.buffer?.tiles?.length) {
+      const dims = getMatrixDimensions(state.buffer.tiles);
+      payload.buffer = {
+        seed: state.buffer.seed,
+        season: state.buffer.season,
+        waterLevel: state.buffer.waterLevel,
+        tiles: state.buffer.tiles,
+        types: state.buffer.types,
+        elevations: state.buffer.elevations,
+        xStart: state.buffer.xStart,
+        yStart: state.buffer.yStart,
+        width: state.buffer.width ?? dims.cols,
+        height: state.buffer.height ?? dims.rows
+      };
+    }
+
+    return payload;
+  }
+
+  function commitMapUpdate() {
+    if (!state.map) return;
+    state.context = {
+      ...state.context,
+      focus: { ...state.focus },
+      viewport: { ...state.viewport }
+    };
+
+    if (typeof state.onMapUpdate === 'function') {
+      const payload = buildUpdatePayload();
+      if (payload) {
+        state.onMapUpdate(payload, state.context);
+      }
+    }
+
+    render();
+  }
+
+  function needsBufferRefresh() {
+    if (!state.buffer?.tiles?.length) return true;
+    const dims = getMatrixDimensions(state.buffer.tiles);
+    const width = state.viewport.width || dims.cols;
+    const height = state.viewport.height || dims.rows;
+    if (dims.cols < width || dims.rows < height) return true;
+
+    const originX = state.buffer.xStart ?? 0;
+    const originY = state.buffer.yStart ?? 0;
+    const offsetX = state.viewport.xStart - originX;
+    const offsetY = state.viewport.yStart - originY;
+    const margin = Math.max(0, state.bufferMargin ?? BUFFER_MARGIN);
+
+    if (offsetX < margin || offsetY < margin) return true;
+    if (offsetX + width > dims.cols - margin) return true;
+    if (offsetY + height > dims.rows - margin) return true;
+    return false;
+  }
+
+  function fetchBufferedMap(xStart, yStart, options = {}) {
+    if (typeof state.fetchMap !== 'function') return;
+    const margin = Math.max(0, state.bufferMargin ?? BUFFER_MARGIN);
+    const viewportWidth = Math.max(1, state.viewport.width || DEFAULT_VIEWPORT_SIZE);
+    const viewportHeight = Math.max(1, state.viewport.height || DEFAULT_VIEWPORT_SIZE);
+    const width = viewportWidth + margin * 2;
+    const height = viewportHeight + margin * 2;
+    const targetX = toInteger(xStart, 0);
+    const targetY = toInteger(yStart, 0);
+    const originX = targetX - margin;
+    const originY = targetY - margin;
+    const seed = options.overrideSeed ?? state.map?.seed ?? state.buffer?.seed ?? state.context?.seed;
+    const season = options.overrideSeason ?? state.map?.season ?? state.buffer?.season ?? state.context?.season;
+
+    const params = {
+      map: state.map,
+      context: state.context,
+      seed,
+      season,
+      xStart: originX,
+      yStart: originY,
+      width,
+      height,
+      viewport: {
+        xStart: targetX,
+        yStart: targetY,
+        width: viewportWidth,
+        height: viewportHeight
+      }
+    };
+
+    const result = state.fetchMap(params);
+    if (result && typeof result.then === 'function') {
+      result.then(buffer => applyBuffer(buffer, { targetX, targetY }));
+    } else {
+      applyBuffer(result, { targetX, targetY });
+    }
+  }
+
+  function applyBuffer(nextMap, { targetX, targetY } = {}) {
+    const buffer = extractBufferMap(nextMap);
+    if (!buffer) return;
+
+    const dims = getMatrixDimensions(buffer.tiles);
+    buffer.width = buffer.width ?? dims.cols;
+    buffer.height = buffer.height ?? dims.rows;
+
+    state.buffer = buffer;
+    if (Number.isFinite(targetX)) state.viewport.xStart = toInteger(targetX, buffer.xStart);
+    if (Number.isFinite(targetY)) state.viewport.yStart = toInteger(targetY, buffer.yStart);
+
+    ensureViewportDimensions(buffer);
+
+    if (!updateVisibleFromBuffer()) {
+      const limitedWidth = Math.min(state.viewport.width, buffer.width);
+      const limitedHeight = Math.min(state.viewport.height, buffer.height);
+      state.viewport.width = Math.max(1, limitedWidth);
+      state.viewport.height = Math.max(1, limitedHeight);
+      if (!updateVisibleFromBuffer()) {
+        return;
+      }
+    }
+
+    commitMapUpdate();
+  }
+
+  function updateViewportStart(xStart, yStart, options = {}) {
+    state.viewport.xStart = toInteger(xStart, state.viewport.xStart);
+    state.viewport.yStart = toInteger(yStart, state.viewport.yStart);
+
+    if (options.forceFetch || needsBufferRefresh()) {
+      fetchBufferedMap(state.viewport.xStart, state.viewport.yStart, options);
+      return;
+    }
+
+    if (updateVisibleFromBuffer()) {
+      commitMapUpdate();
+    } else {
+      fetchBufferedMap(state.viewport.xStart, state.viewport.yStart, options);
+    }
+  }
 
   const mapWrapper = document.createElement('div');
   mapWrapper.className = `${idPrefix}-wrapper map-wrapper`;
@@ -127,6 +395,7 @@ export function createMapView(container, {
   mapWrapper.style.userSelect = 'none';
   mapWrapper.style.touchAction = allowDrag ? 'none' : 'auto';
   mapWrapper.style.boxSizing = 'border-box';
+  mapWrapper.style.aspectRatio = '1 / 1';
 
   const mapDisplay = document.createElement('pre');
   mapDisplay.className = `${idPrefix}-display map-display`;
@@ -349,9 +618,10 @@ export function createMapView(container, {
   }
 
   function computeHomeStart(coords = {}) {
-    const rows = state.map?.tiles?.length || 0;
-    const cols = rows ? state.map.tiles[0]?.length || 0 : 0;
-    if (!rows || !cols) {
+    const visible = getVisibleDimensions();
+    const cols = state.viewport.width || visible.cols || DEFAULT_VIEWPORT_SIZE;
+    const rows = state.viewport.height || visible.rows || DEFAULT_VIEWPORT_SIZE;
+    if (!cols || !rows) {
       return { xStart: state.map?.xStart || 0, yStart: state.map?.yStart || 0 };
     }
     const focus = normalizeFocusCoords(coords);
@@ -441,52 +711,17 @@ export function createMapView(container, {
     });
   }
 
-  function applyMap(nextMap) {
-    if (!nextMap || !nextMap.tiles) return;
-    state.map = { ...nextMap };
-    if (state.focus) {
-      state.home = computeHomeStart(state.focus);
-    }
-    state.context = { ...state.context, focus: { ...state.focus } };
-    if (typeof state.onMapUpdate === 'function') {
-      state.onMapUpdate(state.map, state.context);
-    }
-    render();
-  }
-
-  function requestMapUpdate(xStart, yStart) {
-    if (!state.map) return;
-    const width = state.map.tiles?.[0]?.length || 0;
-    const height = state.map.tiles?.length || 0;
-    if (!width || !height) return;
-    const params = {
-      map: state.map,
-      context: state.context,
-      seed: state.map.seed,
-      season: state.map.season,
-      xStart,
-      yStart,
-      width,
-      height
-    };
-    if (typeof state.fetchMap === 'function') {
-      const result = state.fetchMap(params);
-      if (result && typeof result.then === 'function') {
-        result.then(applyMap);
-      } else {
-        applyMap(result);
-      }
-    } else {
-      applyMap({ ...state.map, xStart, yStart });
-    }
-  }
-
-  function centerMap() {
-    requestMapUpdate(state.home.xStart, state.home.yStart);
+  function centerMap(options = {}) {
+    updateViewportStart(state.home.xStart, state.home.yStart, options);
   }
 
   function render() {
-    if (!state.map) return;
+    if (!state.map?.tiles?.length) {
+      mapDisplay.textContent = '';
+      updateLegend(summarizeTerrain());
+      updateWrapperSize();
+      return;
+    }
     const rows = state.map.tiles.map(row => row.join(''));
     mapDisplay.textContent = rows.join('\n');
     updateLegend(summarizeTerrain(state.map.types));
@@ -495,16 +730,17 @@ export function createMapView(container, {
   }
 
   function shiftViewport(dxTiles, dyTiles) {
-    if (!state.map || (!dxTiles && !dyTiles)) return;
-    const nextX = (state.map.xStart || 0) + dxTiles;
-    const nextY = (state.map.yStart || 0) + dyTiles;
-    requestMapUpdate(nextX, nextY);
+    if (!dxTiles && !dyTiles) return;
+    const baseX = Number.isFinite(state.viewport.xStart) ? state.viewport.xStart : state.map?.xStart || 0;
+    const baseY = Number.isFinite(state.viewport.yStart) ? state.viewport.yStart : state.map?.yStart || 0;
+    const nextX = baseX + dxTiles;
+    const nextY = baseY + dyTiles;
+    updateViewportStart(nextX, nextY);
   }
 
   function pan(dx, dy) {
-    if (!state.map) return;
-    const cols = state.map.tiles?.[0]?.length || 0;
-    const rows = state.map.tiles?.length || 0;
+    const cols = state.viewport.width || state.map?.tiles?.[0]?.length || 0;
+    const rows = state.viewport.height || state.map?.tiles?.length || 0;
     if (!cols || !rows) return;
     const stepX = Math.max(1, Math.round(cols * 0.6)) * dx;
     const stepY = Math.max(1, Math.round(rows * 0.6)) * dy;
@@ -632,12 +868,7 @@ export function createMapView(container, {
 
   return {
     setMap(map, context = {}) {
-      state.map = map ? { ...map } : null;
       state.context = { ...state.context, ...context };
-      if (!state.map) {
-        render();
-        return;
-      }
 
       const focusCandidate =
         context?.focus ??
@@ -647,17 +878,81 @@ export function createMapView(container, {
         context?.homeCoords ??
         state.focus;
       state.focus = normalizeFocusCoords(focusCandidate);
-      state.context = { ...state.context, focus: { ...state.focus } };
+
+      if (!map) {
+        state.map = null;
+        state.buffer = null;
+        state.context = { ...state.context, focus: { ...state.focus } };
+        render();
+        return;
+      }
+
+      const buffer = extractBufferMap(map);
+      state.buffer = buffer;
+      ensureViewportDimensions(buffer);
+
+      const incomingViewport = map.viewport ?? buffer?.viewport ?? null;
+      if (incomingViewport) {
+        state.viewport.width = Math.max(1, toInteger(incomingViewport.width, state.viewport.width));
+        state.viewport.height = Math.max(1, toInteger(incomingViewport.height, state.viewport.height));
+        state.viewport.xStart = toInteger(incomingViewport.xStart, buffer?.xStart ?? state.viewport.xStart ?? 0);
+        state.viewport.yStart = toInteger(incomingViewport.yStart, buffer?.yStart ?? state.viewport.yStart ?? 0);
+      } else if (buffer) {
+        state.viewport.xStart = toInteger(map.xStart ?? buffer.xStart, buffer.xStart);
+        state.viewport.yStart = toInteger(map.yStart ?? buffer.yStart, buffer.yStart);
+      } else {
+        state.viewport.xStart = toInteger(map.xStart, state.viewport.xStart ?? 0);
+        state.viewport.yStart = toInteger(map.yStart, state.viewport.yStart ?? 0);
+      }
+
+      ensureViewportDimensions(buffer);
+
+      state.map = {
+        seed: map.seed ?? buffer?.seed ?? state.map?.seed,
+        season: map.season ?? buffer?.season ?? state.map?.season,
+        waterLevel: map.waterLevel ?? buffer?.waterLevel ?? state.map?.waterLevel,
+        tiles: [],
+        types: null,
+        elevations: null,
+        xStart: state.viewport.xStart,
+        yStart: state.viewport.yStart,
+        width: state.viewport.width,
+        height: state.viewport.height
+      };
+
+      state.context = {
+        ...state.context,
+        focus: { ...state.focus },
+        seed: state.map.seed,
+        season: state.map.season
+      };
+
       state.home = computeHomeStart(state.focus);
 
-      const needsRecentering =
-        state.map.xStart !== state.home.xStart || state.map.yStart !== state.home.yStart;
-
-      if (needsRecentering) {
-        requestMapUpdate(state.home.xStart, state.home.yStart);
-      } else {
-        render();
+      if (!Number.isFinite(state.viewport.xStart) || !Number.isFinite(state.viewport.yStart)) {
+        state.viewport.xStart = state.home.xStart;
+        state.viewport.yStart = state.home.yStart;
       }
+
+      if (buffer) {
+        if (!updateVisibleFromBuffer()) {
+          updateViewportStart(state.viewport.xStart, state.viewport.yStart, { forceFetch: true });
+          return;
+        }
+
+        const needsRecentering =
+          state.viewport.xStart !== state.home.xStart || state.viewport.yStart !== state.home.yStart;
+
+        if (needsRecentering) {
+          updateViewportStart(state.home.xStart, state.home.yStart);
+        } else {
+          commitMapUpdate();
+        }
+        return;
+      }
+
+      render();
+      updateViewportStart(state.viewport.xStart, state.viewport.yStart, { forceFetch: true });
     },
     refresh() {
       updateWrapperSize();

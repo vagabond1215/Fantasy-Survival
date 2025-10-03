@@ -1,8 +1,9 @@
 import { getBiome } from './biomes.js';
 import store from './state.js';
 
-export const DEFAULT_MAP_WIDTH = 80;
-export const DEFAULT_MAP_HEIGHT = 40;
+export const DEFAULT_MAP_SIZE = 64;
+export const DEFAULT_MAP_WIDTH = DEFAULT_MAP_SIZE;
+export const DEFAULT_MAP_HEIGHT = DEFAULT_MAP_SIZE;
 
 export const TERRAIN_SYMBOLS = {
   water: '🌊',
@@ -103,12 +104,13 @@ export function generateColorMap(
   xStart = null,
   yStart = null,
   width = DEFAULT_MAP_WIDTH,
-  height = DEFAULT_MAP_HEIGHT,
+  height = width,
   season = store.time.season,
-  waterLevelOverride
+  waterLevelOverride,
+  viewport = null
 ) {
   const mapWidth = Math.max(1, Math.trunc(width));
-  const mapHeight = Math.max(1, Math.trunc(height));
+  const mapHeight = Math.max(1, Math.trunc(height ?? width ?? DEFAULT_MAP_WIDTH));
   const { xStart: defaultX, yStart: defaultY } = computeCenteredStart(mapWidth, mapHeight);
   const effectiveXStart = Number.isFinite(xStart) ? Math.trunc(xStart) : defaultX;
   const effectiveYStart = Number.isFinite(yStart) ? Math.trunc(yStart) : defaultY;
@@ -153,6 +155,20 @@ export function generateColorMap(
     elevations.push(eRow);
   }
 
+  const viewportDetails = viewport
+    ? {
+        xStart: Number.isFinite(viewport.xStart) ? Math.trunc(viewport.xStart) : effectiveXStart,
+        yStart: Number.isFinite(viewport.yStart) ? Math.trunc(viewport.yStart) : effectiveYStart,
+        width: Math.max(1, Math.trunc(viewport.width ?? mapWidth)),
+        height: Math.max(1, Math.trunc(viewport.height ?? mapHeight))
+      }
+    : {
+        xStart: effectiveXStart,
+        yStart: effectiveYStart,
+        width: mapWidth,
+        height: mapHeight
+      };
+
   return {
     scale: 100,
     seed,
@@ -164,6 +180,7 @@ export function generateColorMap(
     types: terrainTypes,
     elevations,
     season,
-    waterLevel
+    waterLevel,
+    viewport: viewportDetails
   };
 }

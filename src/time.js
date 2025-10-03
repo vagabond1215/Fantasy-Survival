@@ -1,24 +1,60 @@
 import store from './state.js';
 
 export const DAYS_PER_MONTH = 28;
-export const MONTHS_PER_YEAR = 13;
 const HOURS_PER_DAY = 24;
 const DAWN_HOUR = 6;
 
+export const DARK_AGE_YEAR_RANGE = { min: 410, max: 987 };
+
+export function randomDarkAgeYear() {
+  const span = DARK_AGE_YEAR_RANGE.max - DARK_AGE_YEAR_RANGE.min + 1;
+  return DARK_AGE_YEAR_RANGE.min + Math.floor(Math.random() * span);
+}
+
+const MONTH_DEFINITIONS = [
+  { name: 'Frostmelt', season: 'Thawbound' },
+  { name: 'Dawnforge', season: 'Thawbound' },
+  { name: 'Seedwane', season: 'Thawbound' },
+  { name: 'Raincall', season: 'Sunheight' },
+  { name: 'Suncrest', season: 'Sunheight' },
+  { name: 'Highember', season: 'Sunheight' },
+  { name: 'Harvestgale', season: 'Emberwane' },
+  { name: 'Emberfall', season: 'Emberwane' },
+  { name: 'Gloamreach', season: 'Emberwane' },
+  { name: 'Stormwrack', season: 'Frostshroud' },
+  { name: 'Nightveil', season: 'Frostshroud' },
+  { name: 'Deepfrost', season: 'Frostshroud' },
+  { name: 'Ghostmoon', season: 'Frostshroud' }
+];
+
+export const MONTHS_PER_YEAR = MONTH_DEFINITIONS.length;
+export const MONTH_NAMES = MONTH_DEFINITIONS.map(def => def.name);
+
 const SEASON_DETAILS = {
-  Spring: { icon: '🌱', months: [1, 2, 3] },
-  Summer: { icon: '☀️', months: [4, 5, 6] },
-  Autumn: { icon: '🍂', months: [7, 8, 9] },
-  Winter: { icon: '❄️', months: [10, 11, 12, 13] }
+  Thawbound: { icon: '🌿', months: [] },
+  Sunheight: { icon: '🔥', months: [] },
+  Emberwane: { icon: '🍂', months: [] },
+  Frostshroud: { icon: '❄️', months: [] }
 };
 
+MONTH_DEFINITIONS.forEach((definition, index) => {
+  const season = SEASON_DETAILS[definition.season];
+  if (season) {
+    season.months.push(index + 1);
+  }
+});
+
+Object.values(SEASON_DETAILS).forEach(details => {
+  details.months.sort((a, b) => a - b);
+});
+
 const WEATHER_PATTERNS = [
-  { name: 'Clear', icon: '☀️', weights: { Spring: 3, Summer: 4, Autumn: 3, Winter: 2 } },
-  { name: 'Cloudy', icon: '☁️', weights: { Spring: 2, Summer: 2, Autumn: 3, Winter: 3 } },
-  { name: 'Rain', icon: '🌧️', weights: { Spring: 3, Summer: 3, Autumn: 2, Winter: 1 } },
-  { name: 'Storm', icon: '⛈️', weights: { Spring: 1, Summer: 2, Autumn: 1, Winter: 1 } },
-  { name: 'Snow', icon: '❄️', weights: { Spring: 0, Summer: 0, Autumn: 1, Winter: 4 } },
-  { name: 'Fog', icon: '🌫️', weights: { Spring: 1, Summer: 1, Autumn: 2, Winter: 2 } }
+  { name: 'Clear', icon: '☀️', weights: { Thawbound: 3, Sunheight: 4, Emberwane: 3, Frostshroud: 2 } },
+  { name: 'Cloudy', icon: '☁️', weights: { Thawbound: 2, Sunheight: 2, Emberwane: 3, Frostshroud: 3 } },
+  { name: 'Rain', icon: '🌧️', weights: { Thawbound: 3, Sunheight: 3, Emberwane: 2, Frostshroud: 1 } },
+  { name: 'Storm', icon: '⛈️', weights: { Thawbound: 1, Sunheight: 2, Emberwane: 1, Frostshroud: 1 } },
+  { name: 'Snow', icon: '❄️', weights: { Thawbound: 0, Sunheight: 0, Emberwane: 1, Frostshroud: 4 } },
+  { name: 'Fog', icon: '🌫️', weights: { Thawbound: 1, Sunheight: 1, Emberwane: 2, Frostshroud: 2 } }
 ];
 
 const DAY_PERIODS = [
@@ -41,11 +77,17 @@ function ensureTimeStructure() {
   if (!Number.isFinite(store.time.day) || store.time.day < 1) {
     store.time.day = 1;
   }
-  if (!Number.isFinite(store.time.month) || store.time.month < 1) {
+  if (!Number.isFinite(store.time.month)) {
     store.time.month = 1;
+  } else if (store.time.month < 1) {
+    store.time.month = 1;
+  } else if (store.time.month > MONTHS_PER_YEAR) {
+    store.time.month = ((Math.floor(store.time.month) - 1) % MONTHS_PER_YEAR) + 1;
   }
-  if (!Number.isFinite(store.time.year) || store.time.year < 1) {
-    store.time.year = 1;
+  if (!Number.isFinite(store.time.year) || store.time.year < DARK_AGE_YEAR_RANGE.min) {
+    store.time.year = DARK_AGE_YEAR_RANGE.min;
+  } else {
+    store.time.year = Math.floor(store.time.year);
   }
   if (!Number.isFinite(store.time.hour)) {
     store.time.hour = DAWN_HOUR;
@@ -59,10 +101,14 @@ function ensureTimeStructure() {
 
 export function getSeasonForMonth(month = 1) {
   const base = Number.isFinite(month) ? Math.floor(month) : 1;
-  const normalized = ((base - 1) % MONTHS_PER_YEAR + MONTHS_PER_YEAR) % MONTHS_PER_YEAR + 1;
-  return (
-    Object.entries(SEASON_DETAILS).find(([, details]) => details.months.includes(normalized))?.[0] || 'Spring'
-  );
+  const normalized = ((base - 1) % MONTHS_PER_YEAR + MONTHS_PER_YEAR) % MONTHS_PER_YEAR;
+  return MONTH_DEFINITIONS[normalized]?.season || Object.keys(SEASON_DETAILS)[0];
+}
+
+export function getMonthName(month = 1) {
+  const base = Number.isFinite(month) ? Math.floor(month) : 1;
+  const normalized = ((base - 1) % MONTHS_PER_YEAR + MONTHS_PER_YEAR) % MONTHS_PER_YEAR;
+  return MONTH_DEFINITIONS[normalized]?.name || MONTH_NAMES[0];
 }
 
 function chooseWeather(season, previous) {
@@ -149,7 +195,7 @@ export function advanceHours(hours = 1) {
 
 export function info() {
   const time = ensureTimeStructure();
-  return { ...time };
+  return { ...time, monthName: getMonthName(time.month) };
 }
 
 export { info as timeInfo };

@@ -14,7 +14,12 @@ import {
 } from './map.js';
 import { createMapView } from './mapView.js';
 
-const seasons = ['Spring', 'Summer', 'Autumn', 'Winter'];
+const seasons = [
+  { id: 'Thawbound', name: 'Thawbound (Emergent thaw)' },
+  { id: 'Sunheight', name: 'Sunheight (High sun)' },
+  { id: 'Emberwane', name: 'Emberwane (Fading ember)' },
+  { id: 'Frostshroud', name: 'Frostshroud (Deep chill)' }
+];
 
 /**
  * Create a temporary setup form and call the provided callback when submitted.
@@ -106,7 +111,7 @@ export function initSetupUI(onStart) {
     showControls: true,
     showLegend: true,
     idPrefix: 'setup-map',
-    fetchMap: ({ xStart, yStart, width, height, seed, season, context }) => {
+    fetchMap: ({ xStart, yStart, width, height, seed, season, viewport, context }) => {
       const biomeId = context?.biomeId || biomeSelect.select.value;
       const nextSeed = seed ?? mapSeed;
       const nextSeason = season ?? seasonSelect.select.value;
@@ -117,7 +122,9 @@ export function initSetupUI(onStart) {
         yStart,
         width,
         height,
-        nextSeason
+        nextSeason,
+        mapData?.waterLevel,
+        viewport
       );
     },
     onMapUpdate: updated => {
