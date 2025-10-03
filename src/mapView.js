@@ -118,13 +118,27 @@ export function createMapView(container, {
 } = {}) {
   if (!container) throw new Error('Container is required for map view');
 
-  const applySquareButtonStyle = (button, fontSize = '18px') => {
-    button.style.width = '48px';
-    button.style.height = '48px';
+  const applyControlButtonStyle = (
+    button,
+    { size = 48, fontSize = '18px', variant = 'square' } = {}
+  ) => {
+    const dimension = typeof size === 'number' && Number.isFinite(size) ? `${size}px` : `${size}`;
+    const isChip = variant === 'chip';
+    button.style.width = dimension;
+    button.style.height = dimension;
+    button.style.padding = '0';
     button.style.fontSize = fontSize;
-    button.style.display = 'flex';
+    button.style.display = 'inline-flex';
     button.style.alignItems = 'center';
     button.style.justifyContent = 'center';
+    button.style.borderRadius = isChip ? '999px' : '12px';
+    button.style.border = '1px solid var(--map-border, #ccc)';
+    button.style.background = 'var(--bg-color, #fff)';
+    button.style.color = 'inherit';
+    button.style.lineHeight = '1';
+    button.style.cursor = 'pointer';
+    button.style.transition = 'background 0.2s ease, transform 0.1s ease';
+    button.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.08)';
   };
 
   const state = {
@@ -397,6 +411,16 @@ export function createMapView(container, {
   mapWrapper.style.boxSizing = 'border-box';
   mapWrapper.style.aspectRatio = '1 / 1';
 
+  const mapCanvas = document.createElement('div');
+  mapCanvas.className = `${idPrefix}-canvas map-canvas`;
+  mapCanvas.style.position = 'absolute';
+  mapCanvas.style.inset = '0';
+  mapCanvas.style.display = 'flex';
+  mapCanvas.style.alignItems = 'center';
+  mapCanvas.style.justifyContent = 'center';
+  mapCanvas.style.boxSizing = 'border-box';
+  mapWrapper.appendChild(mapCanvas);
+
   const mapDisplay = document.createElement('pre');
   mapDisplay.className = `${idPrefix}-display map-display`;
   mapDisplay.style.whiteSpace = 'pre';
@@ -404,16 +428,12 @@ export function createMapView(container, {
   mapDisplay.style.lineHeight = '1';
   mapDisplay.style.margin = '0';
   mapDisplay.style.padding = '0';
-  mapDisplay.style.display = 'block';
-  mapDisplay.style.width = '100%';
-  mapDisplay.style.height = '100%';
-  mapDisplay.style.position = 'absolute';
-  mapDisplay.style.top = '50%';
-  mapDisplay.style.left = '50%';
-  mapDisplay.style.transform = 'translate(-50%, -50%) scale(1)';
+  mapDisplay.style.display = 'inline-block';
+  mapDisplay.style.position = 'relative';
+  mapDisplay.style.transform = 'scale(1)';
   mapDisplay.style.transformOrigin = 'center center';
   mapDisplay.style.boxSizing = 'border-box';
-  mapWrapper.appendChild(mapDisplay);
+  mapCanvas.appendChild(mapDisplay);
 
   const iconPreloader = document.createElement('div');
   iconPreloader.setAttribute('aria-hidden', 'true');
@@ -492,7 +512,7 @@ export function createMapView(container, {
       button.type = 'button';
       button.textContent = label;
       button.setAttribute('aria-label', aria);
-      applySquareButtonStyle(button, fontSize);
+      applyControlButtonStyle(button, { fontSize, variant: 'square' });
       return button;
     };
 
@@ -605,8 +625,11 @@ export function createMapView(container, {
     Object.entries(TERRAIN_SYMBOLS).forEach(([type, symbol]) => {
       const li = document.createElement('li');
       const label = legendLabels[type] || type;
-      const amount = counts[type] ?? 0;
-      li.textContent = `${symbol} – ${label} (${amount})`;
+      li.textContent = `${symbol} – ${label}`;
+      const amount = counts[type];
+      if (Number.isFinite(amount)) {
+        li.title = `${amount} tile${amount === 1 ? '' : 's'}`;
+      }
       legendList.appendChild(li);
     });
   }
@@ -646,7 +669,7 @@ export function createMapView(container, {
   }
 
   function applyZoomTransform() {
-    mapDisplay.style.transform = `translate(-50%, -50%) scale(${state.zoom})`;
+    mapDisplay.style.transform = `scale(${state.zoom})`;
     updateZoomControls();
   }
 
@@ -680,8 +703,15 @@ export function createMapView(container, {
     const sizeForWidth = availableWidth / cols;
     const sizeForHeight = availableHeight / rows;
     const targetSize = Math.min(sizeForWidth, sizeForHeight);
+    if (!Number.isFinite(targetSize) || targetSize <= 0) return;
+    const widthPx = cols * targetSize;
+    const heightPx = rows * targetSize;
     mapDisplay.style.fontSize = `${targetSize}px`;
     mapDisplay.style.lineHeight = `${targetSize}px`;
+    mapDisplay.style.width = `${widthPx}px`;
+    mapDisplay.style.height = `${heightPx}px`;
+    mapDisplay.style.minWidth = `${widthPx}px`;
+    mapDisplay.style.minHeight = `${heightPx}px`;
   }
 
   function updateWrapperSize() {
@@ -765,7 +795,7 @@ export function createMapView(container, {
       btn.type = 'button';
       btn.textContent = config.label;
       btn.setAttribute('aria-label', config.aria);
-      applySquareButtonStyle(btn);
+      applyControlButtonStyle(btn, { variant: 'chip', fontSize: '22px' });
       btn.addEventListener('click', () => {
         if (config.recenter) {
           centerMap();

@@ -6,7 +6,7 @@ export const DEFAULT_MAP_WIDTH = DEFAULT_MAP_SIZE;
 export const DEFAULT_MAP_HEIGHT = DEFAULT_MAP_SIZE;
 
 export const TERRAIN_SYMBOLS = {
-  water: '🌊',
+  water: '💧',
   open: '🌾',
   forest: '🌲',
   ore: '⛏️'
