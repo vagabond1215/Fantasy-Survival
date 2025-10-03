@@ -410,14 +410,15 @@ export function createMapView(container, {
   mapWrapper.style.touchAction = allowDrag ? 'none' : 'auto';
   mapWrapper.style.boxSizing = 'border-box';
   mapWrapper.style.aspectRatio = '1 / 1';
+  mapWrapper.style.flexShrink = '0';
 
   const mapCanvas = document.createElement('div');
   mapCanvas.className = `${idPrefix}-canvas map-canvas`;
   mapCanvas.style.position = 'absolute';
   mapCanvas.style.inset = '0';
   mapCanvas.style.display = 'flex';
-  mapCanvas.style.alignItems = 'center';
-  mapCanvas.style.justifyContent = 'center';
+  mapCanvas.style.alignItems = 'flex-start';
+  mapCanvas.style.justifyContent = 'flex-start';
   mapCanvas.style.boxSizing = 'border-box';
   mapWrapper.appendChild(mapCanvas);
 
@@ -465,6 +466,8 @@ export function createMapView(container, {
   mapContainer.style.flexDirection = 'column';
   mapContainer.style.alignItems = 'flex-start';
   mapContainer.style.gap = '12px';
+  mapContainer.style.width = '100%';
+  mapContainer.style.maxWidth = '100%';
 
   const sideStack = document.createElement('div');
   sideStack.className = `${idPrefix}-control-stack map-control-stack`;
@@ -588,6 +591,7 @@ export function createMapView(container, {
       mapContainer.style.flexDirection = 'row';
       mapContainer.style.flexWrap = 'nowrap';
       mapContainer.style.gap = '16px';
+      mapContainer.style.justifyContent = 'flex-start';
       if (!sideStack.parentElement) {
         mapContainer.appendChild(sideStack);
       }
@@ -605,6 +609,7 @@ export function createMapView(container, {
       mapContainer.style.flexDirection = 'column';
       mapContainer.style.flexWrap = 'nowrap';
       mapContainer.style.gap = '12px';
+      mapContainer.style.justifyContent = 'flex-start';
       if (sideStack.parentElement) {
         sideStack.parentElement.removeChild(sideStack);
       }
@@ -621,6 +626,18 @@ export function createMapView(container, {
     }
 
     requestFrame(updateTileSizing);
+    requestFrame(syncLayoutMetrics);
+  }
+
+  function syncLayoutMetrics() {
+    if (typeof document === 'undefined') return;
+    if (!layoutRoot?.isConnected) return;
+    const rect = typeof layoutRoot.getBoundingClientRect === 'function'
+      ? layoutRoot.getBoundingClientRect()
+      : null;
+    const width = rect?.width ? Math.round(rect.width) : 0;
+    if (!width) return;
+    document.documentElement.style.setProperty('--map-layout-width', `${width}px`);
   }
 
   function updateLegend(counts = {}) {
@@ -774,6 +791,7 @@ export function createMapView(container, {
 
     requestFrame(() => {
       updateTileSizing();
+      syncLayoutMetrics();
     });
   }
 
@@ -1044,6 +1062,9 @@ export function createMapView(container, {
       }
       if (layoutRoot.parentElement) {
         layoutRoot.parentElement.removeChild(layoutRoot);
+      }
+      if (typeof document !== 'undefined') {
+        document.documentElement.style.removeProperty('--map-layout-width');
       }
     },
     elements: {

@@ -33,7 +33,8 @@
       z-index: 1000;
     }
     #content {
-      width: min(100%, 1200px);
+      width: 100%;
+      max-width: 1024px;
       margin: 0 auto;
       padding: clamp(56px, 8vh, 96px) 16px clamp(72px, 12vh, 128px);
       display: flex;
@@ -42,25 +43,32 @@
       min-height: 100vh;
     }
     #time-banner {
-      width: 100%;
+      width: min(100%, var(--map-layout-width, 100%));
       background: var(--menu-bg);
       border: 1px solid var(--map-border);
       border-radius: 12px;
-      padding: 10px 16px;
+      padding: 10px 20px;
       font-weight: 600;
       display: flex;
       flex-wrap: wrap;
-      gap: 8px;
+      gap: 12px;
       align-items: center;
+      margin: 0;
     }
     #time-banner .time-chip {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
-      padding: 4px 10px;
-      border-radius: 999px;
-      background: var(--bg-color);
-      border: 1px solid var(--map-border);
+      gap: 8px;
+      padding: 0;
+      border-radius: 0;
+      background: none;
+      border: none;
+    }
+    #time-banner .time-chip span:first-child {
+      font-size: 1.1em;
+    }
+    #time-banner .time-chip span:last-child {
+      font-weight: 500;
     }
     #game {
       display: grid;
