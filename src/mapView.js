@@ -421,18 +421,22 @@ export function createMapView(container, {
   mapCanvas.style.boxSizing = 'border-box';
   mapWrapper.appendChild(mapCanvas);
 
-  const mapDisplay = document.createElement('pre');
+  const mapDisplay = document.createElement('div');
   mapDisplay.className = `${idPrefix}-display map-display`;
-  mapDisplay.style.whiteSpace = 'pre';
+  mapDisplay.style.display = 'grid';
+  mapDisplay.style.gridTemplateColumns = 'none';
+  mapDisplay.style.gridAutoRows = 'var(--tile-size, 24px)';
+  mapDisplay.style.alignItems = 'center';
+  mapDisplay.style.justifyItems = 'center';
   mapDisplay.style.fontFamily = '"Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif';
   mapDisplay.style.lineHeight = '1';
   mapDisplay.style.margin = '0';
   mapDisplay.style.padding = '0';
-  mapDisplay.style.display = 'inline-block';
   mapDisplay.style.position = 'relative';
   mapDisplay.style.transform = 'scale(1)';
   mapDisplay.style.transformOrigin = 'center center';
   mapDisplay.style.boxSizing = 'border-box';
+  mapDisplay.style.setProperty('--tile-size', '24px');
   mapCanvas.appendChild(mapDisplay);
 
   const iconPreloader = document.createElement('div');
@@ -616,7 +620,7 @@ export function createMapView(container, {
       }
     }
 
-    requestFrame(updateFontSize);
+    requestFrame(updateTileSizing);
   }
 
   function updateLegend(counts = {}) {
@@ -681,7 +685,7 @@ export function createMapView(container, {
     }
     state.zoom = clamped;
     applyZoomTransform();
-    requestFrame(updateFontSize);
+    requestFrame(updateTileSizing);
   }
 
   function zoomBy(delta) {
@@ -692,7 +696,37 @@ export function createMapView(container, {
     setZoom(1);
   }
 
-  function updateFontSize() {
+  function ensureTileElements(cols, rows) {
+    if (!cols || !rows) {
+      mapDisplay.replaceChildren();
+      mapDisplay.style.gridTemplateColumns = 'none';
+      return;
+    }
+
+    const required = cols * rows;
+    const current = mapDisplay.children.length;
+    if (current !== required) {
+      const fragment = document.createDocumentFragment();
+      for (let i = 0; i < required; i++) {
+        const tile = document.createElement('span');
+        tile.className = 'map-tile';
+        tile.style.display = 'flex';
+        tile.style.alignItems = 'center';
+        tile.style.justifyContent = 'center';
+        tile.style.width = '100%';
+        tile.style.height = '100%';
+        tile.style.fontSize = '1em';
+        tile.style.lineHeight = '1';
+        fragment.appendChild(tile);
+      }
+      mapDisplay.replaceChildren(fragment);
+    }
+
+    mapDisplay.style.gridTemplateColumns = `repeat(${cols}, var(--tile-size))`;
+    mapDisplay.style.gridAutoRows = 'var(--tile-size)';
+  }
+
+  function updateTileSizing() {
     if (!state.map) return;
     const rows = state.map.tiles?.length || 0;
     const cols = rows ? state.map.tiles[0].length : 0;
@@ -706,8 +740,10 @@ export function createMapView(container, {
     if (!Number.isFinite(targetSize) || targetSize <= 0) return;
     const widthPx = cols * targetSize;
     const heightPx = rows * targetSize;
-    mapDisplay.style.fontSize = `${targetSize}px`;
-    mapDisplay.style.lineHeight = `${targetSize}px`;
+    const iconSize = Math.max(2, targetSize * 0.92);
+    mapDisplay.style.setProperty('--tile-size', `${targetSize}px`);
+    mapDisplay.style.fontSize = `${iconSize}px`;
+    mapDisplay.style.lineHeight = '1';
     mapDisplay.style.width = `${widthPx}px`;
     mapDisplay.style.height = `${heightPx}px`;
     mapDisplay.style.minWidth = `${widthPx}px`;
@@ -737,7 +773,7 @@ export function createMapView(container, {
     mapWrapper.style.height = `${height}px`;
 
     requestFrame(() => {
-      updateFontSize();
+      updateTileSizing();
     });
   }
 
@@ -747,16 +783,25 @@ export function createMapView(container, {
 
   function render() {
     if (!state.map?.tiles?.length) {
-      mapDisplay.textContent = '';
+      mapDisplay.replaceChildren();
+      mapDisplay.style.gridTemplateColumns = 'none';
       updateLegend(summarizeTerrain());
       updateWrapperSize();
       return;
     }
-    const rows = state.map.tiles.map(row => row.join(''));
-    mapDisplay.textContent = rows.join('\n');
+    const rows = state.map.tiles.length;
+    const cols = state.map.tiles[0].length;
+    ensureTileElements(cols, rows);
+    const tiles = mapDisplay.children;
+    let index = 0;
+    state.map.tiles.forEach(row => {
+      row.forEach(symbol => {
+        tiles[index++].textContent = symbol;
+      });
+    });
     updateLegend(summarizeTerrain(state.map.types));
     updateWrapperSize();
-    requestFrame(updateFontSize);
+    requestFrame(updateTileSizing);
   }
 
   function shiftViewport(dxTiles, dyTiles) {
@@ -986,7 +1031,7 @@ export function createMapView(container, {
     },
     refresh() {
       updateWrapperSize();
-      updateFontSize();
+      updateTileSizing();
       applyResponsiveLayout();
     },
     center: centerMap,
