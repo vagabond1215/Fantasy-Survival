@@ -88,35 +88,38 @@
     .floating-action-bar {
       display: inline-flex;
       align-items: center;
-      gap: 6px;
+      gap: 16px;
       background: var(--bg-color);
       border: 1px solid var(--map-border);
       border-radius: 999px;
-      padding: 4px 6px;
+      padding: 6px 18px;
+      min-height: 48px;
       box-shadow: 0 4px 12px rgba(0, 0, 0, 0.12);
       position: relative;
     }
-    .floating-action-bar button {
-      width: 32px;
-      height: 32px;
-      border-radius: 999px;
+    .floating-action-bar > button {
       border: none;
-      background: transparent;
+      background: none;
       color: inherit;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      font-size: 18px;
+      font-size: 24px;
+      line-height: 1;
       cursor: pointer;
-      transition: background 0.2s ease, transform 0.1s ease;
+      padding: 0;
+      height: 100%;
+      min-width: 40px;
+      transition: color 0.2s ease, transform 0.1s ease;
     }
-    .floating-action-bar button:hover {
-      background: rgba(0, 0, 0, 0.08);
+    .floating-action-bar > button:hover {
+      transform: translateY(-1px);
+      color: rgba(0, 0, 0, 0.7);
     }
-    body.dark .floating-action-bar button:hover {
-      background: rgba(255, 255, 255, 0.15);
+    body.dark .floating-action-bar > button:hover {
+      color: rgba(255, 255, 255, 0.85);
     }
-    .floating-action-bar button:focus-visible {
+    .floating-action-bar > button:focus-visible {
       outline: 2px solid #4a90e2;
       outline-offset: 2px;
     }
