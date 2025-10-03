@@ -1,5 +1,15 @@
 import { addItem, setExpectedChange } from './inventory.js';
-import { advanceDay, advanceHours, info as timeInfo, isMealTime, isNightfall, resetToDawn } from './time.js';
+import {
+  advanceDay,
+  advanceHours,
+  getDayPeriod,
+  getSeasonDetails,
+  getWeatherDetails,
+  info as timeInfo,
+  isMealTime,
+  isNightfall,
+  resetToDawn
+} from './time.js';
 import store from './state.js';
 import { showBackButton } from './menu.js';
 import { allLocations } from './location.js';
@@ -64,6 +74,27 @@ export function showConstructionDashboard() {
 
 export function hideConstructionDashboard() {
   closeConstructionModal();
+}
+
+function ensureTimeBannerElement() {
+  if (!timeBanner) {
+    timeBanner = document.createElement('div');
+    timeBanner.id = 'time-banner';
+    timeBanner.setAttribute('role', 'status');
+    timeBanner.setAttribute('aria-live', 'polite');
+  }
+  if (!timeBanner.parentElement) {
+    const content = document.getElementById('content');
+    if (content) {
+      const gameContainer = document.getElementById('game');
+      if (gameContainer && content.contains(gameContainer)) {
+        content.insertBefore(timeBanner, gameContainer);
+      } else {
+        content.appendChild(timeBanner);
+      }
+    }
+  }
+  return timeBanner;
 }
 
 function createPopupDialog(id, title) {
@@ -204,7 +235,13 @@ function renderTextMap() {
 function formatHour(hour = 0) {
   const normalized = ((hour % 24) + 24) % 24;
   const h = Math.floor(normalized);
-  return `${String(h).padStart(2, '0')}:00`;
+  return `${padNumber(h)}:00`;
+}
+
+function padNumber(value, digits = 2) {
+  const numeric = Number.isFinite(value) ? Math.trunc(value) : 0;
+  const safe = numeric < 0 ? 0 : numeric;
+  return String(safe).padStart(digits, '0');
 }
 
 function ensureEventLog() {
@@ -219,8 +256,11 @@ function logEvent(message) {
     id: `${Date.now()}-${Math.random()}`,
     message,
     day: t.day,
+    month: t.month,
+    year: t.year,
     hour: t.hour,
-    season: t.season
+    season: t.season,
+    weather: t.weather
   });
   if (log.length > 30) {
     log.length = 30;
@@ -240,7 +280,12 @@ function renderEventLog() {
   }
   log.forEach(entry => {
     const li = document.createElement('li');
-    li.textContent = `Day ${entry.day} ${entry.season} ${formatHour(entry.hour)} – ${entry.message}`;
+    const dayText = padNumber(entry.day ?? 1);
+    const monthText = padNumber(entry.month ?? 1);
+    const yearText = entry.year ?? 1;
+    const descriptorParts = [entry.season, entry.weather].filter(Boolean);
+    const descriptor = descriptorParts.length ? ` (${descriptorParts.join(' • ')})` : '';
+    li.textContent = `Day ${dayText} / Month ${monthText} / Year ${yearText}${descriptor} – ${formatHour(entry.hour)} – ${entry.message}`;
     eventLogList.appendChild(li);
   });
 }
@@ -852,9 +897,49 @@ function ensureSeasonalMap() {
 }
 
 function renderTimeBanner() {
-  if (!timeBanner) return;
+  const banner = ensureTimeBannerElement();
+  if (!banner) return;
+  banner.innerHTML = '';
   const t = timeInfo();
-  timeBanner.textContent = `Day ${t.day} – ${t.season} – ${formatHour(t.hour)}`;
+  const seasonDetails = getSeasonDetails(t.season);
+  const weatherDetails = getWeatherDetails(t.weather);
+  const dayPeriod = getDayPeriod(t.hour);
+
+  const chips = [
+    {
+      icon: '🗓️',
+      text: `Day ${padNumber(t.day)} / Month ${padNumber(t.month)} / Year ${t.year}`,
+      title: 'Current date'
+    },
+    {
+      icon: seasonDetails.icon,
+      text: seasonDetails.name,
+      title: `${seasonDetails.name} season`
+    },
+    {
+      icon: weatherDetails.icon,
+      text: weatherDetails.name,
+      title: `Weather: ${weatherDetails.name}`
+    },
+    {
+      icon: dayPeriod.icon,
+      text: `${formatHour(t.hour)} ${dayPeriod.label}`,
+      title: `Time of day: ${dayPeriod.label}`
+    }
+  ];
+
+  chips.forEach(chip => {
+    const chipEl = document.createElement('span');
+    chipEl.className = 'time-chip';
+    if (chip.title) chipEl.title = chip.title;
+    const iconEl = document.createElement('span');
+    iconEl.textContent = chip.icon;
+    const textEl = document.createElement('span');
+    textEl.textContent = chip.text;
+    chipEl.appendChild(iconEl);
+    chipEl.appendChild(textEl);
+    banner.appendChild(chipEl);
+  });
 }
 
 function render() {
@@ -1174,6 +1259,7 @@ export function initGameUI() {
     gap: '16px',
     alignItems: 'flex-start'
   });
+  ensureTimeBannerElement();
 
   const loc = allLocations()[0];
   if (loc?.map?.tiles) {
@@ -1198,10 +1284,6 @@ export function initGameUI() {
       gridColumn: '1 / -1',
       minWidth: '0'
     });
-
-    const title = document.createElement('h3');
-    title.textContent = 'Surrounding Area';
-    mapSection.appendChild(title);
 
     mapView = createMapView(mapSection, {
       legendLabels: LEGEND_LABELS,
@@ -1257,18 +1339,6 @@ export function initGameUI() {
   summarySection.appendChild(constructionSummaryContainer);
 
   container.appendChild(summarySection);
-
-  timeBanner = document.createElement('div');
-  timeBanner.id = 'time-banner';
-  Object.assign(timeBanner.style, {
-    marginTop: '12px',
-    fontWeight: 'bold',
-    padding: '8px 12px',
-    background: 'var(--menu-bg)',
-    borderRadius: '8px',
-    gridColumn: '1 / -1'
-  });
-  container.appendChild(timeBanner);
 
   const ordersSection = document.createElement('section');
   ordersSection.id = 'orders-section';

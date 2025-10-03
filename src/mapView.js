@@ -7,6 +7,8 @@ const LEGEND_DEFAULTS = {
   ore: 'Ore Deposits'
 };
 
+const MAP_SCALE_FACTOR = 1.5;
+
 function summarizeTerrain(types = []) {
   const counts = { water: 0, open: 0, forest: 0, ore: 0 };
   types.forEach(row => {
@@ -23,8 +25,9 @@ function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
 
   if (typeof window === 'undefined') {
     const base = 320;
-    const size = Math.max(MIN_SIZE, base);
-    return { width: size, height: size };
+    const size = Math.max(MIN_SIZE, base) * MAP_SCALE_FACTOR;
+    const rounded = Math.round(size);
+    return { width: rounded, height: rounded };
   }
 
   const widthAllowance = Math.max(
@@ -35,7 +38,12 @@ function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
   const fallbackSize = Math.max(MIN_SIZE, Math.min(widthAllowance, heightAllowance));
 
   if (!hasDimensions) {
-    return { width: fallbackSize, height: fallbackSize };
+    const scaledFallback = Math.max(
+      MIN_SIZE,
+      Math.min(widthAllowance, heightAllowance, fallbackSize * MAP_SCALE_FACTOR)
+    );
+    const rounded = Math.round(scaledFallback);
+    return { width: rounded, height: rounded };
   }
 
   const tileWidthLimit = widthAllowance / cols;
@@ -43,9 +51,14 @@ function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
   const tileSize = Math.max(1, Math.min(tileWidthLimit, tileHeightLimit));
   const width = Math.max(MIN_SIZE, Math.min(widthAllowance, tileSize * cols));
   const height = Math.max(MIN_SIZE, Math.min(heightAllowance, tileSize * rows));
-  const squareSize = Math.max(MIN_SIZE, Math.min(fallbackSize, Math.min(width, height)));
+  const baseSquare = Math.max(MIN_SIZE, Math.min(fallbackSize, Math.min(width, height)));
+  const scaledSquare = Math.max(
+    MIN_SIZE,
+    Math.min(widthAllowance, heightAllowance, baseSquare * MAP_SCALE_FACTOR)
+  );
+  const rounded = Math.round(scaledSquare);
 
-  return { width: squareSize, height: squareSize };
+  return { width: rounded, height: rounded };
 }
 
 function requestFrame(callback) {
@@ -175,11 +188,14 @@ export function createMapView(container, {
 
     zoomControls = document.createElement('div');
     zoomControls.className = `${idPrefix}-zoom map-zoom-controls`;
-    zoomControls.style.display = 'flex';
-    zoomControls.style.gap = '8px';
+    zoomControls.style.display = 'grid';
+    zoomControls.style.gridTemplateColumns = 'repeat(3, 48px)';
+    zoomControls.style.gridAutoRows = '48px';
+    zoomControls.style.gap = '6px';
     zoomControls.style.justifyContent = 'center';
     zoomControls.style.alignItems = 'center';
-    zoomControls.style.width = '100%';
+    zoomControls.style.justifyItems = 'center';
+    zoomControls.style.alignContent = 'center';
 
     const createZoomButton = (label, aria, fontSize) => {
       const button = document.createElement('button');

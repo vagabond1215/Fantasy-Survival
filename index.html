@@ -41,6 +41,27 @@
       gap: 24px;
       min-height: 100vh;
     }
+    #time-banner {
+      width: 100%;
+      background: var(--menu-bg);
+      border: 1px solid var(--map-border);
+      border-radius: 12px;
+      padding: 10px 16px;
+      font-weight: 600;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      align-items: center;
+    }
+    #time-banner .time-chip {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 4px 10px;
+      border-radius: 999px;
+      background: var(--bg-color);
+      border: 1px solid var(--map-border);
+    }
     #game {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(300px, 1fr));

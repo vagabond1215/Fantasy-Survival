@@ -17,7 +17,7 @@ import {
   showLogPopup
 } from './gameUI.js';
 import { initTopMenu, initBottomMenu } from './menu.js';
-import { resetToDawn } from './time.js';
+import { resetToDawn, getSeasonDetails, getSeasonForMonth } from './time.js';
 import { resetOrders } from './orders.js';
 
 function startGame(settings = {}) {
@@ -31,8 +31,19 @@ function startGame(settings = {}) {
   const startingGoods = calculateStartingGoods(cfg);
   Object.entries(startingGoods).forEach(([item, qty]) => addItem(item, qty));
 
-  if (settings.season) store.time.season = settings.season;
   store.time.day = 1;
+  store.time.month = 1;
+  store.time.year = 1;
+  store.time.weather = 'Clear';
+  if (settings.season) {
+    store.time.season = settings.season;
+    const seasonInfo = getSeasonDetails(settings.season);
+    if (seasonInfo.months?.length) {
+      store.time.month = seasonInfo.months[0];
+    }
+  } else {
+    store.time.season = getSeasonForMonth(store.time.month);
+  }
   resetToDawn();
   if (settings.biome) {
     generateLocation('loc1', settings.biome, store.time.season, settings.seed);
