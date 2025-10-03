@@ -933,17 +933,20 @@ function renderTimeBanner() {
     {
       icon: dayPeriod.icon,
       text: dateDisplay,
-      title: `${dayPeriod.label} at ${readableTime} on ${dayNumber} ${monthDisplay}, Year ${yearNumber}`
+      title: `${dayPeriod.label} at ${readableTime} on ${dayNumber} ${monthDisplay}, Year ${yearNumber}`,
+      showText: true
     },
     {
       icon: seasonDetails.icon,
       text: seasonDetails.name,
-      title: `${seasonDetails.name} season`
+      title: `${seasonDetails.name} season`,
+      showText: false
     },
     {
       icon: weatherDetails.icon,
       text: weatherDetails.name,
-      title: `Weather: ${weatherDetails.name}`
+      title: `Weather: ${weatherDetails.name}`,
+      showText: false
     }
   ];
 
@@ -951,10 +954,14 @@ function renderTimeBanner() {
     const chipEl = document.createElement('span');
     chipEl.className = 'time-chip';
     if (chip.title) chipEl.title = chip.title;
+    if (chip.title || chip.text) {
+      chipEl.setAttribute('aria-label', chip.title || chip.text);
+    }
     const iconEl = document.createElement('span');
     iconEl.textContent = chip.icon;
     chipEl.appendChild(iconEl);
-    if (chip.text !== undefined && chip.text !== null && chip.text !== '') {
+    const shouldShowText = chip.showText !== false;
+    if (shouldShowText && chip.text !== undefined && chip.text !== null && chip.text !== '') {
       const textEl = document.createElement('span');
       textEl.textContent = chip.text;
       chipEl.appendChild(textEl);
