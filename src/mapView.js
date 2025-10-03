@@ -115,7 +115,10 @@ export function createMapView(container, {
   allowDrag = true,
   idPrefix = 'map',
   fetchMap = null,
-  onMapUpdate = null
+  onMapUpdate = null,
+  onTileClick = null,
+  navMode = 'viewport',
+  onNavigate = null
 } = {}) {
   if (!container) throw new Error('Container is required for map view');
 
@@ -159,11 +162,17 @@ export function createMapView(container, {
     resizeHandler: null,
     fetchMap,
     onMapUpdate,
+    onTileClick: typeof onTileClick === 'function' ? onTileClick : null,
+    navMode: navMode === 'player' ? 'player' : 'viewport',
+    onNavigate: typeof onNavigate === 'function' ? onNavigate : null,
     bufferMargin: BUFFER_MARGIN,
     zoom: 1,
     minZoom: 0.5,
     maxZoom: 3,
-    sizeRetryCount: 0
+    sizeRetryCount: 0,
+    markerLayer: null,
+    markerElements: new Map(),
+    markerDefs: []
   };
 
   const getVisibleDimensions = () => {
@@ -442,6 +451,41 @@ export function createMapView(container, {
   mapDisplay.style.setProperty('--tile-size', '24px');
   mapCanvas.appendChild(mapDisplay);
 
+  const markerLayer = document.createElement('div');
+  markerLayer.className = `${idPrefix}-marker-layer map-marker-layer`;
+  markerLayer.style.position = 'absolute';
+  markerLayer.style.inset = '0';
+  markerLayer.style.pointerEvents = 'none';
+  markerLayer.style.zIndex = '3';
+  markerLayer.style.display = 'block';
+  markerLayer.style.transformOrigin = 'center center';
+  mapCanvas.appendChild(markerLayer);
+  state.markerLayer = markerLayer;
+  syncMarkers();
+
+  mapDisplay.addEventListener('click', event => {
+    if (typeof state.onTileClick !== 'function') return;
+    const target = event.target instanceof Element ? event.target.closest('.map-tile') : null;
+    if (!target || !mapDisplay.contains(target)) return;
+    const worldX = Number(target.dataset.worldX);
+    const worldY = Number(target.dataset.worldY);
+    if (!Number.isFinite(worldX) || !Number.isFinite(worldY)) return;
+    const colIndex = Number(target.dataset.col);
+    const rowIndex = Number(target.dataset.row);
+    const detail = {
+      x: worldX,
+      y: worldY,
+      col: Number.isFinite(colIndex) ? colIndex : null,
+      row: Number.isFinite(rowIndex) ? rowIndex : null,
+      terrain: target.dataset.terrain || null,
+      element: target,
+      event,
+      map: state.map,
+      context: { ...state.context }
+    };
+    state.onTileClick(detail);
+  });
+
   const iconPreloader = document.createElement('div');
   iconPreloader.setAttribute('aria-hidden', 'true');
   iconPreloader.style.position = 'absolute';
@@ -679,6 +723,100 @@ export function createMapView(container, {
     };
   }
 
+  function normalizeMarker(marker = {}, index = 0) {
+    const x = Number.isFinite(marker.x) ? Math.trunc(marker.x) : null;
+    const y = Number.isFinite(marker.y) ? Math.trunc(marker.y) : null;
+    if (x === null || y === null) return null;
+    const id = marker.id || `marker-${index}`;
+    const icon = marker.icon || '📍';
+    const className = marker.className || '';
+    const emphasis = Boolean(marker.emphasis);
+    const label = marker.label || '';
+    return { id, x, y, icon, className, emphasis, label };
+  }
+
+  function syncMarkers() {
+    if (!state.markerLayer) return;
+    if (!state.map?.tiles?.length) {
+      state.markerElements.forEach(element => {
+        if (element) element.style.display = 'none';
+      });
+      return;
+    }
+
+    const width = state.map.width || 0;
+    const height = state.map.height || 0;
+    if (!width || !height) {
+      state.markerElements.forEach(element => {
+        if (element) element.style.display = 'none';
+      });
+      return;
+    }
+
+    const activeIds = new Set();
+    state.markerDefs.forEach(marker => {
+      const col = marker.x - state.map.xStart;
+      const row = marker.y - state.map.yStart;
+      if (!Number.isFinite(col) || !Number.isFinite(row)) return;
+      if (col < 0 || row < 0 || col >= width || row >= height) {
+        const existing = state.markerElements.get(marker.id);
+        if (existing) existing.style.display = 'none';
+        return;
+      }
+
+      let element = state.markerElements.get(marker.id);
+      if (!element) {
+        element = document.createElement('span');
+        element.className = 'map-marker';
+        element.style.position = 'absolute';
+        element.style.transform = 'translate(-50%, -50%)';
+        element.style.pointerEvents = 'none';
+        element.style.lineHeight = '1';
+        element.style.textShadow = '0 0 4px rgba(0, 0, 0, 0.35)';
+        state.markerLayer.appendChild(element);
+        state.markerElements.set(marker.id, element);
+      }
+
+      element.textContent = marker.icon;
+      element.style.fontSize = marker.emphasis ? '1.6em' : '1.4em';
+      if (marker.label) {
+        element.title = marker.label;
+        element.setAttribute('aria-label', marker.label);
+      } else {
+        element.removeAttribute('title');
+        element.removeAttribute('aria-label');
+      }
+
+      const classNames = ['map-marker'];
+      if (marker.className) classNames.push(marker.className);
+      if (marker.emphasis) classNames.push('map-marker--emphasis');
+      element.className = classNames.join(' ');
+
+      const left = ((col + 0.5) / width) * 100;
+      const top = ((row + 0.5) / height) * 100;
+      element.style.left = `${left}%`;
+      element.style.top = `${top}%`;
+      element.style.display = 'block';
+      activeIds.add(marker.id);
+    });
+
+    state.markerElements.forEach((element, id) => {
+      if (!activeIds.has(id) && element) {
+        element.style.display = 'none';
+      }
+    });
+  }
+
+  function applyMarkers(markers = []) {
+    const normalized = Array.isArray(markers)
+      ? markers
+          .map((marker, index) => normalizeMarker(marker, index))
+          .filter(Boolean)
+      : [];
+    state.markerDefs = normalized;
+    syncMarkers();
+  }
+
   function updateZoomControls() {
     if (!zoomResetButton) return;
     zoomResetButton.textContent = `${Math.round(state.zoom * 100)}%`;
@@ -693,6 +831,9 @@ export function createMapView(container, {
 
   function applyZoomTransform() {
     mapDisplay.style.transform = `scale(${state.zoom})`;
+    if (state.markerLayer) {
+      state.markerLayer.style.transform = `scale(${state.zoom})`;
+    }
     updateZoomControls();
   }
 
@@ -736,6 +877,16 @@ export function createMapView(container, {
         tile.style.height = '100%';
         tile.style.fontSize = '1em';
         tile.style.lineHeight = '1';
+        tile.style.position = 'relative';
+        const terrainSymbol = document.createElement('span');
+        terrainSymbol.className = 'map-tile-symbol';
+        terrainSymbol.style.display = 'inline-flex';
+        terrainSymbol.style.alignItems = 'center';
+        terrainSymbol.style.justifyContent = 'center';
+        terrainSymbol.style.width = '100%';
+        terrainSymbol.style.height = '100%';
+        terrainSymbol.style.pointerEvents = 'none';
+        tile.appendChild(terrainSymbol);
         fragment.appendChild(tile);
       }
       mapDisplay.replaceChildren(fragment);
@@ -805,11 +956,21 @@ export function createMapView(container, {
       state.sizeRetryCount = 0;
       updateTileSizing();
       syncLayoutMetrics();
+      syncMarkers();
     });
   }
 
   function centerMap(options = {}) {
     updateViewportStart(state.home.xStart, state.home.yStart, options);
+  }
+
+  function setFocus(coords = {}, options = {}) {
+    state.focus = normalizeFocusCoords(coords);
+    state.context = { ...state.context, focus: { ...state.focus } };
+    state.home = computeHomeStart(state.focus);
+    if (options.recenter !== false) {
+      centerMap(options);
+    }
   }
 
   function render() {
@@ -818,6 +979,7 @@ export function createMapView(container, {
       mapDisplay.style.gridTemplateColumns = 'none';
       updateLegend(summarizeTerrain());
       updateWrapperSize();
+      syncMarkers();
       return;
     }
     const rows = state.map.tiles.length;
@@ -825,14 +987,34 @@ export function createMapView(container, {
     ensureTileElements(cols, rows);
     const tiles = mapDisplay.children;
     let index = 0;
-    state.map.tiles.forEach(row => {
-      row.forEach(symbol => {
-        tiles[index++].textContent = symbol;
+    state.map.tiles.forEach((row, rowIndex) => {
+      row.forEach((symbol, colIndex) => {
+        const tile = tiles[index++];
+        const worldX = state.map.xStart + colIndex;
+        const worldY = state.map.yStart + rowIndex;
+        tile.dataset.col = `${colIndex}`;
+        tile.dataset.row = `${rowIndex}`;
+        tile.dataset.worldX = `${worldX}`;
+        tile.dataset.worldY = `${worldY}`;
+        const type = state.map.types?.[rowIndex]?.[colIndex];
+        if (type) {
+          tile.dataset.terrain = type;
+        } else {
+          delete tile.dataset.terrain;
+        }
+        const symbolEl = tile.firstElementChild;
+        if (symbolEl) {
+          symbolEl.textContent = symbol;
+        } else {
+          tile.textContent = symbol;
+        }
       });
     });
     updateLegend(summarizeTerrain(state.map.types));
     updateWrapperSize();
+    syncMarkers();
     requestFrame(updateTileSizing);
+    requestFrame(syncMarkers);
   }
 
   function shiftViewport(dxTiles, dyTiles) {
@@ -855,16 +1037,18 @@ export function createMapView(container, {
 
   function attachNavButtons() {
     if (!showControls || !navGrid) return;
+    const verb = state.navMode === 'player' ? 'Travel' : 'Pan';
+    const recenterLabel = state.navMode === 'player' ? 'Center on explorer' : 'Recenter map';
     const navButtons = [
-      { label: '↖', dx: -1, dy: -1, aria: 'Pan northwest' },
-      { label: '↑', dx: 0, dy: -1, aria: 'Pan north' },
-      { label: '↗', dx: 1, dy: -1, aria: 'Pan northeast' },
-      { label: '←', dx: -1, dy: 0, aria: 'Pan west' },
-      { label: '🎯', recenter: true, aria: 'Recenter map' },
-      { label: '→', dx: 1, dy: 0, aria: 'Pan east' },
-      { label: '↙', dx: -1, dy: 1, aria: 'Pan southwest' },
-      { label: '↓', dx: 0, dy: 1, aria: 'Pan south' },
-      { label: '↘', dx: 1, dy: 1, aria: 'Pan southeast' }
+      { label: '↖', dx: -1, dy: -1, aria: `${verb} northwest` },
+      { label: '↑', dx: 0, dy: -1, aria: `${verb} north` },
+      { label: '↗', dx: 1, dy: -1, aria: `${verb} northeast` },
+      { label: '←', dx: -1, dy: 0, aria: `${verb} west` },
+      { label: '🎯', recenter: true, aria: recenterLabel },
+      { label: '→', dx: 1, dy: 0, aria: `${verb} east` },
+      { label: '↙', dx: -1, dy: 1, aria: `${verb} southwest` },
+      { label: '↓', dx: 0, dy: 1, aria: `${verb} south` },
+      { label: '↘', dx: 1, dy: 1, aria: `${verb} southeast` }
     ];
     navButtons.forEach(config => {
       const btn = document.createElement('button');
@@ -874,7 +1058,13 @@ export function createMapView(container, {
       applyControlButtonStyle(btn, { variant: 'chip', fontSize: '22px' });
       btn.addEventListener('click', () => {
         if (config.recenter) {
-          centerMap();
+          if (state.navMode === 'player' && typeof state.onNavigate === 'function') {
+            state.onNavigate({ dx: 0, dy: 0, recenter: true });
+          } else {
+            centerMap();
+          }
+        } else if (state.navMode === 'player' && typeof state.onNavigate === 'function') {
+          state.onNavigate({ dx: config.dx ?? 0, dy: config.dy ?? 0, recenter: false });
         } else {
           pan(config.dx, config.dy);
         }
@@ -1066,6 +1256,8 @@ export function createMapView(container, {
       applyResponsiveLayout();
     },
     center: centerMap,
+    setFocus,
+    setMarkers: applyMarkers,
     destroy() {
       if (typeof window !== 'undefined') {
         if (state.resizeHandler) {
@@ -1073,6 +1265,14 @@ export function createMapView(container, {
         }
         if (detachGlobalDrag) detachGlobalDrag();
       }
+      state.markerElements.forEach(element => {
+        if (element?.parentElement) {
+          element.parentElement.removeChild(element);
+        }
+      });
+      state.markerElements.clear();
+      state.markerDefs = [];
+      state.markerLayer = null;
       if (layoutRoot.parentElement) {
         layoutRoot.parentElement.removeChild(layoutRoot);
       }
@@ -1085,6 +1285,7 @@ export function createMapView(container, {
       mapContainer,
       wrapper: mapWrapper,
       display: mapDisplay,
+      markers: markerLayer,
       controls,
       legendList,
       legendContainer
