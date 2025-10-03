@@ -53,6 +53,10 @@ let constructionModal = null;
 let constructionModalContent = null;
 let openConstructionModal = () => {};
 let closeConstructionModal = () => {};
+let profileDialog = null;
+let profileContent = null;
+let logDialog = null;
+let logContent = null;
 
 export function showConstructionDashboard() {
   openConstructionModal();
@@ -60,6 +64,131 @@ export function showConstructionDashboard() {
 
 export function hideConstructionDashboard() {
   closeConstructionModal();
+}
+
+function createPopupDialog(id, title) {
+  const overlay = document.createElement('div');
+  overlay.id = id;
+  overlay.setAttribute('role', 'dialog');
+  overlay.setAttribute('aria-modal', 'true');
+  overlay.setAttribute('aria-labelledby', `${id}-title`);
+  Object.assign(overlay.style, {
+    position: 'fixed',
+    inset: '0',
+    display: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+    padding: '24px',
+    background: 'rgba(0, 0, 0, 0.65)',
+    zIndex: '2000'
+  });
+
+  const panel = document.createElement('div');
+  panel.tabIndex = -1;
+  Object.assign(panel.style, {
+    background: 'var(--bg-color)',
+    color: 'var(--text-color)',
+    borderRadius: '12px',
+    padding: '20px',
+    maxWidth: 'min(600px, 92vw)',
+    width: '100%',
+    maxHeight: 'min(640px, 90vh)',
+    overflow: 'hidden',
+    boxShadow: '0 24px 48px rgba(0, 0, 0, 0.35)'
+  });
+
+  const header = document.createElement('div');
+  Object.assign(header.style, {
+    display: 'flex',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    gap: '16px'
+  });
+
+  const heading = document.createElement('h3');
+  heading.id = `${id}-title`;
+  heading.textContent = title;
+  heading.style.margin = '0';
+  header.appendChild(heading);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'Close';
+  closeBtn.style.alignSelf = 'flex-start';
+  header.appendChild(closeBtn);
+
+  panel.appendChild(header);
+
+  const content = document.createElement('div');
+  Object.assign(content.style, {
+    marginTop: '12px',
+    overflowY: 'auto',
+    maxHeight: 'calc(90vh - 160px)'
+  });
+  panel.appendChild(content);
+
+  const closeDialog = () => {
+    overlay.style.display = 'none';
+    overlay.setAttribute('aria-hidden', 'true');
+    document.removeEventListener('keydown', handleKeydown);
+  };
+
+  const openDialog = () => {
+    overlay.style.display = 'flex';
+    overlay.setAttribute('aria-hidden', 'false');
+    document.addEventListener('keydown', handleKeydown);
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      window.requestAnimationFrame(() => panel.focus());
+    } else {
+      setTimeout(() => panel.focus(), 0);
+    }
+  };
+
+  const handleKeydown = event => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeDialog();
+    }
+  };
+
+  closeBtn.addEventListener('click', () => {
+    closeDialog();
+  });
+
+  overlay.addEventListener('click', event => {
+    if (event.target === overlay) {
+      closeDialog();
+    }
+  });
+
+  overlay.appendChild(panel);
+  document.body.appendChild(overlay);
+
+  return { overlay, panel, content, openDialog, closeDialog };
+}
+
+function ensureProfileDialog() {
+  if (!profileDialog) {
+    profileDialog = createPopupDialog('profile-dialog', 'Settlement Profile');
+    profileContent = profileDialog.content;
+  }
+  return profileDialog;
+}
+
+function ensureLogDialog() {
+  if (!logDialog) {
+    logDialog = createPopupDialog('log-dialog', 'Event Log');
+    logContent = logDialog.content;
+    const intro = document.createElement('p');
+    intro.textContent = 'A chronological account of notable happenings within your settlement.';
+    logContent.appendChild(intro);
+    eventLogList = document.createElement('ul');
+    eventLogList.style.listStyle = 'none';
+    eventLogList.style.padding = '0';
+    eventLogList.style.margin = '0';
+    logContent.appendChild(eventLogList);
+  }
+  return logDialog;
 }
 
 function renderTextMap() {
@@ -96,6 +225,7 @@ function logEvent(message) {
   if (log.length > 30) {
     log.length = 30;
   }
+  renderEventLog();
 }
 
 function renderEventLog() {
@@ -939,10 +1069,111 @@ export function showJobs() {
   showBackButton(false);
 }
 
+export function showProfilePopup() {
+  const dialog = ensureProfileDialog();
+  if (!profileContent) return;
+
+  profileContent.innerHTML = '';
+  const intro = document.createElement('p');
+  intro.textContent = 'Key facts about your settlement and its surroundings.';
+  profileContent.appendChild(intro);
+
+  const infoGrid = document.createElement('dl');
+  Object.assign(infoGrid.style, {
+    display: 'grid',
+    gridTemplateColumns: 'max-content 1fr',
+    columnGap: '12px',
+    rowGap: '6px',
+    margin: '0'
+  });
+
+  const addEntry = (label, value) => {
+    if (value === undefined || value === null || value === '') return;
+    const dt = document.createElement('dt');
+    dt.textContent = label;
+    dt.style.fontWeight = '600';
+    dt.style.margin = '0';
+    const dd = document.createElement('dd');
+    dd.textContent = value;
+    dd.style.margin = '0';
+    infoGrid.appendChild(dt);
+    infoGrid.appendChild(dd);
+  };
+
+  const loc = allLocations()[0];
+  const biomeName = loc?.biome ? getBiome(loc.biome)?.name || loc.biome : 'Uncharted Region';
+  addEntry('Biome', biomeName);
+
+  if (loc?.map) {
+    const cols = loc.map.tiles?.[0]?.length || 0;
+    const rows = loc.map.tiles?.length || 0;
+    if (cols && rows) {
+      addEntry('Survey Window', `${cols} × ${rows} tiles`);
+    }
+    if (loc.map.seed) {
+      addEntry('Map Seed', loc.map.seed);
+    }
+    const originX = loc.map.xStart ?? 0;
+    const originY = loc.map.yStart ?? 0;
+    addEntry('Survey Origin', `${originX}, ${originY}`);
+  }
+
+  const t = timeInfo();
+  addEntry('Season', `${t.season} (Day ${t.day})`);
+  addEntry('Local Time', formatHour(t.hour));
+  addEntry('Difficulty', capitalize(store.difficulty || 'normal'));
+  const population = store.people?.size ?? 0;
+  addEntry('Population', `${population} settlers`);
+
+  const completedStructures = getBuildings({ statuses: ['completed'] }).length;
+  const inProgress = getBuildings({ statuses: ['under-construction'] }).length;
+  addEntry('Completed Structures', completedStructures);
+  addEntry('Projects Underway', inProgress);
+
+  profileContent.appendChild(infoGrid);
+
+  if (loc?.features?.length) {
+    const featureTitle = document.createElement('h4');
+    featureTitle.textContent = 'Notable Features';
+    featureTitle.style.marginBottom = '8px';
+    featureTitle.style.marginTop = '16px';
+    profileContent.appendChild(featureTitle);
+
+    const featureList = document.createElement('ul');
+    featureList.style.margin = '0';
+    featureList.style.paddingLeft = '20px';
+    loc.features.forEach(feature => {
+      const li = document.createElement('li');
+      li.textContent = feature;
+      featureList.appendChild(li);
+    });
+    profileContent.appendChild(featureList);
+  } else {
+    const noFeatures = document.createElement('p');
+    noFeatures.textContent = 'No notable features have been catalogued yet.';
+    noFeatures.style.marginTop = '16px';
+    profileContent.appendChild(noFeatures);
+  }
+
+  dialog.openDialog();
+}
+
+export function showLogPopup() {
+  const dialog = ensureLogDialog();
+  renderEventLog();
+  dialog.openDialog();
+}
+
 export function initGameUI() {
   const container = document.getElementById('game');
   if (!container) return;
   container.innerHTML = '';
+  Object.assign(container.style, {
+    display: 'grid',
+    gridTemplateColumns: 'repeat(auto-fit, minmax(300px, 1fr))',
+    gap: '16px',
+    alignItems: 'flex-start'
+  });
 
   const loc = allLocations()[0];
   if (loc?.map?.tiles) {
@@ -960,21 +1191,17 @@ export function initGameUI() {
     }
     const mapSection = document.createElement('section');
     mapSection.id = 'map-section';
+    Object.assign(mapSection.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+      gridColumn: '1 / -1',
+      minWidth: '0'
+    });
 
-    const biomeName = getBiome(loc.biome)?.name || loc.biome;
     const title = document.createElement('h3');
-    title.textContent = `Location: ${biomeName}`;
+    title.textContent = 'Surrounding Area';
     mapSection.appendChild(title);
-
-    if (loc.features?.length) {
-      const features = document.createElement('p');
-      features.textContent = `Notable features: ${loc.features.join(', ')}`;
-      mapSection.appendChild(features);
-    }
-
-    const instructions = document.createElement('p');
-    instructions.textContent = 'Use the arrows or drag across the map to explore. Tap the crosshair to recenter the view and adjust the zoom controls to change scale.';
-    mapSection.appendChild(instructions);
 
     mapView = createMapView(mapSection, {
       legendLabels: LEGEND_LABELS,
@@ -1014,13 +1241,16 @@ export function initGameUI() {
 
   const summarySection = document.createElement('section');
   summarySection.id = 'construction-summary';
+  Object.assign(summarySection.style, {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    gridColumn: '1 / -1',
+    minWidth: '0'
+  });
   const summaryTitle = document.createElement('h3');
   summaryTitle.textContent = 'Construction Status';
   summarySection.appendChild(summaryTitle);
-
-  const summaryBlurb = document.createElement('p');
-  summaryBlurb.textContent = 'Current building efforts at a glance. Open the Construction dashboard for full planning tools.';
-  summarySection.appendChild(summaryBlurb);
 
   constructionSummaryContainer = document.createElement('div');
   constructionSummaryContainer.id = 'construction-summary-list';
@@ -1030,12 +1260,25 @@ export function initGameUI() {
 
   timeBanner = document.createElement('div');
   timeBanner.id = 'time-banner';
-  timeBanner.style.marginTop = '12px';
-  timeBanner.style.fontWeight = 'bold';
+  Object.assign(timeBanner.style, {
+    marginTop: '12px',
+    fontWeight: 'bold',
+    padding: '8px 12px',
+    background: 'var(--menu-bg)',
+    borderRadius: '8px',
+    gridColumn: '1 / -1'
+  });
   container.appendChild(timeBanner);
 
   const ordersSection = document.createElement('section');
   ordersSection.id = 'orders-section';
+  Object.assign(ordersSection.style, {
+    gridColumn: '1 / -1',
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    minWidth: '0'
+  });
   const ordersTitle = document.createElement('h3');
   ordersTitle.textContent = 'Orders Board';
   ordersSection.appendChild(ordersTitle);
@@ -1076,22 +1319,18 @@ export function initGameUI() {
 
   inventoryPanel = document.createElement('div');
   inventoryPanel.id = 'inventory';
-  inventoryPanel.style.marginTop = '12px';
+  Object.assign(inventoryPanel.style, {
+    marginTop: '12px',
+    gridColumn: '1 / -1',
+    minWidth: '0'
+  });
   container.appendChild(inventoryPanel);
-
-  const eventSection = document.createElement('section');
-  eventSection.id = 'event-log';
-  eventSection.style.marginTop = '12px';
-  const eventTitle = document.createElement('h3');
-  eventTitle.textContent = 'Recent Events';
-  eventSection.appendChild(eventTitle);
-  eventLogList = document.createElement('ul');
-  eventSection.appendChild(eventLogList);
-  container.appendChild(eventSection);
-
-  container.style.display = 'block';
+  container.style.display = 'grid';
   updateInventoryExpectations();
   render();
+  if (mapView && typeof mapView.refresh === 'function') {
+    mapView.refresh();
+  }
 }
 
 export function updateGameUI() {

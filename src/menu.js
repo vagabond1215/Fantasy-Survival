@@ -27,7 +27,7 @@ export function showBackButton(show) {
   }
 }
 
-export function initTopMenu(onMenu, onBack, onReset, onConstruction) {
+export function initTopMenu(onMenu, onBack, onReset, onConstruction, onProfile, onLog) {
   const bar = document.getElementById('top-menu');
   if (!bar) return;
   applyTheme();
@@ -128,6 +128,28 @@ export function initTopMenu(onMenu, onBack, onReset, onConstruction) {
     }
   }
   menuBtn.addEventListener('click', () => toggleMenu());
+
+  if (typeof onProfile === 'function') {
+    const profileBtn = document.createElement('button');
+    profileBtn.textContent = 'Profile';
+    Object.assign(profileBtn.style, { height: squareStyle.height });
+    profileBtn.addEventListener('click', () => {
+      toggleMenu(false);
+      onProfile();
+    });
+    dropdown.appendChild(profileBtn);
+  }
+
+  if (typeof onLog === 'function') {
+    const logBtn = document.createElement('button');
+    logBtn.textContent = 'Log';
+    Object.assign(logBtn.style, { height: squareStyle.height });
+    logBtn.addEventListener('click', () => {
+      toggleMenu(false);
+      onLog();
+    });
+    dropdown.appendChild(logBtn);
+  }
 
   if (typeof onMenu === 'function') {
     const jobsBtn = document.createElement('button');

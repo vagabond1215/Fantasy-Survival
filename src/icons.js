@@ -1,6 +1,6 @@
 const RESOURCE_ICON_MAP = {
   wood: { icon: '🪵', label: 'Wood' },
-  firewood: { icon: '🔥', label: 'Firewood' },
+  firewood: { icon: '🪵', label: 'Firewood' },
   food: { icon: '🍲', label: 'Food Rations' },
   hides: { icon: '🦬', label: 'Animal Hides' },
   'small stones': { icon: '🪨', label: 'Small Stones' },
