@@ -1,4 +1,4 @@
-import { addItem, setExpectedChange } from './inventory.js';
+import { addItem, setExpectedChange, getItem } from './inventory.js';
 import {
   advanceDay,
   advanceHours,
@@ -47,6 +47,8 @@ const LEGEND_LABELS = {
 };
 
 const ENEMY_EVENT_CHANCE_PER_HOUR = 0.05;
+const PLAYER_ICON = '🧍';
+const PLAYER_MARKER_ID = 'player-marker';
 
 let mapView = null;
 let lastSeason = null;
@@ -70,6 +72,11 @@ let profileDialog = null;
 let profileContent = null;
 let logDialog = null;
 let logContent = null;
+let playerPanel = null;
+let playerPanelContainer = null;
+let playerLocationLabel = null;
+let playerTerrainLabel = null;
+let playerActionList = null;
 
 export function showConstructionDashboard() {
   openConstructionModal();
@@ -77,6 +84,340 @@ export function showConstructionDashboard() {
 
 export function hideConstructionDashboard() {
   closeConstructionModal();
+}
+
+function getActiveLocation() {
+  return allLocations()[0] || null;
+}
+
+function describeTerrainType(type) {
+  if (!type) return 'Uncharted ground';
+  return LEGEND_LABELS[type] || type;
+}
+
+function hasTool(name) {
+  const record = getItem(name);
+  return Number.isFinite(record.quantity) && record.quantity > 0;
+}
+
+function hasAnyTool(names = []) {
+  return names.some(name => hasTool(name));
+}
+
+function ensurePlayerState(locationId = null) {
+  if (!store.player || typeof store.player !== 'object') {
+    store.player = { locationId: locationId ?? null, x: 0, y: 0 };
+  }
+  if (locationId && store.player.locationId !== locationId) {
+    store.player.locationId = locationId;
+  } else if (!store.player.locationId && locationId) {
+    store.player.locationId = locationId;
+  }
+  if (!Number.isFinite(store.player.x)) store.player.x = 0;
+  if (!Number.isFinite(store.player.y)) store.player.y = 0;
+  store.player.x = Math.trunc(store.player.x);
+  store.player.y = Math.trunc(store.player.y);
+  return store.player;
+}
+
+function clampToMapBounds(location, coords = {}) {
+  const loc = location || getActiveLocation();
+  const map = loc?.map;
+  const xStart = Number.isFinite(map?.xStart) ? Math.trunc(map.xStart) : 0;
+  const yStart = Number.isFinite(map?.yStart) ? Math.trunc(map.yStart) : 0;
+  const width = Math.max(1, Math.trunc(map?.width || map?.tiles?.[0]?.length || 1));
+  const height = Math.max(1, Math.trunc(map?.height || map?.tiles?.length || 1));
+  const minX = xStart;
+  const minY = yStart;
+  const maxX = minX + width - 1;
+  const maxY = minY + height - 1;
+  const x = Number.isFinite(coords.x) ? Math.trunc(coords.x) : minX;
+  const y = Number.isFinite(coords.y) ? Math.trunc(coords.y) : minY;
+  return {
+    x: Math.min(maxX, Math.max(minX, x)),
+    y: Math.min(maxY, Math.max(minY, y))
+  };
+}
+
+function getPlayerTerrain() {
+  const loc = getActiveLocation();
+  if (!loc?.map?.types) return null;
+  const player = ensurePlayerState(loc.id);
+  const xStart = Number.isFinite(loc.map.xStart) ? Math.trunc(loc.map.xStart) : 0;
+  const yStart = Number.isFinite(loc.map.yStart) ? Math.trunc(loc.map.yStart) : 0;
+  const col = player.x - xStart;
+  const row = player.y - yStart;
+  if (row < 0 || col < 0) return null;
+  const rowData = loc.map.types[row];
+  if (!rowData || col >= rowData.length) return null;
+  return rowData[col];
+}
+
+function determinePlayerActions({ terrain, season, weather, biome }) {
+  const actions = [];
+  const seasonName = season || store.time.season || '';
+  const weatherName = weather || store.time.weather || '';
+  const coldSeason = /Frost/i.test(seasonName);
+  const wetWeather = /(Rain|Storm|Snow|Sleet)/i.test(weatherName);
+  const caution = wetWeather ? ' Weather may slow progress.' : '';
+
+  actions.push({
+    id: 'survey',
+    label: 'Survey area',
+    description: `Study the surroundings for opportunities and hazards.${caution}`
+  });
+
+  if (terrain === 'forest') {
+    if (hasAnyTool(['stone hand axe', 'stone knife'])) {
+      actions.push({
+        id: 'gather-wood',
+        label: 'Gather wood',
+        description: `Use your tools to cut timber from the forest.${wetWeather ? ' Damp wood will need drying.' : ''}`
+      });
+    } else {
+      actions.push({
+        id: 'collect-branches',
+        label: 'Collect branches',
+        description: 'Gather fallen branches and twigs for kindling.'
+      });
+    }
+    if (!coldSeason) {
+      actions.push({
+        id: 'forage-forest',
+        label: 'Forage for herbs',
+        description: `Search for edible shoots and mushrooms beneath the canopy.${caution}`
+      });
+    }
+    if (hasAnyTool(['bow'])) {
+      actions.push({
+        id: 'hunt-forest',
+        label: 'Hunt game',
+        description: `Track deer or boar sheltering in the woods.${wetWeather ? ' Muddy ground makes tracking tricky.' : ''}`
+      });
+    }
+  } else if (terrain === 'open') {
+    if (!coldSeason) {
+      actions.push({
+        id: 'forage-open',
+        label: 'Forage wild grains',
+        description: `Gather seeds and berries from the open meadows.${caution}`
+      });
+    } else {
+      actions.push({
+        id: 'glean-winter',
+        label: 'Gather winter grasses',
+        description: 'Collect hardy grasses and roots poking through the frost.'
+      });
+    }
+    if (hasAnyTool(['bow'])) {
+      actions.push({
+        id: 'hunt-open',
+        label: 'Hunt small game',
+        description: `Use your bow to stalk hares darting across the plain.${caution}`
+      });
+    }
+  } else if (terrain === 'water') {
+    if (hasAnyTool(['stone hand axe', 'stone knife'])) {
+      actions.push({
+        id: 'gather-reeds',
+        label: 'Gather reeds',
+        description: `Harvest reeds for shelter and weaving projects.${caution}`
+      });
+    }
+    actions.push({
+      id: 'scavenge-shore',
+      label: 'Scavenge shoreline',
+      description: 'Inspect the waterline for driftwood, shellfish, and other useful finds.'
+    });
+  } else if (terrain === 'ore') {
+    actions.push({
+      id: 'survey-ore',
+      label: 'Survey ore deposit',
+      description: 'Mark promising veins and note the surrounding stone.'
+    });
+    if (hasAnyTool(['stone hand axe'])) {
+      actions.push({
+        id: 'chip-ore',
+        label: 'Chip ore sample',
+        description: `Break loose a sample for study.${caution}`
+      });
+    }
+  }
+
+  const unique = new Map();
+  actions.forEach(action => {
+    if (!unique.has(action.id)) {
+      unique.set(action.id, action);
+    }
+  });
+
+  return [...unique.values()];
+}
+
+function ensurePlayerPanel(parent) {
+  if (!parent) return null;
+  if (!playerPanel) {
+    playerPanel = document.createElement('section');
+    playerPanel.id = 'player-panel';
+    Object.assign(playerPanel.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px',
+      border: '1px solid var(--map-border, #ccc)',
+      borderRadius: '12px',
+      padding: '12px',
+      background: 'var(--bg-color, #fff)'
+    });
+    const title = document.createElement('h4');
+    title.textContent = 'Explorer Position';
+    title.style.margin = '0';
+    playerPanel.appendChild(title);
+
+    playerLocationLabel = document.createElement('p');
+    playerLocationLabel.style.margin = '0';
+    playerPanel.appendChild(playerLocationLabel);
+
+    playerTerrainLabel = document.createElement('p');
+    playerTerrainLabel.style.margin = '0';
+    playerPanel.appendChild(playerTerrainLabel);
+
+    const actionHeader = document.createElement('h5');
+    actionHeader.textContent = 'Available actions';
+    actionHeader.style.margin = '12px 0 4px';
+    actionHeader.style.fontSize = '1rem';
+    actionHeader.style.fontWeight = '600';
+    playerPanel.appendChild(actionHeader);
+
+    playerActionList = document.createElement('div');
+    playerActionList.style.display = 'flex';
+    playerActionList.style.flexWrap = 'wrap';
+    playerActionList.style.gap = '8px';
+    playerActionList.style.margin = '0';
+    playerPanel.appendChild(playerActionList);
+  }
+
+  if (playerPanel.parentElement !== parent) {
+    playerPanel.parentElement?.removeChild(playerPanel);
+    parent.appendChild(playerPanel);
+  }
+
+  return playerPanel;
+}
+
+function updatePlayerMarker() {
+  if (!mapView || typeof mapView.setMarkers !== 'function') return;
+  const loc = getActiveLocation();
+  if (!loc) {
+    mapView.setMarkers([]);
+    return;
+  }
+  const player = ensurePlayerState(loc.id);
+  const clamped = clampToMapBounds(loc, player);
+  player.x = clamped.x;
+  player.y = clamped.y;
+  if (player.locationId !== loc.id) {
+    player.locationId = loc.id;
+  }
+  mapView.setMarkers([
+    {
+      id: PLAYER_MARKER_ID,
+      x: player.x,
+      y: player.y,
+      icon: PLAYER_ICON,
+      className: 'map-marker--player',
+      label: 'Explorer position',
+      emphasis: false
+    }
+  ]);
+}
+
+function renderPlayerPanel() {
+  if (playerPanelContainer) {
+    ensurePlayerPanel(playerPanelContainer);
+  }
+  if (!playerPanel) return;
+  const loc = getActiveLocation();
+  const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
+  if (!loc) {
+    if (playerLocationLabel) playerLocationLabel.textContent = 'No active expedition.';
+    if (playerTerrainLabel) playerTerrainLabel.textContent = '';
+    if (playerActionList) playerActionList.replaceChildren();
+    return;
+  }
+
+  const clamped = clampToMapBounds(loc, player);
+  player.x = clamped.x;
+  player.y = clamped.y;
+
+  if (playerLocationLabel) {
+    playerLocationLabel.textContent = `Position: (${player.x}, ${player.y})`;
+  }
+
+  const terrain = getPlayerTerrain();
+  const terrainLabel = describeTerrainType(terrain);
+  const time = timeInfo();
+  if (playerTerrainLabel) {
+    playerTerrainLabel.textContent = `Terrain: ${terrainLabel} — ${time.season}, ${time.weather}`;
+  }
+
+  if (playerActionList) {
+    playerActionList.replaceChildren();
+    const actions = determinePlayerActions({
+      terrain,
+      season: time.season,
+      weather: time.weather,
+      biome: loc.biome
+    });
+    if (!actions.length) {
+      const empty = document.createElement('span');
+      empty.textContent = 'No obvious actions available here.';
+      playerActionList.appendChild(empty);
+    } else {
+      actions.forEach(action => {
+        const btn = document.createElement('button');
+        btn.type = 'button';
+        btn.textContent = action.label;
+        btn.title = action.description;
+        btn.dataset.actionId = action.id;
+        btn.addEventListener('click', () => {
+          handlePlayerAction(action);
+        });
+        playerActionList.appendChild(btn);
+      });
+    }
+  }
+}
+
+function centerOnPlayer(options = {}) {
+  if (!mapView || typeof mapView.setFocus !== 'function') return;
+  const loc = getActiveLocation();
+  const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
+  mapView.setFocus({ x: player.x, y: player.y }, options);
+}
+
+function handlePlayerAction(action) {
+  const loc = getActiveLocation();
+  const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
+  const terrainLabel = describeTerrainType(getPlayerTerrain());
+  logEvent(`${action.label} selected at (${player.x}, ${player.y}) within the ${terrainLabel}. ${action.description}`);
+}
+
+function handlePlayerNavigate({ dx = 0, dy = 0, recenter = false } = {}) {
+  const loc = getActiveLocation();
+  if (!loc) return;
+  const player = ensurePlayerState(loc.id);
+  if (recenter) {
+    centerOnPlayer();
+    return;
+  }
+  if (!dx && !dy) return;
+  const next = clampToMapBounds(loc, { x: player.x + dx, y: player.y + dy });
+  player.x = next.x;
+  player.y = next.y;
+  player.locationId = loc.id;
+  centerOnPlayer();
+  updatePlayerMarker();
+  renderPlayerPanel();
 }
 
 function ensureTimeBannerElement() {
@@ -247,13 +588,17 @@ function ensureLogDialog() {
 }
 
 function renderTextMap() {
-  const loc = allLocations()[0];
+  const loc = getActiveLocation();
   if (!loc || !mapView) return;
+  const player = ensurePlayerState(loc.id);
   mapView.setMap(loc.map, {
     biomeId: loc.biome,
     seed: loc.map?.seed,
-    season: loc.map?.season
+    season: loc.map?.season,
+    focus: { x: player.x, y: player.y }
   });
+  centerOnPlayer({ recenter: true });
+  updatePlayerMarker();
 }
 
 function formatHour(hour = 0, options = {}) {
@@ -913,7 +1258,7 @@ function renderOrders() {
 }
 
 function ensureSeasonalMap() {
-  const loc = allLocations()[0];
+  const loc = getActiveLocation();
   if (!loc?.map) return;
   const t = timeInfo();
   if (lastSeason && lastSeason === t.season) return;
@@ -998,6 +1343,7 @@ function render() {
   ensureSeasonalMap();
   renderTimeBanner();
   renderTextMap();
+  renderPlayerPanel();
   renderBuildMenu();
   renderOrders();
   renderInventoryExpectations();
@@ -1313,7 +1659,8 @@ export function initGameUI() {
   });
   ensureTimeBannerElement();
 
-  const loc = allLocations()[0];
+  const loc = getActiveLocation();
+  const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
   if (loc?.map?.tiles) {
     if (loc.map.season !== store.time.season) {
       const newMap = generateColorMap(
@@ -1346,6 +1693,8 @@ export function initGameUI() {
       showControls: true,
       showLegend: true,
       idPrefix: 'game-map',
+      navMode: 'player',
+      onNavigate: handlePlayerNavigate,
       fetchMap: ({ xStart, yStart, width, height, seed, season, viewport }) => {
         const baseSeed = seed ?? loc.map?.seed ?? Date.now();
         const baseSeason = season ?? store.time.season;
@@ -1363,16 +1712,28 @@ export function initGameUI() {
       },
       onMapUpdate: updated => {
         loc.map = { ...loc.map, ...updated };
+        updatePlayerMarker();
+        renderPlayerPanel();
       }
     });
     mapView.setMap(loc.map, {
       biomeId: loc.biome,
       seed: loc.map?.seed,
-      season: loc.map?.season
+      season: loc.map?.season,
+      focus: { x: player.x, y: player.y }
     });
+    playerPanelContainer = mapSection;
+    ensurePlayerPanel(playerPanelContainer);
+    updatePlayerMarker();
+    renderPlayerPanel();
+    centerOnPlayer({ recenter: true });
 
     lastSeason = store.time.season;
     renderTextMap();
+  } else {
+    playerPanelContainer = container;
+    ensurePlayerPanel(playerPanelContainer);
+    renderPlayerPanel();
   }
 
   ensureConstructionModal();

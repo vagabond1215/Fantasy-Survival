@@ -5,6 +5,7 @@ class DataStore {
     this.inventory = new Map();
     this.locations = new Map();
     this.technologies = new Map();
+    this.player = { locationId: null, x: 0, y: 0 };
     this.time = { day: 1, month: 1, year: 410, hour: 6, season: 'Thawbound', weather: 'Clear' };
     this.difficulty = 'normal';
     this.jobs = {};
@@ -51,6 +52,7 @@ class DataStore {
       inventory: [...this.inventory.entries()],
       locations: [...this.locations.entries()],
       technologies: [...this.technologies.entries()],
+      player: { ...this.player },
       time: this.time,
       difficulty: this.difficulty,
       jobs: this.jobs,
@@ -70,6 +72,12 @@ class DataStore {
     this.inventory = new Map(data.inventory || []);
     this.locations = new Map(data.locations || []);
     this.technologies = new Map(data.technologies || []);
+    const savedPlayer = data.player || {};
+    this.player = {
+      locationId: savedPlayer.locationId ?? null,
+      x: Number.isFinite(savedPlayer.x) ? Math.trunc(savedPlayer.x) : 0,
+      y: Number.isFinite(savedPlayer.y) ? Math.trunc(savedPlayer.y) : 0
+    };
     const savedTime = data.time || {};
     this.time = {
       day: 1,

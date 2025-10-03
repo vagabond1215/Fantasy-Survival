@@ -50,6 +50,15 @@ function startGame(settings = {}) {
   } else if (store.locations.size === 0) {
     generateLocation('loc1', 'temperate-deciduous', store.time.season, settings.seed);
   }
+
+  const spawn = settings.spawn || {};
+  const spawnX = Number.isFinite(spawn.x) ? Math.trunc(spawn.x) : 0;
+  const spawnY = Number.isFinite(spawn.y) ? Math.trunc(spawn.y) : 0;
+  store.player = {
+    locationId: 'loc1',
+    x: spawnX,
+    y: spawnY
+  };
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
   refreshBuildingUnlocks();
   store.difficulty = diff;
