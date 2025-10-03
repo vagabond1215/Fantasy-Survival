@@ -9,6 +9,7 @@ const LEGEND_DEFAULTS = {
 
 const BUFFER_MARGIN = 12;
 const DEFAULT_VIEWPORT_SIZE = DEFAULT_MAP_WIDTH;
+const MAX_TILE_SIZE_RETRIES = 8;
 
 function summarizeTerrain(types = []) {
   const counts = { water: 0, open: 0, forest: 0, ore: 0 };
@@ -161,7 +162,8 @@ export function createMapView(container, {
     bufferMargin: BUFFER_MARGIN,
     zoom: 1,
     minZoom: 0.5,
-    maxZoom: 3
+    maxZoom: 3,
+    sizeRetryCount: 0
   };
 
   const getVisibleDimensions = () => {
@@ -748,9 +750,19 @@ export function createMapView(container, {
     const rows = state.map.tiles?.length || 0;
     const cols = rows ? state.map.tiles[0].length : 0;
     if (!rows || !cols) return;
-    const availableWidth = Math.max(0, mapWrapper.clientWidth);
-    const availableHeight = Math.max(0, mapWrapper.clientHeight);
-    if (!availableWidth || !availableHeight) return;
+    const rect = typeof mapWrapper?.getBoundingClientRect === 'function'
+      ? mapWrapper.getBoundingClientRect()
+      : null;
+    const availableWidth = Math.max(0, rect?.width || mapWrapper.clientWidth);
+    const availableHeight = Math.max(0, rect?.height || mapWrapper.clientHeight);
+    if (!availableWidth || !availableHeight) {
+      if (state.sizeRetryCount < MAX_TILE_SIZE_RETRIES) {
+        state.sizeRetryCount += 1;
+        requestFrame(updateTileSizing);
+      }
+      return;
+    }
+    state.sizeRetryCount = 0;
     const sizeForWidth = availableWidth / cols;
     const sizeForHeight = availableHeight / rows;
     const targetSize = Math.min(sizeForWidth, sizeForHeight);
@@ -790,6 +802,7 @@ export function createMapView(container, {
     mapWrapper.style.height = `${height}px`;
 
     requestFrame(() => {
+      state.sizeRetryCount = 0;
       updateTileSizing();
       syncLayoutMetrics();
     });
