@@ -1,6 +1,8 @@
 import { getBiome } from './biomes.js';
 import store from './state.js';
 
+export const GRID_DISTANCE_METERS = 100;
+
 export const DEFAULT_MAP_SIZE = 64;
 export const DEFAULT_MAP_WIDTH = DEFAULT_MAP_SIZE;
 export const DEFAULT_MAP_HEIGHT = DEFAULT_MAP_SIZE;

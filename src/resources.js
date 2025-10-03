@@ -202,14 +202,34 @@ export function calculateOrderDelta(order, hours = 1) {
   return multiplyResources(perHour, hours);
 }
 
-export function calculateExpectedInventoryChanges(orders = []) {
-  const totals = {};
+export function calculateExpectedInventoryFlows(orders = []) {
+  const flows = {};
   orders
     .filter(o => o.status === 'pending' || o.status === 'active')
     .forEach(order => {
       const hours = order.status === 'pending' ? order.durationHours : order.remainingHours;
-      addToTotals(totals, calculateOrderDelta(order, hours));
+      const delta = calculateOrderDelta(order, hours);
+      Object.entries(delta).forEach(([name, amount]) => {
+        if (!Number.isFinite(amount) || amount === 0) return;
+        if (!flows[name]) {
+          flows[name] = { supply: 0, demand: 0 };
+        }
+        if (amount > 0) {
+          flows[name].supply += amount;
+        } else {
+          flows[name].demand += Math.abs(amount);
+        }
+      });
     });
+  return flows;
+}
+
+export function calculateExpectedInventoryChanges(orders = []) {
+  const flows = calculateExpectedInventoryFlows(orders);
+  const totals = {};
+  Object.entries(flows).forEach(([name, { supply, demand }]) => {
+    totals[name] = (supply || 0) - (demand || 0);
+  });
   return totals;
 }
 

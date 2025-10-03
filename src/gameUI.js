@@ -1,4 +1,4 @@
-import { addItem, setExpectedChange, getItem } from './inventory.js';
+import { addItem, setItemFlow, getItem, listInventory } from './inventory.js';
 import {
   advanceDay,
   advanceHours,
@@ -14,7 +14,7 @@ import {
 import store from './state.js';
 import { showBackButton, mountMenuActions } from './menu.js';
 import { allLocations } from './location.js';
-import { generateColorMap, TERRAIN_SYMBOLS } from './map.js';
+import { generateColorMap, TERRAIN_SYMBOLS, GRID_DISTANCE_METERS } from './map.js';
 import { getBiome } from './biomes.js';
 import {
   addOrder as queueOrder,
@@ -25,7 +25,7 @@ import {
   clearCompletedOrders,
   getActiveOrder
 } from './orders.js';
-import { calculateOrderDelta, calculateExpectedInventoryChanges } from './resources.js';
+import { calculateOrderDelta, calculateExpectedInventoryFlows } from './resources.js';
 import { createMapView } from './mapView.js';
 import {
   evaluateBuilding,
@@ -38,6 +38,13 @@ import {
   getAllBuildingTypes
 } from './buildings.js';
 import { getResourceIcon } from './icons.js';
+import {
+  rewardOrderProficiency,
+  getProficiencyLevel,
+  getProficiencies,
+  inferOrderProficiency
+} from './proficiencies.js';
+import { calculateTravelTime, describeTerrainDifficulty } from './movement.js';
 
 const LEGEND_LABELS = {
   water: 'Water',
@@ -53,7 +60,6 @@ const PLAYER_MARKER_ID = 'player-marker';
 let mapView = null;
 let lastSeason = null;
 let ordersList = null;
-let inventoryPanel = null;
 let eventLogList = null;
 let timeBanner = null;
 let timeBannerChipsContainer = null;
@@ -77,6 +83,10 @@ let playerPanelContainer = null;
 let playerLocationLabel = null;
 let playerTerrainLabel = null;
 let playerActionList = null;
+let inventoryDialog = null;
+let inventoryDialogContent = null;
+let inventoryTableBody = null;
+let inventoryVisible = false;
 
 export function showConstructionDashboard() {
   openConstructionModal();
@@ -139,18 +149,23 @@ function clampToMapBounds(location, coords = {}) {
   };
 }
 
-function getPlayerTerrain() {
-  const loc = getActiveLocation();
-  if (!loc?.map?.types) return null;
-  const player = ensurePlayerState(loc.id);
-  const xStart = Number.isFinite(loc.map.xStart) ? Math.trunc(loc.map.xStart) : 0;
-  const yStart = Number.isFinite(loc.map.yStart) ? Math.trunc(loc.map.yStart) : 0;
-  const col = player.x - xStart;
-  const row = player.y - yStart;
+function getTerrainTypeAt(location, x, y) {
+  if (!location?.map?.types) return null;
+  const xStart = Number.isFinite(location.map.xStart) ? Math.trunc(location.map.xStart) : 0;
+  const yStart = Number.isFinite(location.map.yStart) ? Math.trunc(location.map.yStart) : 0;
+  const col = Math.trunc(x) - xStart;
+  const row = Math.trunc(y) - yStart;
   if (row < 0 || col < 0) return null;
-  const rowData = loc.map.types[row];
+  const rowData = location.map.types[row];
   if (!rowData || col >= rowData.length) return null;
   return rowData[col];
+}
+
+function getPlayerTerrain() {
+  const loc = getActiveLocation();
+  if (!loc) return null;
+  const player = ensurePlayerState(loc.id);
+  return getTerrainTypeAt(loc, player.x, player.y);
 }
 
 function determinePlayerActions({ terrain, season, weather, biome }) {
@@ -412,12 +427,41 @@ function handlePlayerNavigate({ dx = 0, dy = 0, recenter = false } = {}) {
   }
   if (!dx && !dy) return;
   const next = clampToMapBounds(loc, { x: player.x + dx, y: player.y + dy });
+  if (next.x === player.x && next.y === player.y) {
+    logEvent('The survey does not extend further in that direction.');
+    centerOnPlayer();
+    return;
+  }
+  const currentTerrain = getTerrainTypeAt(loc, player.x, player.y) || 'open';
+  const nextTerrain = getTerrainTypeAt(loc, next.x, next.y) || currentTerrain;
+  const distanceMeters = Math.hypot(next.x - player.x, next.y - player.y) * GRID_DISTANCE_METERS;
+  const swimmingLevel = getProficiencyLevel('swimming');
+  const travel = calculateTravelTime({
+    fromTerrain: currentTerrain,
+    toTerrain: nextTerrain,
+    distance: distanceMeters,
+    swimmingLevel
+  });
+  if (travel.blocked) {
+    const reason = travel.reason || describeTerrainDifficulty(nextTerrain);
+    logEvent(`Unable to cross the ${describeTerrainType(nextTerrain).toLowerCase()}. ${reason}`);
+    return;
+  }
+
   player.x = next.x;
   player.y = next.y;
   player.locationId = loc.id;
+  const durationHours = Math.max(travel.hours, 0.02);
+  const distanceText = formatDistance(distanceMeters);
+  const durationText = formatDuration(durationHours);
+  const terrainLabel = describeTerrainType(nextTerrain);
+  const detail = travel.reason || describeTerrainDifficulty(nextTerrain);
+
+  advanceHours(durationHours);
   centerOnPlayer();
   updatePlayerMarker();
-  renderPlayerPanel();
+  render();
+  logEvent(`Traveled ${distanceText} into the ${terrainLabel.toLowerCase()} in ${durationText}. ${detail}`.trim());
 }
 
 function ensureTimeBannerElement() {
@@ -619,6 +663,29 @@ function formatHour(hour = 0, options = {}) {
   return `${hourText}${separator}${minuteText}`;
 }
 
+function formatDuration(hours = 0) {
+  const numeric = Number.isFinite(hours) ? Math.max(0, hours) : 0;
+  const totalMinutes = Math.round(numeric * 60);
+  if (totalMinutes <= 0) return '<1m';
+  const wholeHours = Math.floor(totalMinutes / 60);
+  const minutes = totalMinutes % 60;
+  if (wholeHours && minutes) {
+    return `${wholeHours}h ${minutes}m`;
+  }
+  if (wholeHours) {
+    return `${wholeHours}h`;
+  }
+  return `${minutes}m`;
+}
+
+function formatDistance(distanceMeters = GRID_DISTANCE_METERS) {
+  const meters = Number.isFinite(distanceMeters) ? Math.max(0, distanceMeters) : GRID_DISTANCE_METERS;
+  if (meters >= 1000) {
+    return `${Math.round((meters / 1000) * 10) / 10} km`;
+  }
+  return `${Math.round(meters)} m`;
+}
+
 function padNumber(value, digits = 2) {
   const numeric = Number.isFinite(value) ? Math.trunc(value) : 0;
   const safe = numeric < 0 ? 0 : numeric;
@@ -649,6 +716,15 @@ function logEvent(message) {
   renderEventLog();
 }
 
+function awardProficiencyForOrder(order) {
+  if (!order) return;
+  const result = rewardOrderProficiency(order);
+  if (result && result.gained > 0.01) {
+    const levelText = Math.round(result.level * 10) / 10;
+    logEvent(`${result.name} proficiency rises to ${levelText}.`);
+  }
+}
+
 function renderEventLog() {
   if (!eventLogList) return;
   const log = ensureEventLog();
@@ -672,62 +748,180 @@ function renderEventLog() {
   });
 }
 
-function updateInventoryExpectations() {
-  const expected = calculateExpectedInventoryChanges(getOrders());
+function updateInventoryFlows() {
+  const flows = calculateExpectedInventoryFlows(getOrders());
   const known = new Set(Array.from(store.inventory.keys()));
-  Object.keys(expected).forEach(name => known.add(name));
+  Object.keys(flows).forEach(name => known.add(name));
   known.forEach(name => {
-    const change = expected[name] || 0;
-    setExpectedChange(name, Math.round(change * 10) / 10);
+    const flow = flows[name] || { supply: 0, demand: 0 };
+    const supply = Math.round((flow.supply || 0) * 10) / 10;
+    const demand = Math.round((flow.demand || 0) * 10) / 10;
+    setItemFlow(name, { supply, demand });
   });
 }
 
-function renderInventory() {
-  if (!inventoryPanel) return;
-  inventoryPanel.innerHTML = '<h3>Inventory</h3>';
-  const table = document.createElement('table');
-  const header = document.createElement('tr');
-  header.innerHTML = '<th>Item</th><th>Quantity</th><th>Expected Δ</th>';
-  table.appendChild(header);
-  const items = Array.from(store.inventory.values()).sort((a, b) => a.id.localeCompare(b.id));
+function formatFlowValue(value = 0, prefix = '') {
+  const rounded = Math.round((value || 0) * 10) / 10;
+  if (!rounded) return '0';
+  return `${prefix}${Math.abs(rounded)}`;
+}
+
+function renderInventoryTable() {
+  ensureInventoryDialog();
+  if (!inventoryTableBody) return;
+  inventoryTableBody.innerHTML = '';
+  const items = listInventory().sort((a, b) => a.id.localeCompare(b.id));
   if (!items.length) {
     const empty = document.createElement('tr');
-    empty.innerHTML = '<td colspan="3">No supplies on hand.</td>';
-    table.appendChild(empty);
-  } else {
-    items.forEach(item => {
-      const tr = document.createElement('tr');
-      const expected = item.expectedChange ?? 0;
-      const expectedRounded = Math.round(expected * 10) / 10;
-      const expectedText = expectedRounded > 0 ? `+${expectedRounded}` : expectedRounded;
-      const quantity = Math.round(item.quantity * 10) / 10;
-
-      const nameCell = document.createElement('td');
-      const iconInfo = getResourceIcon(item.id);
-      if (iconInfo) {
-        const iconSpan = document.createElement('span');
-        iconSpan.textContent = iconInfo.icon;
-        iconSpan.title = iconInfo.label;
-        iconSpan.setAttribute('role', 'img');
-        iconSpan.setAttribute('aria-label', iconInfo.label);
-        nameCell.appendChild(iconSpan);
-      } else {
-        nameCell.textContent = item.id;
-      }
-
-      const qtyCell = document.createElement('td');
-      qtyCell.textContent = quantity;
-
-      const expectedCell = document.createElement('td');
-      expectedCell.textContent = expectedText;
-
-      tr.appendChild(nameCell);
-      tr.appendChild(qtyCell);
-      tr.appendChild(expectedCell);
-      table.appendChild(tr);
-    });
+    empty.innerHTML = '<td colspan="4">No supplies on hand.</td>';
+    inventoryTableBody.appendChild(empty);
+    return;
   }
-  inventoryPanel.appendChild(table);
+  items.forEach(item => {
+    const tr = document.createElement('tr');
+
+    const nameCell = document.createElement('td');
+    const iconInfo = getResourceIcon(item.id);
+    if (iconInfo) {
+      const iconSpan = document.createElement('span');
+      iconSpan.textContent = iconInfo.icon;
+      iconSpan.title = iconInfo.label;
+      iconSpan.setAttribute('role', 'img');
+      iconSpan.setAttribute('aria-label', iconInfo.label);
+      nameCell.appendChild(iconSpan);
+    } else {
+      nameCell.textContent = item.id;
+    }
+
+    const qtyCell = document.createElement('td');
+    qtyCell.textContent = Math.round((item.quantity || 0) * 10) / 10;
+
+    const supplyCell = document.createElement('td');
+    supplyCell.textContent = formatFlowValue(item.supply, '+');
+
+    const demandCell = document.createElement('td');
+    demandCell.textContent = formatFlowValue(item.demand, '-');
+
+    tr.appendChild(nameCell);
+    tr.appendChild(qtyCell);
+    tr.appendChild(supplyCell);
+    tr.appendChild(demandCell);
+    inventoryTableBody.appendChild(tr);
+  });
+}
+
+function refreshInventoryProjections() {
+  updateInventoryFlows();
+  if (inventoryVisible) {
+    renderInventoryTable();
+  }
+}
+
+function ensureInventoryDialog() {
+  if (inventoryDialog) {
+    if (!inventoryDialog.parentElement) {
+      document.body.appendChild(inventoryDialog);
+    }
+    return inventoryDialog;
+  }
+
+  inventoryDialog = document.createElement('div');
+  inventoryDialog.id = 'inventory-popup';
+  inventoryDialog.setAttribute('role', 'dialog');
+  inventoryDialog.setAttribute('aria-modal', 'true');
+  inventoryDialog.setAttribute('aria-hidden', 'true');
+  inventoryDialog.setAttribute('aria-labelledby', 'inventory-popup-title');
+  Object.assign(inventoryDialog.style, {
+    position: 'fixed',
+    top: '0',
+    left: '0',
+    right: '0',
+    bottom: '0',
+    display: 'none',
+    alignItems: 'center',
+    justifyContent: 'center',
+    background: 'rgba(0, 0, 0, 0.45)',
+    zIndex: '2100'
+  });
+  inventoryDialog.addEventListener('click', event => {
+    if (event.target === inventoryDialog) {
+      hideInventoryPopup();
+    }
+  });
+
+  inventoryDialogContent = document.createElement('div');
+  Object.assign(inventoryDialogContent.style, {
+    background: 'var(--menu-bg)',
+    color: 'var(--text-color)',
+    borderRadius: '10px',
+    boxShadow: '0 10px 24px rgba(0, 0, 0, 0.35)',
+    padding: '20px',
+    maxWidth: '520px',
+    width: '90vw',
+    maxHeight: '80vh',
+    overflowY: 'auto'
+  });
+
+  const header = document.createElement('div');
+  header.style.display = 'flex';
+  header.style.alignItems = 'center';
+  header.style.justifyContent = 'space-between';
+  header.style.gap = '12px';
+
+  const title = document.createElement('h3');
+  title.id = 'inventory-popup-title';
+  title.textContent = 'Inventory Overview';
+  title.style.margin = '0';
+  header.appendChild(title);
+
+  const closeBtn = document.createElement('button');
+  closeBtn.type = 'button';
+  closeBtn.textContent = 'Close';
+  closeBtn.addEventListener('click', () => {
+    hideInventoryPopup();
+  });
+  header.appendChild(closeBtn);
+
+  inventoryDialogContent.appendChild(header);
+
+  const blurb = document.createElement('p');
+  blurb.textContent = 'Track on-hand quantities alongside projected supply and demand from queued orders.';
+  blurb.style.marginTop = '12px';
+  blurb.style.marginBottom = '12px';
+  inventoryDialogContent.appendChild(blurb);
+
+  const table = document.createElement('table');
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  const headerRow = document.createElement('tr');
+  headerRow.innerHTML = '<th style="text-align:left;">Item</th><th style="text-align:right;">#</th><th style="text-align:right;">Supply (+)</th><th style="text-align:right;">Demand (-)</th>';
+  const thead = document.createElement('thead');
+  thead.appendChild(headerRow);
+  table.appendChild(thead);
+
+  inventoryTableBody = document.createElement('tbody');
+  table.appendChild(inventoryTableBody);
+
+  inventoryDialogContent.appendChild(table);
+  inventoryDialog.appendChild(inventoryDialogContent);
+  document.body.appendChild(inventoryDialog);
+  return inventoryDialog;
+}
+
+export function showInventoryPopup() {
+  ensureInventoryDialog();
+  updateInventoryFlows();
+  renderInventoryTable();
+  inventoryDialog.style.display = 'flex';
+  inventoryDialog.setAttribute('aria-hidden', 'false');
+  inventoryVisible = true;
+}
+
+function hideInventoryPopup() {
+  if (!inventoryDialog) return;
+  inventoryDialog.style.display = 'none';
+  inventoryDialog.setAttribute('aria-hidden', 'true');
+  inventoryVisible = false;
 }
 
 function formatSigned(value = 0) {
@@ -930,7 +1124,7 @@ function createBuildCard(type, info) {
       const { order } = beginConstruction(type.id, { workers: type.stats.minBuilders });
       queueOrder(order);
       logEvent(`Construction started on the ${type.name}.`);
-      updateInventoryExpectations();
+      refreshInventoryProjections();
       render();
     } catch (err) {
       console.warn(err);
@@ -1245,7 +1439,7 @@ function renderOrders() {
     removeBtn.disabled = order.status === 'active';
     removeBtn.addEventListener('click', () => {
       removeOrder(order.id);
-      updateInventoryExpectations();
+      refreshInventoryProjections();
       render();
     });
     const removeCell = document.createElement('td');
@@ -1346,13 +1540,8 @@ function render() {
   renderPlayerPanel();
   renderBuildMenu();
   renderOrders();
-  renderInventoryExpectations();
+  refreshInventoryProjections();
   renderEventLog();
-}
-
-function renderInventoryExpectations() {
-  updateInventoryExpectations();
-  renderInventory();
 }
 
 function processOrderCycle() {
@@ -1380,8 +1569,9 @@ function processOrderCycle() {
       break;
     }
     if (active.remainingHours <= 0) {
-      updateOrder(active.id, { status: 'completed', remainingHours: 0 });
-      event = `${capitalize(active.type)} order completed.`;
+      const completed = updateOrder(active.id, { status: 'completed', remainingHours: 0 });
+      awardProficiencyForOrder(completed);
+      event = `${capitalize(completed.type)} order completed.`;
       break;
     }
 
@@ -1424,13 +1614,14 @@ function processOrderCycle() {
 
     active = getActiveOrder();
     if (active && active.remainingHours <= 0) {
-      updateOrder(active.id, { status: 'completed', remainingHours: 0 });
-      if (active.type === 'building' && active.metadata?.projectId) {
-        const project = markBuildingComplete(active.metadata.projectId);
-        const typeName = active.metadata?.typeName || project?.typeId || 'Building';
+      const completed = updateOrder(active.id, { status: 'completed', remainingHours: 0 });
+      awardProficiencyForOrder(completed);
+      if (completed.type === 'building' && completed.metadata?.projectId) {
+        const project = markBuildingComplete(completed.metadata.projectId);
+        const typeName = completed.metadata?.typeName || project?.typeId || 'Building';
         event = `${typeName} completed.`;
       } else {
-        event = `${capitalize(active.type)} order completed.`;
+        event = `${capitalize(completed.type)} order completed.`;
       }
       break;
     }
@@ -1454,8 +1645,51 @@ function processOrderCycle() {
   }
 
   if (event) logEvent(event);
-  updateInventoryExpectations();
+  refreshInventoryProjections();
   render();
+}
+
+const ORDER_COMPLEXITY_PRESETS = {
+  hunting: { base: 48, proficiencyId: 'hunting', activity: 'hunting' },
+  gathering: { base: 26, proficiencyId: 'gathering', activity: 'gathering' },
+  crafting: { base: 38, proficiencyId: 'crafting', activity: 'crafting' },
+  building: { base: 44, proficiencyId: 'construction', activity: 'construction' },
+  combat: { base: 60, proficiencyId: 'combat', activity: 'combat' }
+};
+
+function createOrderMetadata(type, workers, hours, notes = '') {
+  const preset = ORDER_COMPLEXITY_PRESETS[type] || { base: 24, proficiencyId: inferOrderProficiency(type), activity: type };
+  const effortHours = Math.max(1, workers * hours);
+  let baseComplexity = preset.base;
+  let proficiencyId = preset.proficiencyId || inferOrderProficiency(type) || 'gathering';
+  let activity = preset.activity || type;
+  const detail = (notes || '').toLowerCase();
+  if (type === 'gathering') {
+    if (/(forag|herb|mushroom|berry|root)/.test(detail)) {
+      proficiencyId = 'foraging';
+      activity = 'foraging';
+      baseComplexity += 4;
+    } else if (/(tree|sapling|log|timber|wood|lumber)/.test(detail)) {
+      proficiencyId = 'woodcutting';
+      activity = 'woodcutting';
+      baseComplexity += 8;
+    }
+  }
+  if (type === 'hunting' && /(fish|river|lake)/.test(detail)) {
+    proficiencyId = 'swimming';
+    activity = 'fishing';
+    baseComplexity += 6;
+  }
+  const complexity = Math.min(100, baseComplexity + Math.log2(effortHours + 1) * 8);
+  return {
+    taskId: `${type}-manual`,
+    baseComplexity: Math.round(baseComplexity * 100) / 100,
+    taskComplexity: Math.round(complexity * 100) / 100,
+    effortHours,
+    proficiencyId,
+    activity,
+    notes
+  };
 }
 
 function buildOrderForm(section) {
@@ -1519,14 +1753,17 @@ function buildOrderForm(section) {
   addBtn.addEventListener('click', () => {
     const workers = Math.max(1, Number.parseInt(workerInput.value, 10) || 1);
     const hours = Math.max(1, Number.parseInt(hoursInput.value, 10) || 1);
+    const notes = notesInput.value.trim();
+    const metadata = createOrderMetadata(typeSelect.value, workers, hours, notes);
     queueOrder({
       type: typeSelect.value,
       workers,
       hours,
-      notes: notesInput.value.trim()
+      notes,
+      metadata
     });
     notesInput.value = '';
-    updateInventoryExpectations();
+    refreshInventoryProjections();
     render();
   });
 
@@ -1614,6 +1851,26 @@ export function showProfilePopup() {
   addEntry('Projects Underway', inProgress);
 
   profileContent.appendChild(infoGrid);
+
+  const proficiencyList = getProficiencies();
+  if (proficiencyList.length) {
+    const profTitle = document.createElement('h4');
+    profTitle.textContent = 'Proficiencies';
+    profTitle.style.marginTop = '16px';
+    profTitle.style.marginBottom = '8px';
+    profileContent.appendChild(profTitle);
+
+    const profUl = document.createElement('ul');
+    profUl.style.margin = '0';
+    profUl.style.paddingLeft = '20px';
+    proficiencyList.forEach(skill => {
+      const li = document.createElement('li');
+      const levelText = Math.round((skill.level || 0) * 10) / 10;
+      li.textContent = `${skill.name}: ${levelText}/100`;
+      profUl.appendChild(li);
+    });
+    profileContent.appendChild(profUl);
+  }
 
   if (loc?.features?.length) {
     const featureTitle = document.createElement('h4');
@@ -1796,7 +2053,7 @@ export function initGameUI() {
   clearBtn.textContent = 'Clear Completed';
   clearBtn.addEventListener('click', () => {
     clearCompletedOrders();
-    updateInventoryExpectations();
+    refreshInventoryProjections();
     render();
   });
   controlsRow.appendChild(clearBtn);
@@ -1804,17 +2061,9 @@ export function initGameUI() {
   ordersSection.appendChild(controlsRow);
 
   container.appendChild(ordersSection);
-
-  inventoryPanel = document.createElement('div');
-  inventoryPanel.id = 'inventory';
-  Object.assign(inventoryPanel.style, {
-    marginTop: '12px',
-    gridColumn: '1 / -1',
-    minWidth: '0'
-  });
-  container.appendChild(inventoryPanel);
   container.style.display = 'grid';
-  updateInventoryExpectations();
+  ensureInventoryDialog();
+  refreshInventoryProjections();
   render();
   if (mapView && typeof mapView.refresh === 'function') {
     mapView.refresh();

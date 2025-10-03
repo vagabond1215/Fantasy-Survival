@@ -238,7 +238,7 @@ function buildSettingsPanel() {
   updateZoomDisplay();
 }
 
-function buildMenuPanel(onMenu, onBack, onReset, onConstruction, onProfile, onLog) {
+function buildMenuPanel(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog) {
   if (!menuPanel) return;
   menuPanel.innerHTML = '';
 
@@ -275,6 +275,15 @@ function buildMenuPanel(onMenu, onBack, onReset, onConstruction, onProfile, onLo
     constructionEntry.button.id = 'construction-btn';
     menuPanel.appendChild(constructionEntry.button);
     constructionMenuButton = constructionEntry.button;
+  }
+
+  if (typeof onInventory === 'function') {
+    const inventoryEntry = createPanelButton('🎒', 'Inventory', () => {
+      closePanels();
+      onInventory();
+    });
+    inventoryEntry.button.id = 'inventory-btn';
+    menuPanel.appendChild(inventoryEntry.button);
   }
 
   if (typeof onProfile === 'function') {
@@ -325,13 +334,13 @@ export function showBackButton(show) {
   }
 }
 
-export function initTopMenu(onMenu, onBack, onReset, onConstruction, onProfile, onLog) {
+export function initTopMenu(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog) {
   const bar = document.getElementById('top-menu');
   if (!bar) return;
   applyTheme();
   ensureActionBar();
   buildSettingsPanel();
-  buildMenuPanel(onMenu, onBack, onReset, onConstruction, onProfile, onLog);
+  buildMenuPanel(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog);
   bar.innerHTML = '';
   bar.style.display = 'none';
   applyZoom();

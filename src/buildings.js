@@ -262,6 +262,11 @@ export function beginConstruction(typeId, { workers, locationId } = {}) {
     perWorkerHourResources[name] = amount / totalWorkerHours;
   });
   const progressPerWorkerHour = totalLabor / totalWorkerHours;
+  const totalResourceUnits = Object.values(totalResources).reduce((sum, amount) => sum + amount, 0);
+  const baseComplexity = Math.min(
+    100,
+    28 + Math.log10(totalLabor + 1) * 18 + Math.log10(totalResourceUnits + 1) * 6
+  );
   return {
     project: { ...project },
     order: {
@@ -275,7 +280,12 @@ export function beginConstruction(typeId, { workers, locationId } = {}) {
         typeName: type.name,
         totalLaborHours: totalLabor,
         perWorkerHourResources,
-        progressPerWorkerHour
+        progressPerWorkerHour,
+        baseComplexity,
+        taskComplexity: baseComplexity,
+        effortHours: totalLabor,
+        proficiencyId: 'construction',
+        taskId: `construction:${typeId}`
       }
     }
   };

@@ -1,33 +1,64 @@
 import store from './state.js';
 
 function upsert(record) {
-  if (store.getItem('inventory', record.id)) {
-    store.updateItem('inventory', record);
+  const current = store.getItem('inventory', record.id);
+  if (current) {
+    store.updateItem('inventory', { ...current, ...record });
   } else {
     store.addItem('inventory', record);
   }
 }
 
+function ensureRecord(name) {
+  return (
+    store.getItem('inventory', name) || {
+      id: name,
+      quantity: 0,
+      demand: 0,
+      supply: 0,
+      expectedChange: 0
+    }
+  );
+}
+
+function synchronizeFlow(record) {
+  const supply = Number.isFinite(record.supply) ? record.supply : 0;
+  const demand = Number.isFinite(record.demand) ? record.demand : 0;
+  record.expectedChange = Math.round((supply - demand) * 100) / 100;
+  record.supply = supply;
+  record.demand = demand;
+}
+
 export function addItem(name, quantity = 0) {
-  const record = store.getItem('inventory', name) || { id: name, quantity: 0, demand: 0, expectedChange: 0 };
-  record.quantity += quantity;
+  const record = ensureRecord(name);
+  record.quantity = Math.max(0, (record.quantity || 0) + quantity);
+  synchronizeFlow(record);
   upsert(record);
 }
 
 export function adjustDemand(name, amount) {
-  const record = store.getItem('inventory', name) || { id: name, quantity: 0, demand: 0 };
-  record.demand += amount;
+  const record = ensureRecord(name);
+  record.demand = (record.demand || 0) + amount;
+  synchronizeFlow(record);
   upsert(record);
 }
 
 export function getItem(name) {
   const record = store.getItem('inventory', name);
-  if (!record) return { quantity: 0, demand: 0, expectedChange: 0 };
+  if (!record) {
+    return { id: name, quantity: 0, demand: 0, supply: 0, expectedChange: 0 };
+  }
   return { ...record };
 }
 
-export function setExpectedChange(name, change = 0) {
-  const record = store.getItem('inventory', name) || { id: name, quantity: 0, demand: 0, expectedChange: 0 };
-  record.expectedChange = change;
+export function setItemFlow(name, { supply = 0, demand = 0 } = {}) {
+  const record = ensureRecord(name);
+  record.supply = supply;
+  record.demand = demand;
+  synchronizeFlow(record);
   upsert(record);
+}
+
+export function listInventory() {
+  return Array.from(store.inventory.values()).map(entry => ({ ...entry }));
 }

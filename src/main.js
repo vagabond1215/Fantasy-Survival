@@ -13,6 +13,7 @@ import {
   showJobs,
   closeJobs,
   showConstructionDashboard,
+  showInventoryPopup,
   showProfilePopup,
   showLogPopup
 } from './gameUI.js';
@@ -83,7 +84,7 @@ function init() {
   initTopMenu(showJobs, closeJobs, () => {
     clearSave();
     window.location.reload();
-  }, showConstructionDashboard, showProfilePopup, showLogPopup);
+  }, showConstructionDashboard, showInventoryPopup, showProfilePopup, showLogPopup);
   initBottomMenu();
   if (!loadGame()) {
     initSetupUI(startGame);
