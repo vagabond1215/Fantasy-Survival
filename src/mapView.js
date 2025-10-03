@@ -29,19 +29,20 @@ function computeViewportDimensions(cols = 0, rows = 0) {
 
   const widthAllowance = Math.max(MIN_SIZE, window.innerWidth - 80);
   const heightAllowance = Math.max(MIN_SIZE, window.innerHeight - 260);
-  const limit = Math.min(widthAllowance, heightAllowance);
+  const fallbackSize = Math.min(widthAllowance, heightAllowance);
 
   if (!hasDimensions) {
-    const size = Math.max(MIN_SIZE, limit);
+    const size = Math.max(MIN_SIZE, fallbackSize);
     return { width: size, height: size };
   }
 
   const tileWidthLimit = widthAllowance / cols;
   const tileHeightLimit = heightAllowance / rows;
-  const tileSize = Math.max(8, Math.min(tileWidthLimit, tileHeightLimit));
-  const size = Math.max(MIN_SIZE, Math.min(limit, tileSize * Math.max(cols, rows)));
+  const tileSize = Math.max(1, Math.min(tileWidthLimit, tileHeightLimit));
+  const width = Math.max(MIN_SIZE, Math.min(widthAllowance, tileSize * cols));
+  const height = Math.max(MIN_SIZE, Math.min(heightAllowance, tileSize * rows));
 
-  return { width: size, height: size };
+  return { width, height };
 }
 
 function requestFrame(callback) {
@@ -368,8 +369,9 @@ export function createMapView(container, {
     if (!availableWidth || !availableHeight) return;
     const sizeForWidth = availableWidth / cols;
     const sizeForHeight = availableHeight / rows;
-    const targetSize = Math.max(8, Math.min(sizeForWidth, sizeForHeight));
+    const targetSize = Math.min(sizeForWidth, sizeForHeight);
     mapDisplay.style.fontSize = `${targetSize}px`;
+    mapDisplay.style.lineHeight = `${targetSize}px`;
   }
 
   function updateWrapperSize() {
