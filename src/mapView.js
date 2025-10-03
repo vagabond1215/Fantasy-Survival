@@ -17,7 +17,7 @@ function summarizeTerrain(types = []) {
   return counts;
 }
 
-function computeViewportDimensions(cols = 0, rows = 0) {
+function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
   const MIN_SIZE = 220;
   const hasDimensions = cols > 0 && rows > 0;
 
@@ -27,13 +27,15 @@ function computeViewportDimensions(cols = 0, rows = 0) {
     return { width: size, height: size };
   }
 
-  const widthAllowance = Math.max(MIN_SIZE, window.innerWidth - 80);
+  const widthAllowance = Math.max(
+    MIN_SIZE,
+    Number.isFinite(availableWidth) && availableWidth > 0 ? availableWidth : window.innerWidth - 80
+  );
   const heightAllowance = Math.max(MIN_SIZE, window.innerHeight - 260);
-  const fallbackSize = Math.min(widthAllowance, heightAllowance);
+  const fallbackSize = Math.max(MIN_SIZE, Math.min(widthAllowance, heightAllowance));
 
   if (!hasDimensions) {
-    const size = Math.max(MIN_SIZE, fallbackSize);
-    return { width: size, height: size };
+    return { width: fallbackSize, height: fallbackSize };
   }
 
   const tileWidthLimit = widthAllowance / cols;
@@ -41,8 +43,9 @@ function computeViewportDimensions(cols = 0, rows = 0) {
   const tileSize = Math.max(1, Math.min(tileWidthLimit, tileHeightLimit));
   const width = Math.max(MIN_SIZE, Math.min(widthAllowance, tileSize * cols));
   const height = Math.max(MIN_SIZE, Math.min(heightAllowance, tileSize * rows));
+  const squareSize = Math.max(MIN_SIZE, Math.min(fallbackSize, Math.min(width, height)));
 
-  return { width, height };
+  return { width: squareSize, height: squareSize };
 }
 
 function requestFrame(callback) {
@@ -378,7 +381,21 @@ export function createMapView(container, {
     if (!state.map) return;
     const cols = state.map.tiles?.[0]?.length || 0;
     const rows = state.map.tiles?.length || 0;
-    const { width, height } = computeViewportDimensions(cols, rows);
+    let widthContext = null;
+    if (typeof layoutRoot?.getBoundingClientRect === 'function') {
+      const rect = layoutRoot.getBoundingClientRect();
+      widthContext = rect?.width || null;
+    }
+    if (sideStack.parentElement === mapContainer && typeof sideStack.getBoundingClientRect === 'function') {
+      const sideRect = sideStack.getBoundingClientRect();
+      const stackWidth = sideRect?.width || 0;
+      widthContext = Math.max(0, (widthContext || 0) - stackWidth - 16);
+    }
+    if (!widthContext && typeof container?.getBoundingClientRect === 'function') {
+      const rect = container.getBoundingClientRect();
+      widthContext = rect?.width || null;
+    }
+    const { width, height } = computeViewportDimensions(cols, rows, widthContext);
     mapWrapper.style.width = `${width}px`;
     mapWrapper.style.height = `${height}px`;
 
