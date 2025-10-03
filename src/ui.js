@@ -5,7 +5,13 @@
 
 import { biomes, getBiome } from './biomes.js';
 import { difficulties, difficultySettings } from './difficulty.js';
-import { generateColorMap, TERRAIN_SYMBOLS } from './map.js';
+import {
+  computeCenteredStart,
+  DEFAULT_MAP_HEIGHT,
+  DEFAULT_MAP_WIDTH,
+  generateColorMap,
+  TERRAIN_SYMBOLS
+} from './map.js';
 import { createMapView } from './mapView.js';
 
 const seasons = ['Spring', 'Summer', 'Autumn', 'Winter'];
@@ -158,13 +164,16 @@ export function initSetupUI(onStart) {
   }
 
   function generatePreview() {
+    const width = DEFAULT_MAP_WIDTH;
+    const height = DEFAULT_MAP_HEIGHT;
+    const { xStart, yStart } = computeCenteredStart(width, height);
     mapData = generateColorMap(
       biomeSelect.select.value,
       mapSeed,
-      0,
-      0,
-      80,
-      40,
+      xStart,
+      yStart,
+      width,
+      height,
       seasonSelect.select.value
     );
     renderMapPreview();

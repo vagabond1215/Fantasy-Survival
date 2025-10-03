@@ -52,13 +52,21 @@ function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
   const width = Math.max(MIN_SIZE, Math.min(widthAllowance, tileSize * cols));
   const height = Math.max(MIN_SIZE, Math.min(heightAllowance, tileSize * rows));
   const baseSquare = Math.max(MIN_SIZE, Math.min(fallbackSize, Math.min(width, height)));
-  const scaledSquare = Math.max(
+  const scaledSide = Math.max(
     MIN_SIZE,
     Math.min(widthAllowance, heightAllowance, baseSquare * MAP_SCALE_FACTOR)
   );
-  const rounded = Math.round(scaledSquare);
+  const dominant = Math.max(cols, rows) || 1;
+  const tileScale = scaledSide / dominant;
+  const minWidth = Math.round((MIN_SIZE * cols) / dominant);
+  const minHeight = Math.round((MIN_SIZE * rows) / dominant);
+  const derivedWidth = Math.max(minWidth, Math.round(tileScale * cols));
+  const derivedHeight = Math.max(minHeight, Math.round(tileScale * rows));
 
-  return { width: rounded, height: rounded };
+  return {
+    width: Math.max(1, Math.min(widthAllowance, derivedWidth)),
+    height: Math.max(1, Math.min(heightAllowance, derivedHeight))
+  };
 }
 
 function requestFrame(callback) {
@@ -137,6 +145,19 @@ export function createMapView(container, {
   mapDisplay.style.transformOrigin = 'center center';
   mapDisplay.style.boxSizing = 'border-box';
   mapWrapper.appendChild(mapDisplay);
+
+  const iconPreloader = document.createElement('div');
+  iconPreloader.setAttribute('aria-hidden', 'true');
+  iconPreloader.style.position = 'absolute';
+  iconPreloader.style.opacity = '0';
+  iconPreloader.style.pointerEvents = 'none';
+  iconPreloader.style.fontSize = '1px';
+  iconPreloader.style.lineHeight = '1';
+  iconPreloader.style.whiteSpace = 'nowrap';
+  iconPreloader.style.height = '0';
+  iconPreloader.style.overflow = 'hidden';
+  iconPreloader.textContent = `${Object.values(TERRAIN_SYMBOLS).join('')}🚩`;
+  mapWrapper.appendChild(iconPreloader);
 
   const layoutRoot = document.createElement('div');
   layoutRoot.className = `${idPrefix}-layout map-layout`;

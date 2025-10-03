@@ -1,12 +1,26 @@
 import { getBiome } from './biomes.js';
 import store from './state.js';
 
+export const DEFAULT_MAP_WIDTH = 80;
+export const DEFAULT_MAP_HEIGHT = 40;
+
 export const TERRAIN_SYMBOLS = {
   water: '🌊',
   open: '🌾',
   forest: '🌲',
   ore: '⛏️'
 };
+
+export function computeCenteredStart(width = DEFAULT_MAP_WIDTH, height = DEFAULT_MAP_HEIGHT, focusX = 0, focusY = 0) {
+  const normalizedWidth = Math.max(1, Math.trunc(width));
+  const normalizedHeight = Math.max(1, Math.trunc(height));
+  const halfCols = Math.floor(normalizedWidth / 2);
+  const halfRows = Math.floor(normalizedHeight / 2);
+  return {
+    xStart: Math.round(focusX) - halfCols,
+    yStart: Math.round(focusY) - halfRows
+  };
+}
 
 export function hasWaterFeature(features = []) {
   return features.some(f => /(water|river|lake|shore|beach|lagoon|reef|marsh|bog|swamp|delta|stream|tide|coast)/i.test(f));
@@ -86,13 +100,18 @@ function getElevation(seed, x, y, options = {}) {
 export function generateColorMap(
   biomeId,
   seed = Date.now(),
-  xStart = 0,
-  yStart = 0,
-  width = 80,
-  height = 40,
+  xStart = null,
+  yStart = null,
+  width = DEFAULT_MAP_WIDTH,
+  height = DEFAULT_MAP_HEIGHT,
   season = store.time.season,
   waterLevelOverride
 ) {
+  const mapWidth = Math.max(1, Math.trunc(width));
+  const mapHeight = Math.max(1, Math.trunc(height));
+  const { xStart: defaultX, yStart: defaultY } = computeCenteredStart(mapWidth, mapHeight);
+  const effectiveXStart = Number.isFinite(xStart) ? Math.trunc(xStart) : defaultX;
+  const effectiveYStart = Number.isFinite(yStart) ? Math.trunc(yStart) : defaultY;
   const biome = getBiome(biomeId);
   const openLand = biome?.openLand ?? 0.5;
   const waterFeature = biome && hasWaterFeature(biome.features);
@@ -103,13 +122,13 @@ export function generateColorMap(
   // scale for vegetation pattern: more open land -> larger contiguous clearings
   const vegScale = 20 + openLand * 80;
 
-  for (let y = 0; y < height; y++) {
+  for (let y = 0; y < mapHeight; y++) {
     const row = [];
     const typeRow = [];
     const eRow = [];
-    for (let x = 0; x < width; x++) {
-      const gx = xStart + x;
-      const gy = yStart + y;
+    for (let x = 0; x < mapWidth; x++) {
+      const gx = effectiveXStart + x;
+      const gy = effectiveYStart + y;
       const elevation = getElevation(seed, gx, gy, biome?.elevation);
       eRow.push(elevation);
       let type;
@@ -137,8 +156,10 @@ export function generateColorMap(
   return {
     scale: 100,
     seed,
-    xStart,
-    yStart,
+    xStart: effectiveXStart,
+    yStart: effectiveYStart,
+    width: mapWidth,
+    height: mapHeight,
     tiles,
     types: terrainTypes,
     elevations,
