@@ -696,15 +696,20 @@ function ensureEventLogPanel() {
     eventLogPanel.appendChild(eventLogSummaryList);
   }
 
-  if (!eventLogPanel.parentElement) {
-    const content = document.getElementById('content');
-    if (content) {
-      const gameContainer = document.getElementById('game');
-      if (gameContainer && content.contains(gameContainer)) {
-        content.insertBefore(eventLogPanel, gameContainer);
-      } else {
-        content.appendChild(eventLogPanel);
-      }
+  const content = document.getElementById('content');
+  if (content) {
+    const gameContainer = document.getElementById('game');
+    let anchor = null;
+    if (timeBanner && timeBanner.parentElement === content) {
+      anchor = timeBanner;
+    } else if (gameContainer && content.contains(gameContainer)) {
+      anchor = gameContainer;
+    }
+
+    if (anchor) {
+      content.insertBefore(eventLogPanel, anchor);
+    } else if (eventLogPanel.parentElement !== content || content.firstChild !== eventLogPanel) {
+      content.insertBefore(eventLogPanel, content.firstChild);
     }
   }
 
