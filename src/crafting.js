@@ -1,4 +1,5 @@
 import { getItem, addItem } from './inventory.js';
+import { getJobs } from './jobs.js';
 
 const CRAFTING_RECIPES = [
   {
@@ -8,6 +9,7 @@ const CRAFTING_RECIPES = [
     description: 'Twist pliable fibers into sturdy cord for lashings and traps.',
     inputs: { 'plant fibers': 3 },
     outputs: { cord: 1 },
+    laborHours: 0.5,
     timeHours: 0.5,
     toolsRequired: ['stone knife'],
     unlock: { always: true }
@@ -19,6 +21,7 @@ const CRAFTING_RECIPES = [
     description: 'Shape a keen stone edge for scraping hides or cutting cords.',
     inputs: { 'small stones': 1 },
     outputs: { 'sharpened stone': 1 },
+    laborHours: 0.25,
     timeHours: 0.25,
     toolsRequired: ['wooden hammer'],
     unlock: { always: true }
@@ -55,6 +58,9 @@ export function evaluateRecipe(id, { availableTools = [] } = {}) {
   const recipe = recipeById(id);
   if (!recipe) return null;
   const unlocked = isUnlocked(recipe);
+  const laborHours = Number.isFinite(recipe.laborHours)
+    ? Math.max(0, recipe.laborHours)
+    : Math.max(0, recipe.timeHours || 0);
   const toolSet = new Set((availableTools || []).map(tool => String(tool).toLowerCase()));
   const requiredTools = recipe.toolsRequired || [];
   const missingTools = requiredTools.filter(tool => !toolSet.has(String(tool).toLowerCase()));
@@ -65,7 +71,8 @@ export function evaluateRecipe(id, { availableTools = [] } = {}) {
     hasTools: missingTools.length === 0,
     hasMaterials: missingMaterials.length === 0,
     missingTools,
-    missingMaterials
+    missingMaterials,
+    laborHours
   };
 }
 
@@ -90,6 +97,17 @@ export function craftRecipe(id, { availableTools = [] } = {}) {
     throw new Error(`Insufficient materials: ${shortage}.`);
   }
 
+  const jobs = getJobs();
+  const availableCrafters = Math.max(0, Number.isFinite(jobs?.craft) ? Math.trunc(jobs.craft) : 0);
+  const laborHours = info.laborHours || 0;
+  let timeHours = 0;
+  if (laborHours > 0) {
+    if (availableCrafters <= 0) {
+      throw new Error('Assign at least one Crafter before starting this project.');
+    }
+    timeHours = laborHours / availableCrafters;
+  }
+
   Object.entries(info.recipe.inputs || {}).forEach(([name, amount]) => {
     if (!amount) return;
     addItem(name, -amount);
@@ -100,7 +118,12 @@ export function craftRecipe(id, { availableTools = [] } = {}) {
     addItem(name, amount);
   });
 
-  return { recipe: info.recipe, timeHours: info.recipe.timeHours || 0 };
+  return {
+    recipe: info.recipe,
+    timeHours,
+    laborHours,
+    workforce: availableCrafters
+  };
 }
 
 export default {
