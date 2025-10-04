@@ -67,11 +67,15 @@ const LEGEND_LABELS = {
 const ENEMY_EVENT_CHANCE_PER_HOUR = 0.05;
 const PLAYER_ICON = '🧍';
 const PLAYER_MARKER_ID = 'player-marker';
+const EVENT_LOG_SUMMARY_LIMIT = 5;
 
 let mapView = null;
 let lastSeason = null;
 let ordersList = null;
 let eventLogList = null;
+let eventLogPanel = null;
+let eventLogSummaryList = null;
+let eventLogPanelButton = null;
 let timeBanner = null;
 let timeBannerChipsContainer = null;
 let timeBannerActionsContainer = null;
@@ -619,6 +623,92 @@ function ensureTimeBannerElement() {
   }
   mountMenuActions(timeBannerActionsContainer);
   return timeBanner;
+}
+
+function ensureEventLogPanel() {
+  if (!eventLogPanel) {
+    eventLogPanel = document.createElement('section');
+    eventLogPanel.id = 'event-log-panel';
+    eventLogPanel.setAttribute('aria-live', 'polite');
+    Object.assign(eventLogPanel.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      padding: '12px 16px',
+      background: 'var(--menu-bg)',
+      border: '1px solid var(--map-border)',
+      borderRadius: '12px',
+      gridColumn: '1 / -1',
+      minWidth: '0'
+    });
+
+    const headerRow = document.createElement('div');
+    Object.assign(headerRow.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '12px'
+    });
+
+    const title = document.createElement('h3');
+    title.textContent = 'Recent Events';
+    title.style.margin = '0';
+    headerRow.appendChild(title);
+
+    eventLogPanelButton = document.createElement('button');
+    eventLogPanelButton.type = 'button';
+    eventLogPanelButton.textContent = 'Open Full Log';
+    Object.assign(eventLogPanelButton.style, {
+      borderRadius: '8px',
+      border: '1px solid var(--map-border)',
+      background: 'var(--action-button-bg)',
+      color: 'var(--action-button-text)',
+      padding: '6px 12px',
+      cursor: 'pointer',
+      boxShadow: 'var(--action-button-shadow)',
+      alignSelf: 'flex-start'
+    });
+    eventLogPanelButton.disabled = true;
+    eventLogPanelButton.addEventListener('click', () => {
+      showLogPopup();
+    });
+    headerRow.appendChild(eventLogPanelButton);
+
+    eventLogPanel.appendChild(headerRow);
+
+    const intro = document.createElement('p');
+    intro.textContent = 'Stay informed about your settlers\' latest discoveries and efforts.';
+    intro.style.margin = '0';
+    intro.style.fontSize = '13px';
+    intro.style.opacity = '0.85';
+    eventLogPanel.appendChild(intro);
+
+    eventLogSummaryList = document.createElement('ul');
+    eventLogSummaryList.id = 'event-log-summary-list';
+    Object.assign(eventLogSummaryList.style, {
+      listStyle: 'none',
+      padding: '0',
+      margin: '0',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px'
+    });
+    eventLogPanel.appendChild(eventLogSummaryList);
+  }
+
+  if (!eventLogPanel.parentElement) {
+    const content = document.getElementById('content');
+    if (content) {
+      const gameContainer = document.getElementById('game');
+      if (gameContainer && content.contains(gameContainer)) {
+        content.insertBefore(eventLogPanel, gameContainer);
+      } else {
+        content.appendChild(eventLogPanel);
+      }
+    }
+  }
+
+  return eventLogPanel;
 }
 
 function createPopupDialog(id, title) {
@@ -1501,6 +1591,16 @@ function ensureEventLog() {
   return store.eventLog;
 }
 
+function getEventLogMetadata(entry = {}) {
+  const dayNumber = Number.isFinite(entry.day) ? Math.max(1, Math.floor(entry.day)) : 1;
+  const monthName = getMonthName(entry.month ?? 1);
+  const yearNumber = Number.isFinite(entry.year) ? Math.floor(entry.year) : 0;
+  const descriptorParts = [entry.season, entry.weather].filter(Boolean);
+  const descriptor = descriptorParts.length ? ` (${descriptorParts.join(' • ')})` : '';
+  const timeText = formatHour(entry.hour);
+  return { dayNumber, monthName, yearNumber, descriptor, timeText };
+}
+
 function logEvent(message) {
   const t = timeInfo();
   const log = ensureEventLog();
@@ -1529,9 +1629,84 @@ function awardProficiencyForOrder(order) {
   }
 }
 
-function renderEventLog() {
+function renderEventLogSummary(log) {
+  ensureEventLogPanel();
+  if (!eventLogSummaryList) return;
+
+  eventLogSummaryList.innerHTML = '';
+  if (!log.length) {
+    const empty = document.createElement('li');
+    empty.textContent = 'No recent events yet. Venture out to gather supplies or assign work orders.';
+    empty.style.fontStyle = 'italic';
+    eventLogSummaryList.appendChild(empty);
+    if (eventLogPanelButton) {
+      eventLogPanelButton.disabled = true;
+      eventLogPanelButton.style.opacity = '0.6';
+      eventLogPanelButton.style.cursor = 'default';
+    }
+    return;
+  }
+
+  if (eventLogPanelButton) {
+    eventLogPanelButton.disabled = false;
+    eventLogPanelButton.style.opacity = '1';
+    eventLogPanelButton.style.cursor = 'pointer';
+  }
+
+  log.slice(0, EVENT_LOG_SUMMARY_LIMIT).forEach(entry => {
+    const meta = getEventLogMetadata(entry);
+    const li = document.createElement('li');
+    Object.assign(li.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px'
+    });
+
+    const headline = document.createElement('div');
+    Object.assign(headline.style, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    });
+
+    const timeBadge = document.createElement('span');
+    Object.assign(timeBadge.style, {
+      fontFamily: '"Fira Mono", "SFMono-Regular", Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+      fontSize: '12px',
+      padding: '2px 6px',
+      borderRadius: '6px',
+      color: 'inherit'
+    });
+    if (document.body?.classList?.contains('dark')) {
+      timeBadge.style.background = 'rgba(255, 255, 255, 0.12)';
+      timeBadge.style.border = '1px solid rgba(255, 255, 255, 0.18)';
+    } else {
+      timeBadge.style.background = 'rgba(0, 0, 0, 0.06)';
+      timeBadge.style.border = '1px solid rgba(0, 0, 0, 0.08)';
+    }
+    timeBadge.textContent = meta.timeText;
+    headline.appendChild(timeBadge);
+
+    const messageSpan = document.createElement('span');
+    messageSpan.textContent = entry.message;
+    messageSpan.style.fontWeight = '600';
+    headline.appendChild(messageSpan);
+
+    li.appendChild(headline);
+
+    const metaLine = document.createElement('div');
+    metaLine.textContent = `${meta.dayNumber} ${meta.monthName} ${meta.yearNumber}${meta.descriptor}`;
+    metaLine.style.fontSize = '12px';
+    metaLine.style.opacity = '0.75';
+    li.appendChild(metaLine);
+
+    eventLogSummaryList.appendChild(li);
+  });
+}
+
+function renderEventLogDialogEntries(log) {
   if (!eventLogList) return;
-  const log = ensureEventLog();
+
   eventLogList.innerHTML = '';
   if (!log.length) {
     const empty = document.createElement('li');
@@ -1539,17 +1714,19 @@ function renderEventLog() {
     eventLogList.appendChild(empty);
     return;
   }
+
   log.forEach(entry => {
+    const meta = getEventLogMetadata(entry);
     const li = document.createElement('li');
-    const dayNumber = Number.isFinite(entry.day) ? Math.max(1, Math.floor(entry.day)) : 1;
-    const monthName = getMonthName(entry.month ?? 1);
-    const yearNumber = Number.isFinite(entry.year) ? Math.floor(entry.year) : 0;
-    const descriptorParts = [entry.season, entry.weather].filter(Boolean);
-    const descriptor = descriptorParts.length ? ` (${descriptorParts.join(' • ')})` : '';
-    const dateText = `${dayNumber} ${monthName} ${yearNumber}`;
-    li.textContent = `${dateText}${descriptor} – ${formatHour(entry.hour)} – ${entry.message}`;
+    li.textContent = `${meta.dayNumber} ${meta.monthName} ${meta.yearNumber}${meta.descriptor} – ${meta.timeText} – ${entry.message}`;
     eventLogList.appendChild(li);
   });
+}
+
+function renderEventLog() {
+  const log = ensureEventLog();
+  renderEventLogSummary(log);
+  renderEventLogDialogEntries(log);
 }
 
 function updateInventoryFlows() {
@@ -2780,6 +2957,7 @@ export function initGameUI() {
     alignItems: 'flex-start'
   });
   ensureTimeBannerElement();
+  ensureEventLogPanel();
 
   const loc = getActiveLocation();
   const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
