@@ -777,13 +777,13 @@ export function createMapView(container, {
   const updateActionButtonVisual = (button, active) => {
     if (!button) return;
     if (active) {
-      button.style.background = 'linear-gradient(135deg, rgba(45, 108, 223, 0.95), rgba(88, 173, 255, 0.95))';
-      button.style.color = '#fff';
-      button.style.boxShadow = '0 6px 16px rgba(45, 108, 223, 0.35)';
+      button.style.background = 'var(--action-button-bg-active, linear-gradient(135deg, rgba(45, 108, 223, 0.95), rgba(88, 173, 255, 0.95)))';
+      button.style.color = 'var(--action-button-text-active, #fff)';
+      button.style.boxShadow = 'var(--action-button-shadow-active, 0 6px 16px rgba(45, 108, 223, 0.35))';
     } else {
-      button.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(235, 235, 235, 0.92))';
-      button.style.color = 'inherit';
-      button.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.08)';
+      button.style.background = 'var(--action-button-bg, linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(235, 235, 235, 0.92)))';
+      button.style.color = 'var(--action-button-text, inherit)';
+      button.style.boxShadow = 'var(--action-button-shadow, 0 2px 6px rgba(0, 0, 0, 0.08))';
     }
   };
 
@@ -941,11 +941,11 @@ export function createMapView(container, {
     button.textContent = `${icon ? `${icon} ` : ''}${labelText}`;
     button.setAttribute('aria-pressed', 'false');
     Object.assign(button.style, {
-      display: 'inline-flex',
+      display: 'flex',
       alignItems: 'center',
       justifyContent: 'center',
-      padding: '10px 18px',
-      borderRadius: '999px',
+      padding: '12px 18px',
+      borderRadius: '14px',
       border: '1px solid var(--map-border, #ccc)',
       fontWeight: '600',
       fontSize: '15px',
@@ -953,12 +953,17 @@ export function createMapView(container, {
       textTransform: 'uppercase',
       cursor: 'pointer',
       transition: 'transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease',
-      minWidth: '120px'
+      minWidth: '0',
+      width: '100%',
+      alignSelf: 'stretch',
+      background: 'var(--action-button-bg, linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(235, 235, 235, 0.92)))',
+      color: 'var(--action-button-text, inherit)',
+      boxShadow: 'var(--action-button-shadow, 0 2px 6px rgba(0, 0, 0, 0.08))'
     });
     updateActionButtonVisual(button, false);
     button.addEventListener('mouseenter', () => {
       if (button.dataset.active === 'true') return;
-      button.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.12)';
+      button.style.boxShadow = 'var(--action-button-shadow-hover, 0 6px 16px rgba(0, 0, 0, 0.12))';
     });
     button.addEventListener('mouseleave', () => {
       const isActive = button.dataset.active === 'true';
@@ -1001,9 +1006,10 @@ export function createMapView(container, {
 
     const buttonRow = document.createElement('div');
     buttonRow.style.display = 'flex';
-    buttonRow.style.flexWrap = 'wrap';
+    buttonRow.style.flexDirection = 'column';
     buttonRow.style.gap = '10px';
     buttonRow.style.justifyContent = 'flex-start';
+    buttonRow.style.alignItems = 'stretch';
     actionPanel.appendChild(buttonRow);
 
     ['build', 'craft', 'gather'].forEach(key => {

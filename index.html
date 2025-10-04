@@ -10,6 +10,15 @@
       --menu-bg: #eee;
       --map-bg: #f3f3f3;
       --map-border: #ccc;
+      --action-panel-bg: rgba(250, 250, 255, 0.96);
+      --action-option-bg: rgba(255, 255, 255, 0.95);
+      --action-button-bg: linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(235, 235, 235, 0.92));
+      --action-button-text: var(--text-color);
+      --action-button-shadow: 0 2px 6px rgba(0, 0, 0, 0.08);
+      --action-button-shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.12);
+      --action-button-bg-active: linear-gradient(135deg, rgba(45, 108, 223, 0.95), rgba(88, 173, 255, 0.95));
+      --action-button-text-active: #fff;
+      --action-button-shadow-active: 0 6px 16px rgba(45, 108, 223, 0.35);
     }
     body.dark {
       --bg-color: #222;
@@ -17,6 +26,15 @@
       --menu-bg: #333;
       --map-bg: #3a3a3a;
       --map-border: #555;
+      --action-panel-bg: rgba(34, 34, 42, 0.96);
+      --action-option-bg: rgba(52, 52, 60, 0.92);
+      --action-button-bg: linear-gradient(135deg, rgba(60, 60, 78, 0.94), rgba(42, 42, 54, 0.9));
+      --action-button-text: var(--text-color);
+      --action-button-shadow: 0 2px 8px rgba(0, 0, 0, 0.45);
+      --action-button-shadow-hover: 0 8px 18px rgba(0, 0, 0, 0.6);
+      --action-button-bg-active: linear-gradient(135deg, rgba(86, 135, 255, 0.92), rgba(53, 94, 201, 0.95));
+      --action-button-text-active: #f8f8ff;
+      --action-button-shadow-active: 0 8px 18px rgba(33, 66, 150, 0.6);
     }
     * {
       box-sizing: border-box;
@@ -193,6 +211,10 @@
       border-radius: 10px;
       border: 1px solid var(--map-border);
       background: transparent;
+      align-items: center;
+      justify-content: center;
+      gap: 0;
+      line-height: 1;
       transition: background 0.2s ease, border-color 0.2s ease, transform 0.1s ease;
     }
     .menu-panel .theme-toggle-button:hover {
