@@ -15,7 +15,8 @@ import {
   showConstructionDashboard,
   showInventoryPopup,
   showProfilePopup,
-  showLogPopup
+  showLogPopup,
+  showCraftPlannerPopup
 } from './gameUI.js';
 import { initTopMenu, initBottomMenu } from './menu.js';
 import { resetToDawn, getSeasonDetails, getSeasonForMonth, randomDarkAgeYear } from './time.js';
@@ -63,8 +64,9 @@ function startGame(settings = {}) {
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
   refreshBuildingUnlocks();
   store.difficulty = diff;
-  // Initialize available jobs, starting with scavenging
-  store.jobs = { scavenge: 0 };
+  // Initialize available jobs
+  store.jobs = { gather: 0, hunt: 0, craft: 0, build: 0, guard: 0 };
+  store.craftTargets = new Map();
   store.buildQueue = 0;
   store.haulQueue = 0;
   resetOrders();
@@ -84,7 +86,7 @@ function init() {
   initTopMenu(showJobs, closeJobs, () => {
     clearSave();
     window.location.reload();
-  }, showConstructionDashboard, showInventoryPopup, showProfilePopup, showLogPopup);
+  }, showConstructionDashboard, showInventoryPopup, showProfilePopup, showLogPopup, showCraftPlannerPopup);
   initBottomMenu();
   if (!loadGame()) {
     initSetupUI(startGame);

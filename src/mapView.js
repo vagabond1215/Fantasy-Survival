@@ -118,7 +118,6 @@ export function createMapView(container, {
     { size = 48, fontSize = '18px', variant = 'square' } = {}
   ) => {
     const dimension = typeof size === 'number' && Number.isFinite(size) ? `${size}px` : `${size}`;
-    const isChip = variant === 'chip';
     button.style.width = dimension;
     button.style.height = dimension;
     button.style.padding = '0';
@@ -126,7 +125,7 @@ export function createMapView(container, {
     button.style.display = 'inline-flex';
     button.style.alignItems = 'center';
     button.style.justifyContent = 'center';
-    button.style.borderRadius = isChip ? '999px' : '12px';
+    button.style.borderRadius = '12px';
     button.style.border = '1px solid var(--map-border, #ccc)';
     button.style.background = 'var(--bg-color, #fff)';
     button.style.color = 'inherit';
@@ -768,11 +767,25 @@ export function createMapView(container, {
 
   const actionButtons = new Map();
   let actionPanel = null;
-  let submenuContainer = null;
-  let submenuTitle = null;
-  let submenuList = null;
-  let submenuEmpty = null;
+  let actionModal = null;
+  let actionModalSurface = null;
+  let actionModalTitle = null;
+  let actionModalDescription = null;
+  let actionModalList = null;
+  let actionModalEmpty = null;
   let activeAction = null;
+
+  const defaultActionTitles = {
+    build: 'Build Projects',
+    craft: 'Crafting Recipes',
+    gather: 'Gather Resources'
+  };
+
+  const defaultActionDescriptions = {
+    build: 'Select a structure to plan and raise for the settlement.',
+    craft: 'Queue up tools and supplies for your artisans to produce.',
+    gather: 'Send your people to comb the surrounding area for useful resources.'
+  };
 
   const updateActionButtonVisual = (button, active) => {
     if (!button) return;
@@ -796,68 +809,168 @@ export function createMapView(container, {
     });
   };
 
-  const hideSubmenu = () => {
-    if (submenuContainer) {
-      submenuContainer.style.display = 'none';
+  const handleActionModalKeydown = event => {
+    if (event.key === 'Escape') {
+      event.preventDefault();
+      closeActionModal();
     }
-    if (submenuList) {
-      submenuList.innerHTML = '';
+  };
+
+  const closeActionModal = () => {
+    if (!actionModal) {
+      activeAction = null;
+      setActiveButton(null);
+      return;
     }
-    if (submenuEmpty) {
-      submenuEmpty.textContent = '';
-      submenuEmpty.style.display = 'none';
-    }
+    actionModal.style.display = 'none';
+    actionModal.setAttribute('aria-hidden', 'true');
+    document.removeEventListener('keydown', handleActionModalKeydown);
     activeAction = null;
     setActiveButton(null);
   };
 
-  const appendSubmenuItem = (item, handler) => {
-    if (!submenuList) return;
+  const ensureActionModal = () => {
+    if (actionModal) return actionModal;
+
+    actionModal = document.createElement('div');
+    actionModal.id = `${idPrefix}-action-modal`;
+    actionModal.setAttribute('role', 'dialog');
+    actionModal.setAttribute('aria-modal', 'true');
+    actionModal.setAttribute('aria-hidden', 'true');
+    actionModal.setAttribute('aria-labelledby', `${idPrefix}-action-modal-title`);
+    Object.assign(actionModal.style, {
+      position: 'fixed',
+      inset: '0',
+      display: 'none',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '24px',
+      background: 'rgba(0, 0, 0, 0.55)',
+      zIndex: '2200'
+    });
+
+    actionModal.addEventListener('click', event => {
+      if (event.target === actionModal) {
+        closeActionModal();
+      }
+    });
+
+    actionModalSurface = document.createElement('div');
+    actionModalSurface.tabIndex = -1;
+    Object.assign(actionModalSurface.style, {
+      background: 'var(--menu-bg)',
+      color: 'var(--text-color)',
+      borderRadius: '16px',
+      padding: '20px',
+      width: 'min(520px, 92vw)',
+      maxHeight: 'min(600px, 90vh)',
+      display: 'flex',
+      flexDirection: 'column',
+      boxShadow: '0 24px 48px rgba(0, 0, 0, 0.35)'
+    });
+
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '12px'
+    });
+
+    actionModalTitle = document.createElement('h3');
+    actionModalTitle.id = `${idPrefix}-action-modal-title`;
+    actionModalTitle.style.margin = '0';
+    header.appendChild(actionModalTitle);
+
+    const closeBtn = document.createElement('button');
+    closeBtn.type = 'button';
+    closeBtn.textContent = 'Close';
+    closeBtn.addEventListener('click', () => {
+      closeActionModal();
+    });
+    header.appendChild(closeBtn);
+
+    actionModalSurface.appendChild(header);
+
+    const body = document.createElement('div');
+    Object.assign(body.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '12px',
+      marginTop: '14px',
+      overflowY: 'auto'
+    });
+
+    actionModalDescription = document.createElement('p');
+    actionModalDescription.style.margin = '0';
+    actionModalDescription.style.color = 'var(--text-color)';
+    actionModalDescription.style.opacity = '0.82';
+    body.appendChild(actionModalDescription);
+
+    actionModalList = document.createElement('div');
+    Object.assign(actionModalList.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px'
+    });
+    body.appendChild(actionModalList);
+
+    actionModalEmpty = document.createElement('p');
+    actionModalEmpty.style.margin = '0';
+    actionModalEmpty.style.display = 'none';
+    actionModalEmpty.style.opacity = '0.75';
+    body.appendChild(actionModalEmpty);
+
+    actionModalSurface.appendChild(body);
+    actionModal.appendChild(actionModalSurface);
+    document.body.appendChild(actionModal);
+    return actionModal;
+  };
+
+  const createModalOption = (item, handler) => {
     const option = document.createElement('button');
     option.type = 'button';
     option.className = 'map-action-option';
     option.disabled = Boolean(item.disabled);
-    option.style.display = 'flex';
-    option.style.flexDirection = 'column';
-    option.style.alignItems = 'flex-start';
-    option.style.gap = '6px';
-    option.style.padding = '12px';
-    option.style.borderRadius = '12px';
-    option.style.border = '1px solid var(--map-border, #d0d0d0)';
-    option.style.background = 'var(--action-option-bg, rgba(255, 255, 255, 0.95))';
-    option.style.color = 'inherit';
-    option.style.boxShadow = '0 1px 4px rgba(0, 0, 0, 0.08)';
-    option.style.width = '100%';
-    option.style.textAlign = 'left';
-    option.style.transition = 'transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease';
-    option.style.cursor = option.disabled ? 'not-allowed' : 'pointer';
+    Object.assign(option.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      alignItems: 'stretch',
+      gap: '6px',
+      padding: '14px 16px',
+      borderRadius: '14px',
+      border: '1px solid var(--map-border, #ccc)',
+      background: 'var(--action-option-bg, rgba(255, 255, 255, 0.95))',
+      color: 'var(--text-color)',
+      textAlign: 'left',
+      cursor: option.disabled ? 'not-allowed' : 'pointer',
+      transition: 'transform 0.18s ease, box-shadow 0.2s ease, border-color 0.2s ease',
+      boxShadow: '0 2px 6px rgba(0, 0, 0, 0.1)'
+    });
 
     if (!option.disabled) {
       option.addEventListener('mouseenter', () => {
-        option.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.12)';
+        option.style.boxShadow = '0 8px 18px rgba(0, 0, 0, 0.16)';
         option.style.transform = 'translateY(-1px)';
       });
       option.addEventListener('mouseleave', () => {
-        option.style.boxShadow = '0 1px 4px rgba(0, 0, 0, 0.08)';
+        option.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.1)';
         option.style.transform = 'translateY(0)';
       });
     } else {
       option.style.opacity = '0.65';
     }
 
-    const label = document.createElement('span');
-    label.style.display = 'flex';
-    label.style.alignItems = 'center';
-    label.style.gap = '8px';
-    label.style.fontWeight = '600';
-    label.style.fontSize = '15px';
-    label.textContent = `${item.icon ? `${item.icon} ` : ''}${item.name || item.id}`;
-    option.appendChild(label);
+    const title = document.createElement('span');
+    title.style.fontWeight = '600';
+    title.style.fontSize = '16px';
+    title.textContent = item.name || item.id || 'Option';
+    option.appendChild(title);
 
     if (item.description) {
       const desc = document.createElement('span');
       desc.style.fontSize = '13px';
-      desc.style.color = 'rgba(0, 0, 0, 0.68)';
+      desc.style.opacity = '0.8';
       desc.textContent = item.description;
       option.appendChild(desc);
     }
@@ -865,13 +978,13 @@ export function createMapView(container, {
     if (item.disabled && item.disabledReason) {
       const note = document.createElement('span');
       note.style.fontSize = '12px';
-      note.style.color = 'rgba(160, 32, 32, 0.85)';
+      note.style.color = 'rgba(177, 52, 52, 0.85)';
       note.textContent = item.disabledReason;
       option.appendChild(note);
     } else if (item.actionLabel) {
       const hint = document.createElement('span');
       hint.style.fontSize = '12px';
-      hint.style.color = 'rgba(0, 0, 0, 0.55)';
+      hint.style.opacity = '0.7';
       hint.textContent = item.actionLabel;
       option.appendChild(hint);
     }
@@ -880,65 +993,99 @@ export function createMapView(container, {
       if (option.disabled) return;
       const result = typeof handler?.onSelect === 'function' ? handler.onSelect(item) : null;
       if (result !== false) {
-        hideSubmenu();
+        closeActionModal();
       }
     });
 
-    submenuList.appendChild(option);
+    return option;
   };
 
-  const renderSubmenu = key => {
+  const renderModalOptions = (items, handler) => {
+    actionModalList.innerHTML = '';
+    items.forEach(item => {
+      actionModalList.appendChild(createModalOption(item, handler));
+    });
+    actionModalList.style.display = 'flex';
+  };
+
+  const openActionModal = key => {
     const handler = actionHandlers[key];
     if (!handler) {
-      hideSubmenu();
+      closeActionModal();
       return;
     }
-    const items = typeof handler.getItems === 'function' ? handler.getItems() : [];
-    if (submenuTitle) {
-      submenuTitle.textContent = handler.title || (key === 'build' ? 'Build Options' : key === 'craft' ? 'Crafting Recipes' : 'Actions');
+
+    ensureActionModal();
+
+    const title = handler.title || defaultActionTitles[key] || 'Actions';
+    actionModalTitle.textContent = title;
+
+    const description = handler.description || defaultActionDescriptions[key] || '';
+    if (description) {
+      actionModalDescription.textContent = description;
+      actionModalDescription.style.display = 'block';
+    } else {
+      actionModalDescription.textContent = '';
+      actionModalDescription.style.display = 'none';
     }
-    if (submenuList) {
-      submenuList.innerHTML = '';
-    }
-    if (!items.length) {
-      if (submenuEmpty) {
-        submenuEmpty.textContent = handler.emptyMessage || 'Nothing is available right now.';
-        submenuEmpty.style.display = 'block';
+
+    actionModalList.innerHTML = '';
+    actionModalEmpty.textContent = '';
+    actionModalEmpty.style.display = 'none';
+    actionModalList.style.display = 'none';
+
+    if (key === 'gather' && typeof handler.onExecute === 'function') {
+      const gatherItem = {
+        id: 'gather-now',
+        name: handler.primaryLabel || 'Begin gathering run',
+        description: handler.actionHint || 'Send your settlers to search the immediate area for forage and firewood.'
+      };
+      renderModalOptions([gatherItem], {
+        onSelect: () => {
+          handler.onExecute();
+        }
+      });
+    } else if (typeof handler.getItems === 'function') {
+      const items = handler.getItems() || [];
+      if (!items.length) {
+        actionModalEmpty.textContent = handler.emptyMessage || 'Nothing is available right now.';
+        actionModalEmpty.style.display = 'block';
+      } else {
+        renderModalOptions(items, handler);
       }
     } else {
-      if (submenuEmpty) {
-        submenuEmpty.textContent = '';
-        submenuEmpty.style.display = 'none';
-      }
-      items.forEach(item => appendSubmenuItem(item, handler));
+      actionModalEmpty.textContent = handler.emptyMessage || 'No actions are currently available.';
+      actionModalEmpty.style.display = 'block';
     }
-    if (submenuContainer) {
-      submenuContainer.style.display = 'flex';
-    }
+
+    actionModal.style.display = 'flex';
+    actionModal.setAttribute('aria-hidden', 'false');
+    document.addEventListener('keydown', handleActionModalKeydown);
     activeAction = key;
     setActiveButton(key);
+
+    if (actionModalSurface) {
+      if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+        window.requestAnimationFrame(() => actionModalSurface.focus());
+      } else {
+        setTimeout(() => actionModalSurface.focus(), 0);
+      }
+    }
   };
 
   const handleActionButton = key => {
-    if (key === 'gather') {
-      if (typeof actionHandlers.gather?.onExecute === 'function') {
-        actionHandlers.gather.onExecute();
-      }
-      hideSubmenu();
-      return;
-    }
     if (activeAction === key) {
-      hideSubmenu();
+      closeActionModal();
       return;
     }
-    renderSubmenu(key);
+    openActionModal(key);
   };
 
-  const createActionButton = (key, icon, labelText) => {
+  const createActionButton = (key, labelText) => {
     const button = document.createElement('button');
     button.type = 'button';
     button.className = `map-action-button map-action-${key}`;
-    button.textContent = `${icon ? `${icon} ` : ''}${labelText}`;
+    button.textContent = labelText;
     button.setAttribute('aria-pressed', 'false');
     Object.assign(button.style, {
       display: 'flex',
@@ -1013,46 +1160,10 @@ export function createMapView(container, {
     actionPanel.appendChild(buttonRow);
 
     ['build', 'craft', 'gather'].forEach(key => {
-      const config = {
-        build: { icon: '🏗️', label: 'Build' },
-        craft: { icon: '🛠️', label: 'Craft' },
-        gather: { icon: '🧺', label: 'Gather' }
-      }[key];
-      const button = createActionButton(key, config.icon, config.label);
+      const label = key === 'build' ? 'Build' : key === 'craft' ? 'Craft' : key === 'gather' ? 'Gather' : key;
+      const button = createActionButton(key, label);
       buttonRow.appendChild(button);
     });
-
-    submenuContainer = document.createElement('div');
-    submenuContainer.className = `${idPrefix}-action-submenu map-action-submenu`;
-    submenuContainer.style.display = 'none';
-    submenuContainer.style.flexDirection = 'column';
-    submenuContainer.style.gap = '8px';
-    submenuContainer.style.marginTop = '4px';
-    submenuContainer.style.paddingTop = '8px';
-    submenuContainer.style.borderTop = '1px solid var(--map-border, #d4d4d4)';
-
-    submenuTitle = document.createElement('h5');
-    submenuTitle.style.margin = '0';
-    submenuTitle.style.fontSize = '15px';
-    submenuTitle.style.letterSpacing = '0.05em';
-    submenuTitle.style.textTransform = 'uppercase';
-    submenuTitle.style.color = 'rgba(0, 0, 0, 0.65)';
-    submenuContainer.appendChild(submenuTitle);
-
-    submenuList = document.createElement('div');
-    submenuList.style.display = 'flex';
-    submenuList.style.flexDirection = 'column';
-    submenuList.style.gap = '8px';
-    submenuContainer.appendChild(submenuList);
-
-    submenuEmpty = document.createElement('p');
-    submenuEmpty.style.margin = '0';
-    submenuEmpty.style.fontSize = '13px';
-    submenuEmpty.style.color = 'rgba(0, 0, 0, 0.65)';
-    submenuEmpty.style.display = 'none';
-    submenuContainer.appendChild(submenuEmpty);
-
-    actionPanel.appendChild(submenuContainer);
   }
 
   function isLandscapeOrientation() {
@@ -1708,6 +1819,16 @@ export function createMapView(container, {
       if (layoutRoot.parentElement) {
         layoutRoot.parentElement.removeChild(layoutRoot);
       }
+      closeActionModal();
+      if (actionModal?.parentElement) {
+        actionModal.parentElement.removeChild(actionModal);
+      }
+      actionModal = null;
+      actionModalSurface = null;
+      actionModalTitle = null;
+      actionModalDescription = null;
+      actionModalList = null;
+      actionModalEmpty = null;
       if (typeof document !== 'undefined') {
         document.documentElement.style.removeProperty('--map-layout-width');
       }
@@ -1720,8 +1841,7 @@ export function createMapView(container, {
       markers: markerLayer,
       controls,
       actionPanel,
-      actionButtons,
-      submenu: submenuContainer
+      actionButtons
     }
   };
 }

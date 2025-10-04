@@ -3,6 +3,7 @@ class DataStore {
     this.buildings = new Map();
     this.people = new Map();
     this.inventory = new Map();
+    this.craftTargets = new Map();
     this.locations = new Map();
     this.technologies = new Map();
     this.proficiencies = new Map();
@@ -52,6 +53,7 @@ class DataStore {
       buildings: [...this.buildings.entries()],
       people: [...this.people.entries()],
       inventory: [...this.inventory.entries()],
+      craftTargets: [...this.craftTargets.entries()],
       locations: [...this.locations.entries()],
       technologies: [...this.technologies.entries()],
       proficiencies: [...this.proficiencies.entries()],
@@ -74,6 +76,7 @@ class DataStore {
     this.buildings = new Map(data.buildings || []);
     this.people = new Map(data.people || []);
     this.inventory = new Map(data.inventory || []);
+    this.craftTargets = new Map(data.craftTargets || []);
     this.locations = new Map(data.locations || []);
     this.technologies = new Map(data.technologies || []);
     this.proficiencies = new Map(data.proficiencies || []);

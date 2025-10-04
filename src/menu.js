@@ -238,7 +238,7 @@ function buildSettingsPanel() {
   updateZoomDisplay();
 }
 
-function buildMenuPanel(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog) {
+function buildMenuPanel(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog, onCraftPlanner) {
   if (!menuPanel) return;
   menuPanel.innerHTML = '';
 
@@ -261,10 +261,18 @@ function buildMenuPanel(onMenu, onBack, onReset, onConstruction, onInventory, on
     const jobsEntry = createPanelButton('👷', 'Jobs', () => {
       closePanels();
       onMenu();
-      showBackButton(true);
     });
     jobsEntry.button.id = 'jobs-btn';
     menuPanel.appendChild(jobsEntry.button);
+  }
+
+  if (typeof onCraftPlanner === 'function') {
+    const craftPlannerEntry = createPanelButton('🧰', 'Craft Planner', () => {
+      closePanels();
+      onCraftPlanner();
+    });
+    craftPlannerEntry.button.id = 'craft-planner-btn';
+    menuPanel.appendChild(craftPlannerEntry.button);
   }
 
   if (typeof onConstruction === 'function') {
@@ -334,13 +342,13 @@ export function showBackButton(show) {
   }
 }
 
-export function initTopMenu(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog) {
+export function initTopMenu(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog, onCraftPlanner) {
   const bar = document.getElementById('top-menu');
   if (!bar) return;
   applyTheme();
   ensureActionBar();
   buildSettingsPanel();
-  buildMenuPanel(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog);
+  buildMenuPanel(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog, onCraftPlanner);
   bar.innerHTML = '';
   bar.style.display = 'none';
   applyZoom();
