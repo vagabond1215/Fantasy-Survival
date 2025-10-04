@@ -16,7 +16,9 @@ import {
   showInventoryPopup,
   showProfilePopup,
   showLogPopup,
-  showCraftPlannerPopup
+  showCraftPlannerPopup,
+  showHerbariumPopup,
+  showBestiaryPopup
 } from './gameUI.js';
 import { initTopMenu, initBottomMenu } from './menu.js';
 import { resetToDawn, getSeasonDetails, getSeasonForMonth, randomDarkAgeYear } from './time.js';
@@ -86,7 +88,8 @@ function init() {
   initTopMenu(showJobs, closeJobs, () => {
     clearSave();
     window.location.reload();
-  }, showConstructionDashboard, showInventoryPopup, showProfilePopup, showLogPopup, showCraftPlannerPopup);
+  }, showConstructionDashboard, showInventoryPopup, showProfilePopup, showLogPopup, showCraftPlannerPopup, showHerbariumPopup,
+  showBestiaryPopup);
   initBottomMenu();
   if (!loadGame()) {
     initSetupUI(startGame);
