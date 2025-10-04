@@ -709,7 +709,8 @@ function renderJobsDialog() {
   jobsContent.appendChild(summary);
 
   const helper = document.createElement('p');
-  helper.textContent = 'Assign settlers to focused duties. Laborers without assignments will handle general chores.';
+  helper.textContent =
+    'Assign settlers to focused duties. Laborers without assignments will handle general chores. Hover or long-press a job to view details.';
   helper.style.fontSize = '13px';
   helper.style.opacity = '0.82';
   helper.style.marginTop = '4px';
@@ -719,85 +720,96 @@ function renderJobsDialog() {
   Object.assign(list.style, {
     display: 'flex',
     flexDirection: 'column',
-    gap: '12px',
+    gap: '6px',
     marginTop: '12px'
   });
+  list.setAttribute('role', 'list');
   jobsContent.appendChild(list);
 
   overview.assignments.forEach(job => {
     const maxForJob = Math.max(0, overview.adults - (overview.assigned - job.assigned));
-    const card = document.createElement('div');
-    Object.assign(card.style, {
-      border: '1px solid var(--map-border, #ccc)',
-      borderRadius: '12px',
-      padding: '12px',
-      background: 'var(--menu-bg)',
-      color: 'var(--text-color)',
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px'
-    });
-
-    const header = document.createElement('div');
-    Object.assign(header.style, {
-      display: 'flex',
+    const row = document.createElement('div');
+    row.dataset.jobId = job.id;
+    row.setAttribute('role', 'listitem');
+    Object.assign(row.style, {
+      display: 'grid',
+      gridTemplateColumns: '1fr auto auto',
       alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '12px',
-      flexWrap: 'wrap'
+      gap: '8px',
+      padding: '8px 12px',
+      borderRadius: '10px',
+      border: '1px solid var(--map-border, #ccc)',
+      background: 'var(--menu-bg)',
+      color: 'var(--text-color)'
     });
 
-    const title = document.createElement('h4');
-    title.textContent = job.label;
-    title.style.margin = '0';
-    header.appendChild(title);
+    const tooltipParts = [];
+    if (job.description) tooltipParts.push(job.description);
+    tooltipParts.push(`Assigned ${job.assigned} of ${maxForJob}`);
+    tooltipParts.push(`Unassigned laborers: ${overview.laborer}`);
+    const tooltip = tooltipParts.join('\n');
+    row.title = tooltip;
+    row.setAttribute('aria-label', `${job.label}. ${tooltipParts.join('. ')}`);
+
+    const name = document.createElement('span');
+    name.textContent = job.label;
+    name.style.fontWeight = '600';
+    name.style.whiteSpace = 'nowrap';
+    name.style.overflow = 'hidden';
+    name.style.textOverflow = 'ellipsis';
+    row.appendChild(name);
+
+    const count = document.createElement('span');
+    count.textContent = String(job.assigned || 0);
+    count.style.fontVariantNumeric = 'tabular-nums';
+    count.style.justifySelf = 'center';
+    row.appendChild(count);
 
     const controls = document.createElement('div');
     Object.assign(controls.style, {
       display: 'flex',
-      alignItems: 'center',
-      gap: '8px'
+      gap: '4px'
     });
 
-    const label = document.createElement('span');
-    label.textContent = 'Workers';
-    label.style.fontWeight = '600';
-    controls.appendChild(label);
+    const createArrowButton = (symbol, delta, ariaLabel) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = symbol;
+      btn.setAttribute('aria-label', ariaLabel);
+      Object.assign(btn.style, {
+        width: '28px',
+        height: '28px',
+        borderRadius: '6px',
+        border: '1px solid var(--map-border, #999)',
+        background: 'var(--menu-bg)',
+        cursor: 'pointer'
+      });
+      btn.addEventListener('click', event => {
+        event.preventDefault();
+        setJob(job.id, job.assigned + delta);
+        renderJobsDialog();
+      });
+      return btn;
+    };
 
-    const input = document.createElement('input');
-    input.type = 'number';
-    input.min = '0';
-    input.step = '1';
-    input.value = String(job.assigned || 0);
-    input.max = String(maxForJob);
-    input.style.width = '80px';
-    input.setAttribute('aria-label', `Workers assigned to ${job.label}`);
-    input.addEventListener('change', () => {
-      const value = Number.parseInt(input.value, 10);
-      setJob(job.id, Number.isFinite(value) ? value : 0);
-      renderJobsDialog();
-    });
-    controls.appendChild(input);
-
-    header.appendChild(controls);
-    card.appendChild(header);
-
-    if (job.description) {
-      const description = document.createElement('p');
-      description.textContent = job.description;
-      description.style.margin = '0';
-      description.style.fontSize = '13px';
-      description.style.opacity = '0.85';
-      card.appendChild(description);
+    const decreaseBtn = createArrowButton('▼', -1, `Reduce ${job.label} assignments`);
+    const increaseBtn = createArrowButton('▲', 1, `Increase ${job.label} assignments`);
+    decreaseBtn.disabled = job.assigned <= 0;
+    increaseBtn.disabled = job.assigned >= maxForJob;
+    if (decreaseBtn.disabled) {
+      decreaseBtn.style.cursor = 'not-allowed';
+      decreaseBtn.style.opacity = '0.5';
     }
+    if (increaseBtn.disabled) {
+      increaseBtn.style.cursor = 'not-allowed';
+      increaseBtn.style.opacity = '0.5';
+    }
+    controls.appendChild(decreaseBtn);
+    controls.appendChild(increaseBtn);
 
-    const capacity = document.createElement('span');
-    capacity.style.fontSize = '12px';
-    capacity.style.opacity = '0.75';
-    capacity.textContent = `Up to ${maxForJob} workers can focus here based on your adult population.`;
-    card.appendChild(capacity);
+    row.appendChild(controls);
 
-    list.appendChild(card);
+    list.appendChild(row);
   });
 }
 
@@ -1107,17 +1119,39 @@ function handleBuildActionSelect(item) {
 function getCraftActionItems() {
   const availableTools = listAvailableToolNames();
   const recipes = getUnlockedRecipes({ availableTools });
+  const jobOverview = getJobOverview();
+  const assignments = Array.isArray(jobOverview.assignments) ? jobOverview.assignments : [];
+  const craftAssignment = assignments.find(job => job.id === 'craft');
+  const activeCrafters = craftAssignment ? craftAssignment.assigned : 0;
   recipes.sort((a, b) => a.recipe.name.localeCompare(b.recipe.name));
   return recipes.map(info => {
-    const disabled = !info.hasMaterials || !info.hasTools;
+    const laborHours = Number.isFinite(info.laborHours)
+      ? info.laborHours
+      : Number.isFinite(info.recipe.laborHours)
+      ? info.recipe.laborHours
+      : info.recipe.timeHours || 0;
+    const needsCrafters = laborHours > 0 && activeCrafters <= 0;
+    const disabled = !info.hasMaterials || !info.hasTools || needsCrafters;
     let disabledReason = '';
     if (!info.hasTools) {
       const toolList = info.missingTools.join(', ');
       disabledReason = toolList ? `Requires ${toolList}.` : 'Missing tools.';
     } else if (!info.hasMaterials) {
       disabledReason = formatResourceNeedsMessage(info.missingMaterials) || 'Gather more materials first.';
+    } else if (needsCrafters) {
+      disabledReason = 'Assign at least one Crafter in the Jobs panel.';
     }
-    const actionLabel = info.recipe.timeHours ? `Takes ${formatDuration(info.recipe.timeHours)}.` : '';
+    const actionLabelParts = [];
+    if (laborHours > 0) {
+      actionLabelParts.push(`Labor: ${formatDuration(laborHours)}`);
+      if (activeCrafters > 0) {
+        const projected = laborHours / activeCrafters;
+        actionLabelParts.push(
+          `≈${formatDuration(projected)} with ${activeCrafters} ${activeCrafters === 1 ? 'crafter' : 'crafters'}`
+        );
+      }
+    }
+    const actionLabel = actionLabelParts.join(' · ');
     return {
       id: info.recipe.id,
       name: info.recipe.name,
@@ -1137,9 +1171,22 @@ function handleCraftActionSelect(item) {
   try {
     const result = craftRecipe(item.id, { availableTools });
     const outputs = Object.entries(result.recipe.outputs || {}).map(([name, amount]) => `${amount} ${name}`).join(', ');
-    const timeText = result.timeHours ? ` in ${formatDuration(result.timeHours)}` : '';
     const summary = outputs || result.recipe.name;
-    logEvent(`Crafted ${summary}${timeText}.`);
+    const details = [];
+    if (result.laborHours) {
+      let laborDetail = `using ${formatDuration(result.laborHours)} of crafter labor`;
+      if (result.workforce) {
+        laborDetail += ` (${result.workforce} ${result.workforce === 1 ? 'crafter' : 'crafters'})`;
+      }
+      details.push(laborDetail);
+    } else if (result.workforce) {
+      details.push(`with ${result.workforce} ${result.workforce === 1 ? 'crafter' : 'crafters'}`);
+    }
+    if (result.timeHours) {
+      details.push(`after ${formatDuration(result.timeHours)}`);
+    }
+    const message = [`Crafted ${summary}`, ...details].join(' ');
+    logEvent(`${message}.`);
     if (result.timeHours) {
       advanceHours(result.timeHours);
     }

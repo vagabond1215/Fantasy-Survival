@@ -97,10 +97,14 @@ function featureMatches(features = [], tag = '') {
 function locationSupports(type) {
   const tags = type.requirements?.locationTags || [];
   if (!tags.length) return true;
+  const normalizedTags = tags.map(tag => String(tag || '').toLowerCase());
+  if (normalizedTags.some(tag => tag === 'open' || tag === 'any')) {
+    return true;
+  }
   const locations = allLocations();
   if (!locations.length) return false;
   const features = (locations[0]?.features || []).map(f => f.toLowerCase());
-  return tags.some(tag => featureMatches(features, tag));
+  return normalizedTags.some(tag => featureMatches(features, tag));
 }
 
 function hasResearch(id) {
