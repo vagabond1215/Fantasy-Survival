@@ -47,6 +47,8 @@ import {
 import { calculateTravelTime, describeTerrainDifficulty } from './movement.js';
 import { performGathering, formatBlockedMessages } from './gathering.js';
 import { getUnlockedRecipes, craftRecipe } from './crafting.js';
+import { getJobOverview, setJob } from './jobs.js';
+import { getCraftTarget, setCraftTarget, listCraftTargets, calculateReservedQuantity } from './craftPlanner.js';
 
 const LEGEND_LABELS = {
   water: 'Water',
@@ -89,6 +91,10 @@ let inventoryDialog = null;
 let inventoryDialogContent = null;
 let inventoryTableBody = null;
 let inventoryVisible = false;
+let jobsDialog = null;
+let jobsContent = null;
+let craftPlannerDialog = null;
+let craftPlannerContent = null;
 
 const MASS_NOUNS = new Set(['wood', 'firewood', 'food', 'water']);
 
@@ -681,6 +687,264 @@ function createPopupDialog(id, title) {
   document.body.appendChild(overlay);
 
   return { overlay, panel, content, openDialog, closeDialog };
+}
+
+function ensureJobsDialog() {
+  if (!jobsDialog) {
+    jobsDialog = createPopupDialog('jobs-dialog', 'Assign Jobs');
+    jobsContent = jobsDialog.content;
+  }
+  return jobsDialog;
+}
+
+function renderJobsDialog() {
+  const dialog = ensureJobsDialog();
+  if (!jobsContent || !dialog) return;
+
+  const overview = getJobOverview();
+  jobsContent.innerHTML = '';
+
+  const summary = document.createElement('p');
+  summary.textContent = `Adults ready to work: ${overview.adults}. Unassigned laborers: ${overview.laborer}.`;
+  jobsContent.appendChild(summary);
+
+  const helper = document.createElement('p');
+  helper.textContent = 'Assign settlers to focused duties. Laborers without assignments will handle general chores.';
+  helper.style.fontSize = '13px';
+  helper.style.opacity = '0.82';
+  helper.style.marginTop = '4px';
+  jobsContent.appendChild(helper);
+
+  const list = document.createElement('div');
+  Object.assign(list.style, {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    marginTop: '12px'
+  });
+  jobsContent.appendChild(list);
+
+  overview.assignments.forEach(job => {
+    const maxForJob = Math.max(0, overview.adults - (overview.assigned - job.assigned));
+    const card = document.createElement('div');
+    Object.assign(card.style, {
+      border: '1px solid var(--map-border, #ccc)',
+      borderRadius: '12px',
+      padding: '12px',
+      background: 'var(--menu-bg)',
+      color: 'var(--text-color)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px'
+    });
+
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '12px',
+      flexWrap: 'wrap'
+    });
+
+    const title = document.createElement('h4');
+    title.textContent = job.label;
+    title.style.margin = '0';
+    header.appendChild(title);
+
+    const controls = document.createElement('div');
+    Object.assign(controls.style, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '8px'
+    });
+
+    const label = document.createElement('span');
+    label.textContent = 'Workers';
+    label.style.fontWeight = '600';
+    controls.appendChild(label);
+
+    const input = document.createElement('input');
+    input.type = 'number';
+    input.min = '0';
+    input.step = '1';
+    input.value = String(job.assigned || 0);
+    input.max = String(maxForJob);
+    input.style.width = '80px';
+    input.setAttribute('aria-label', `Workers assigned to ${job.label}`);
+    input.addEventListener('change', () => {
+      const value = Number.parseInt(input.value, 10);
+      setJob(job.id, Number.isFinite(value) ? value : 0);
+      renderJobsDialog();
+    });
+    controls.appendChild(input);
+
+    header.appendChild(controls);
+    card.appendChild(header);
+
+    if (job.description) {
+      const description = document.createElement('p');
+      description.textContent = job.description;
+      description.style.margin = '0';
+      description.style.fontSize = '13px';
+      description.style.opacity = '0.85';
+      card.appendChild(description);
+    }
+
+    const capacity = document.createElement('span');
+    capacity.style.fontSize = '12px';
+    capacity.style.opacity = '0.75';
+    capacity.textContent = `Up to ${maxForJob} workers can focus here based on your adult population.`;
+    card.appendChild(capacity);
+
+    list.appendChild(card);
+  });
+}
+
+function ensureCraftPlannerDialog() {
+  if (!craftPlannerDialog) {
+    craftPlannerDialog = createPopupDialog('craft-planner-dialog', 'Craft Planner');
+    craftPlannerContent = craftPlannerDialog.content;
+  }
+  return craftPlannerDialog;
+}
+
+function renderCraftPlannerDialog() {
+  const dialog = ensureCraftPlannerDialog();
+  if (!craftPlannerContent || !dialog) return;
+
+  const availableTools = listAvailableToolNames();
+  const unlocked = getUnlockedRecipes({ availableTools });
+  const outputMeta = new Map();
+  unlocked.forEach(info => {
+    Object.entries(info.recipe.outputs || {}).forEach(([name]) => {
+      if (!outputMeta.has(name)) {
+        outputMeta.set(name, { recipes: new Set() });
+      }
+      outputMeta.get(name).recipes.add(info.recipe.name || name);
+    });
+  });
+  const existingTargets = listCraftTargets();
+  const itemNames = new Set([
+    ...outputMeta.keys(),
+    ...existingTargets.map(entry => entry.id)
+  ]);
+
+  craftPlannerContent.innerHTML = '';
+
+  if (!itemNames.size) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No craftable goods are available yet.';
+    craftPlannerContent.appendChild(empty);
+    return;
+  }
+
+  const intro = document.createElement('p');
+  intro.textContent = 'Set the desired stock for crafted goods. Equipped or held items are ignored automatically.';
+  intro.style.fontSize = '13px';
+  intro.style.opacity = '0.82';
+  craftPlannerContent.appendChild(intro);
+
+  const list = document.createElement('div');
+  Object.assign(list.style, {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '12px',
+    marginTop: '12px'
+  });
+  craftPlannerContent.appendChild(list);
+
+  Array.from(itemNames)
+    .sort((a, b) => a.localeCompare(b))
+    .forEach(name => {
+      const meta = outputMeta.get(name) || { recipes: new Set() };
+      const target = getCraftTarget(name);
+      const record = getItem(name);
+      const quantity = Number(record.quantity) || 0;
+      const reserved = calculateReservedQuantity(name);
+      const usable = Math.max(0, Math.round((quantity - reserved) * 10) / 10);
+      const reservedDisplay = Math.max(0, Math.round(reserved * 10) / 10);
+
+      const card = document.createElement('div');
+      Object.assign(card.style, {
+        border: '1px solid var(--map-border, #ccc)',
+        borderRadius: '12px',
+        padding: '12px',
+        background: 'var(--menu-bg)',
+        color: 'var(--text-color)',
+        display: 'flex',
+        flexDirection: 'column',
+        gap: '8px'
+      });
+
+      const header = document.createElement('div');
+      Object.assign(header.style, {
+        display: 'flex',
+        alignItems: 'center',
+        justifyContent: 'space-between',
+        gap: '12px',
+        flexWrap: 'wrap'
+      });
+
+      const title = document.createElement('h4');
+      title.textContent = name.charAt(0).toUpperCase() + name.slice(1);
+      title.style.margin = '0';
+      header.appendChild(title);
+
+      const controls = document.createElement('div');
+      Object.assign(controls.style, {
+        display: 'flex',
+        alignItems: 'center',
+        gap: '8px'
+      });
+
+      const targetLabel = document.createElement('span');
+      targetLabel.textContent = 'Target';
+      targetLabel.style.fontWeight = '600';
+      controls.appendChild(targetLabel);
+
+      const input = document.createElement('input');
+      input.type = 'number';
+      input.min = '0';
+      input.step = '1';
+      input.value = String(target || 0);
+      input.style.width = '80px';
+      input.setAttribute('aria-label', `Desired stock for ${name}`);
+      input.addEventListener('change', () => {
+        const value = Number.parseInt(input.value, 10);
+        setCraftTarget(name, Number.isFinite(value) ? value : 0);
+        renderCraftPlannerDialog();
+      });
+      controls.appendChild(input);
+
+      const clearBtn = document.createElement('button');
+      clearBtn.type = 'button';
+      clearBtn.textContent = 'Clear';
+      clearBtn.addEventListener('click', () => {
+        setCraftTarget(name, 0);
+        renderCraftPlannerDialog();
+      });
+      controls.appendChild(clearBtn);
+
+      header.appendChild(controls);
+      card.appendChild(header);
+
+      const stockLine = document.createElement('span');
+      stockLine.style.fontSize = '13px';
+      stockLine.style.opacity = '0.85';
+      stockLine.textContent = `Usable on hand: ${usable} (Reserved: ${reservedDisplay}).`;
+      card.appendChild(stockLine);
+
+      if (meta.recipes.size) {
+        const producedBy = document.createElement('span');
+        producedBy.style.fontSize = '12px';
+        producedBy.style.opacity = '0.75';
+        producedBy.textContent = `Produced by: ${Array.from(meta.recipes).join(', ')}.`;
+        card.appendChild(producedBy);
+      }
+
+      list.appendChild(card);
+    });
 }
 
 function ensureProfileDialog() {
@@ -2017,16 +2281,24 @@ function buildOrderForm(section) {
 }
 
 export function closeJobs() {
+  if (jobsDialog) {
+    jobsDialog.closeDialog();
+  }
   showBackButton(false);
 }
 
 export function showJobs() {
-  const ordersSection = document.getElementById('orders-section');
-  if (ordersSection) {
-    ordersSection.scrollIntoView({ behavior: 'smooth', block: 'start' });
-  }
   hideConstructionDashboard();
+  renderJobsDialog();
+  const dialog = ensureJobsDialog();
+  dialog.openDialog();
   showBackButton(false);
+}
+
+export function showCraftPlannerPopup() {
+  renderCraftPlannerDialog();
+  const dialog = ensureCraftPlannerDialog();
+  dialog.openDialog();
 }
 
 export function showProfilePopup() {
@@ -2195,17 +2467,23 @@ export function initGameUI() {
       actions: {
         build: {
           title: 'Build Projects',
+          description: 'Select a structure to plan and raise for the settlement.',
           getItems: getBuildActionItems,
           onSelect: handleBuildActionSelect,
           emptyMessage: 'No structures are currently available.'
         },
         craft: {
           title: 'Crafting Recipes',
+          description: 'Assign artisans to produce tools and supplies.',
           getItems: getCraftActionItems,
           onSelect: handleCraftActionSelect,
           emptyMessage: 'No recipes are currently unlocked.'
         },
         gather: {
+          title: 'Gather Resources',
+          description: 'Send nearby settlers to comb the area for immediate materials.',
+          primaryLabel: 'Begin gathering run',
+          actionHint: 'Takes time as settlers search the surrounding terrain.',
           onExecute: handleGatherAction
         }
       },
