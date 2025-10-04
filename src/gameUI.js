@@ -67,7 +67,7 @@ const LEGEND_LABELS = {
 const ENEMY_EVENT_CHANCE_PER_HOUR = 0.05;
 const PLAYER_ICON = '🧍';
 const PLAYER_MARKER_ID = 'player-marker';
-const EVENT_LOG_SUMMARY_LIMIT = 5;
+const EVENT_LOG_SUMMARY_LIMIT = 4;
 
 let mapView = null;
 let lastSeason = null;
@@ -645,15 +645,9 @@ function ensureEventLogPanel() {
     const headerRow = document.createElement('div');
     Object.assign(headerRow.style, {
       display: 'flex',
-      alignItems: 'center',
-      justifyContent: 'space-between',
-      gap: '12px'
+      justifyContent: 'flex-end',
+      marginBottom: '8px'
     });
-
-    const title = document.createElement('h3');
-    title.textContent = 'Recent Events';
-    title.style.margin = '0';
-    headerRow.appendChild(title);
 
     eventLogPanelButton = document.createElement('button');
     eventLogPanelButton.type = 'button';
@@ -675,13 +669,6 @@ function ensureEventLogPanel() {
     headerRow.appendChild(eventLogPanelButton);
 
     eventLogPanel.appendChild(headerRow);
-
-    const intro = document.createElement('p');
-    intro.textContent = 'Stay informed about your settlers\' latest discoveries and efforts.';
-    intro.style.margin = '0';
-    intro.style.fontSize = '13px';
-    intro.style.opacity = '0.85';
-    eventLogPanel.appendChild(intro);
 
     eventLogSummaryList = document.createElement('ul');
     eventLogSummaryList.id = 'event-log-summary-list';
@@ -1699,12 +1686,6 @@ function renderEventLogSummary(log) {
 
     li.appendChild(headline);
 
-    const metaLine = document.createElement('div');
-    metaLine.textContent = `${meta.dayNumber} ${meta.monthName} ${meta.yearNumber}${meta.descriptor}`;
-    metaLine.style.fontSize = '12px';
-    metaLine.style.opacity = '0.75';
-    li.appendChild(metaLine);
-
     eventLogSummaryList.appendChild(li);
   });
 }
@@ -1723,7 +1704,7 @@ function renderEventLogDialogEntries(log) {
   log.forEach(entry => {
     const meta = getEventLogMetadata(entry);
     const li = document.createElement('li');
-    li.textContent = `${meta.dayNumber} ${meta.monthName} ${meta.yearNumber}${meta.descriptor} – ${meta.timeText} – ${entry.message}`;
+    li.textContent = `${meta.timeText} – ${entry.message}`;
     eventLogList.appendChild(li);
   });
 }
