@@ -45,6 +45,8 @@ import {
   inferOrderProficiency
 } from './proficiencies.js';
 import { calculateTravelTime, describeTerrainDifficulty } from './movement.js';
+import { performGathering, formatBlockedMessages } from './gathering.js';
+import { getUnlockedRecipes, craftRecipe } from './crafting.js';
 
 const LEGEND_LABELS = {
   water: 'Water',
@@ -692,6 +694,167 @@ function padNumber(value, digits = 2) {
   return String(safe).padStart(digits, '0');
 }
 
+function listAvailableToolNames() {
+  return listInventory()
+    .filter(item => Number.isFinite(item.quantity) && item.quantity > 0)
+    .map(item => item.id);
+}
+
+function getBuildActionItems() {
+  const entries = getAllBuildingTypes()
+    .map(type => ({ type, info: evaluateBuilding(type.id) }))
+    .filter(entry => entry.info && entry.info.unlocked);
+  entries.sort((a, b) => {
+    const aReady = a.info.canBuildMore && a.info.locationOk && a.info.hasResources;
+    const bReady = b.info.canBuildMore && b.info.locationOk && b.info.hasResources;
+    if (aReady === bReady) {
+      return a.type.name.localeCompare(b.type.name);
+    }
+    return aReady ? -1 : 1;
+  });
+  return entries.map(({ type, info }) => {
+    const canStart = info.canBuildMore && info.locationOk;
+    const hasResources = info.hasResources;
+    let disabledReason = '';
+    if (!info.locationOk) {
+      disabledReason = 'Requires specific terrain.';
+    } else if (!info.canBuildMore) {
+      disabledReason = 'Maximum number already built.';
+    } else if (!hasResources) {
+      disabledReason = 'Gather more materials first.';
+    }
+    return {
+      id: type.id,
+      name: type.name,
+      icon: type.icon || '🏗️',
+      description: type.description || '',
+      disabled: !(canStart && hasResources),
+      disabledReason,
+      actionLabel: canStart ? (hasResources ? 'Open planner' : 'Awaiting materials') : '',
+      type,
+      info
+    };
+  });
+}
+
+function focusBuildCard(typeId) {
+  if (!typeId || !buildOptionsContainer) return;
+  requestAnimationFrame(() => {
+    const card = buildOptionsContainer.querySelector(`[data-type-id="${typeId}"]`);
+    if (!card) return;
+    card.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    const originalBoxShadow = card.style.boxShadow;
+    const originalTransform = card.style.transform;
+    const originalTransition = card.style.transition;
+    card.style.transition = 'box-shadow 0.3s ease, transform 0.3s ease';
+    card.style.boxShadow = '0 0 0 3px rgba(45, 108, 223, 0.45)';
+    card.style.transform = 'scale(1.02)';
+    setTimeout(() => {
+      card.style.boxShadow = originalBoxShadow;
+      card.style.transform = originalTransform;
+      card.style.transition = originalTransition;
+    }, 1200);
+  });
+}
+
+function handleBuildActionSelect(item) {
+  if (!item) return true;
+  showConstructionDashboard();
+  if (item.id) {
+    focusBuildCard(item.id);
+  }
+  return true;
+}
+
+function getCraftActionItems() {
+  const availableTools = listAvailableToolNames();
+  const recipes = getUnlockedRecipes({ availableTools });
+  recipes.sort((a, b) => a.recipe.name.localeCompare(b.recipe.name));
+  return recipes.map(info => {
+    const disabled = !info.hasMaterials || !info.hasTools;
+    let disabledReason = '';
+    if (!info.hasTools) {
+      const toolList = info.missingTools.join(', ');
+      disabledReason = toolList ? `Requires ${toolList}.` : 'Missing tools.';
+    } else if (!info.hasMaterials) {
+      disabledReason = 'Gather more materials first.';
+    }
+    const actionLabel = info.recipe.timeHours ? `Takes ${formatDuration(info.recipe.timeHours)}.` : '';
+    return {
+      id: info.recipe.id,
+      name: info.recipe.name,
+      icon: info.recipe.icon || '🛠️',
+      description: info.recipe.description || '',
+      disabled,
+      disabledReason,
+      actionLabel,
+      recipeInfo: info
+    };
+  });
+}
+
+function handleCraftActionSelect(item) {
+  if (!item) return true;
+  const availableTools = listAvailableToolNames();
+  try {
+    const result = craftRecipe(item.id, { availableTools });
+    const outputs = Object.entries(result.recipe.outputs || {}).map(([name, amount]) => `${amount} ${name}`).join(', ');
+    const timeText = result.timeHours ? ` in ${formatDuration(result.timeHours)}` : '';
+    const summary = outputs || result.recipe.name;
+    logEvent(`Crafted ${summary}${timeText}.`);
+    if (result.timeHours) {
+      advanceHours(result.timeHours);
+    }
+    render();
+  } catch (err) {
+    console.error(err);
+    alert(err.message);
+    return false;
+  }
+  return true;
+}
+
+function handleGatherAction() {
+  const loc = getActiveLocation();
+  if (!loc) {
+    logEvent('There is no safe place to gather right now.');
+    return;
+  }
+  const player = ensurePlayerState(loc.id);
+  const terrain = getTerrainTypeAt(loc, player.x, player.y) || 'open';
+  const season = store.time?.season || timeInfo().season;
+  const availableTools = listAvailableToolNames();
+  const result = performGathering({
+    locationId: loc.id,
+    x: player.x,
+    y: player.y,
+    terrain,
+    season,
+    availableTools
+  });
+
+  if (!result.gathered.length && !result.blocked.length) {
+    logEvent('You search the area but find nothing of note.');
+    render();
+    return;
+  }
+
+  result.gathered.forEach(entry => {
+    addItem(entry.resource, entry.quantity);
+    const durationNote = entry.timeHours ? ` It takes ${formatDuration(entry.timeHours)}.` : '';
+    logEvent(`${entry.message}${durationNote}`);
+  });
+
+  const blockedMessages = formatBlockedMessages(result.blocked);
+  blockedMessages.forEach(message => logEvent(message));
+
+  if (result.elapsedHours > 0) {
+    advanceHours(result.elapsedHours);
+  }
+
+  render();
+}
+
 function ensureEventLog() {
   if (!Array.isArray(store.eventLog)) store.eventLog = [];
   return store.eventLog;
@@ -1022,6 +1185,9 @@ function describeEffects(effects = {}) {
 function createBuildCard(type, info) {
   const card = document.createElement('article');
   card.className = 'build-card';
+  if (type?.id) {
+    card.dataset.typeId = type.id;
+  }
   card.style.border = '1px solid var(--map-border)';
   card.style.padding = '8px';
   card.style.borderRadius = '6px';
@@ -1952,6 +2118,23 @@ export function initGameUI() {
       idPrefix: 'game-map',
       navMode: 'player',
       onNavigate: handlePlayerNavigate,
+      actions: {
+        build: {
+          title: 'Build Projects',
+          getItems: getBuildActionItems,
+          onSelect: handleBuildActionSelect,
+          emptyMessage: 'No structures are currently available.'
+        },
+        craft: {
+          title: 'Crafting Recipes',
+          getItems: getCraftActionItems,
+          onSelect: handleCraftActionSelect,
+          emptyMessage: 'No recipes are currently unlocked.'
+        },
+        gather: {
+          onExecute: handleGatherAction
+        }
+      },
       fetchMap: ({ xStart, yStart, width, height, seed, season, viewport }) => {
         const baseSeed = seed ?? loc.map?.seed ?? Date.now();
         const baseSeason = season ?? store.time.season;

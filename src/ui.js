@@ -311,7 +311,7 @@ export function initSetupUI(onStart) {
   const mapView = createMapView(mapSection, {
     legendLabels: LEGEND_LABELS,
     showControls: true,
-    showLegend: true,
+    showLegend: false,
     idPrefix: 'setup-map',
     fetchMap: ({ xStart, yStart, width, height, seed, season, viewport, context }) => {
       const biomeId = context?.biomeId || biomeSelect.select.value;
