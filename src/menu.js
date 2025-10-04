@@ -238,7 +238,18 @@ function buildSettingsPanel() {
   updateZoomDisplay();
 }
 
-function buildMenuPanel(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog, onCraftPlanner) {
+function buildMenuPanel(
+  onMenu,
+  onBack,
+  onReset,
+  onConstruction,
+  onInventory,
+  onProfile,
+  onLog,
+  onCraftPlanner,
+  onHerbarium,
+  onBestiary
+) {
   if (!menuPanel) return;
   menuPanel.innerHTML = '';
 
@@ -294,6 +305,24 @@ function buildMenuPanel(onMenu, onBack, onReset, onConstruction, onInventory, on
     menuPanel.appendChild(inventoryEntry.button);
   }
 
+  if (typeof onHerbarium === 'function') {
+    const herbariumEntry = createPanelButton('🌿', 'Herbarium', () => {
+      closePanels();
+      onHerbarium();
+    });
+    herbariumEntry.button.id = 'herbarium-btn';
+    menuPanel.appendChild(herbariumEntry.button);
+  }
+
+  if (typeof onBestiary === 'function') {
+    const bestiaryEntry = createPanelButton('🐾', 'Bestiary', () => {
+      closePanels();
+      onBestiary();
+    });
+    bestiaryEntry.button.id = 'bestiary-btn';
+    menuPanel.appendChild(bestiaryEntry.button);
+  }
+
   if (typeof onProfile === 'function') {
     const profileEntry = createPanelButton('👤', 'Profile', () => {
       closePanels();
@@ -342,13 +371,35 @@ export function showBackButton(show) {
   }
 }
 
-export function initTopMenu(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog, onCraftPlanner) {
+export function initTopMenu(
+  onMenu,
+  onBack,
+  onReset,
+  onConstruction,
+  onInventory,
+  onProfile,
+  onLog,
+  onCraftPlanner,
+  onHerbarium,
+  onBestiary
+) {
   const bar = document.getElementById('top-menu');
   if (!bar) return;
   applyTheme();
   ensureActionBar();
   buildSettingsPanel();
-  buildMenuPanel(onMenu, onBack, onReset, onConstruction, onInventory, onProfile, onLog, onCraftPlanner);
+  buildMenuPanel(
+    onMenu,
+    onBack,
+    onReset,
+    onConstruction,
+    onInventory,
+    onProfile,
+    onLog,
+    onCraftPlanner,
+    onHerbarium,
+    onBestiary
+  );
   bar.innerHTML = '';
   bar.style.display = 'none';
   applyZoom();

@@ -49,6 +49,13 @@ import { performGathering, formatBlockedMessages } from './gathering.js';
 import { getUnlockedRecipes, craftRecipe } from './crafting.js';
 import { getJobOverview, setJob } from './jobs.js';
 import { getCraftTarget, setCraftTarget, listCraftTargets, calculateReservedQuantity } from './craftPlanner.js';
+import {
+  recordPlantDiscovery,
+  recordAnimalDiscovery,
+  getHerbariumCatalog,
+  getBestiaryCatalog,
+  getUnknownLabel
+} from './naturalHistory.js';
 
 const LEGEND_LABELS = {
   water: 'Water',
@@ -95,6 +102,10 @@ let jobsDialog = null;
 let jobsContent = null;
 let craftPlannerDialog = null;
 let craftPlannerContent = null;
+let herbariumDialog = null;
+let herbariumContent = null;
+let bestiaryDialog = null;
+let bestiaryContent = null;
 
 const MASS_NOUNS = new Set(['wood', 'firewood', 'food', 'water']);
 
@@ -168,6 +179,28 @@ function formatResourceNeedsMessage(missing = []) {
   if (!parts.length) return '';
   const needsText = joinWithAnd(parts);
   return needsText ? `You need ${needsText}.` : '';
+}
+
+function applyCodexTableStyles(table) {
+  if (!table) return;
+  table.style.width = '100%';
+  table.style.borderCollapse = 'collapse';
+  table.style.marginTop = '6px';
+  table.style.fontSize = '13px';
+  table.querySelectorAll('th').forEach(cell => {
+    cell.style.textAlign = 'left';
+    cell.style.padding = '6px 8px';
+    cell.style.borderBottom = '1px solid var(--map-border, #ccc)';
+    cell.style.position = 'sticky';
+    cell.style.top = '0';
+    cell.style.background = 'var(--menu-bg)';
+    cell.style.zIndex = '1';
+  });
+  table.querySelectorAll('td').forEach(cell => {
+    cell.style.padding = '6px 8px';
+    cell.style.borderBottom = '1px solid rgba(128, 128, 128, 0.25)';
+    cell.style.verticalAlign = 'top';
+  });
 }
 
 export function showConstructionDashboard() {
@@ -983,6 +1016,212 @@ function ensureLogDialog() {
   return logDialog;
 }
 
+function isDialogVisible(dialog) {
+  return Boolean(dialog?.overlay && dialog.overlay.style.display !== 'none');
+}
+
+function ensureHerbariumDialog() {
+  if (!herbariumDialog) {
+    herbariumDialog = createPopupDialog('herbarium-dialog', 'Herbarium');
+    herbariumContent = herbariumDialog.content;
+    if (herbariumContent) {
+      const blurb = document.createElement('p');
+      blurb.textContent = 'Catalogue of flora identified throughout your travels. Forage to reveal new entries.';
+      blurb.style.marginBottom = '8px';
+      herbariumContent.appendChild(blurb);
+    }
+  }
+  return herbariumDialog;
+}
+
+function renderHerbariumDialog() {
+  const dialog = ensureHerbariumDialog();
+  if (!herbariumContent || !dialog) return;
+
+  herbariumContent.innerHTML = '';
+  const catalog = getHerbariumCatalog();
+  if (!catalog.total) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No flora specimens have been catalogued yet. Forage successfully to add discoveries to your herbarium.';
+    herbariumContent.appendChild(empty);
+    return;
+  }
+
+  const intro = document.createElement('p');
+  intro.textContent = `Specimens catalogued: ${catalog.discovered} of ${catalog.total}.`;
+  intro.style.marginBottom = '6px';
+  herbariumContent.appendChild(intro);
+
+  catalog.sections.forEach(section => {
+    const sectionEl = document.createElement('section');
+    sectionEl.style.marginTop = '12px';
+
+    const heading = document.createElement('h4');
+    heading.textContent = `${section.biomeName} (${section.discoveredCount}/${section.total})`;
+    heading.style.margin = '0 0 4px 0';
+    sectionEl.appendChild(heading);
+
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    ['Specimen', 'Edible Parts', 'Caution', 'Uses'].forEach(label => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    section.entries.forEach(entry => {
+      const tr = document.createElement('tr');
+      if (!entry.discovered) {
+        tr.style.opacity = '0.65';
+      }
+
+      const nameCell = document.createElement('td');
+      if (entry.discovered) {
+        nameCell.textContent = entry.item.name;
+        nameCell.style.fontWeight = '600';
+      } else {
+        nameCell.textContent = getUnknownLabel('flora');
+        nameCell.style.fontStyle = 'italic';
+      }
+      tr.appendChild(nameCell);
+
+      const edibleCell = document.createElement('td');
+      edibleCell.textContent = entry.discovered
+        ? entry.item.edibleParts || 'None noted'
+        : 'Unknown';
+      tr.appendChild(edibleCell);
+
+      const cautionCell = document.createElement('td');
+      cautionCell.textContent = entry.discovered
+        ? entry.item.poisonousParts || 'None noted'
+        : 'Unknown';
+      tr.appendChild(cautionCell);
+
+      const usesCell = document.createElement('td');
+      usesCell.textContent = entry.discovered
+        ? entry.item.usefulParts || 'No recorded uses'
+        : 'Unknown';
+      tr.appendChild(usesCell);
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    applyCodexTableStyles(table);
+    sectionEl.appendChild(table);
+    herbariumContent.appendChild(sectionEl);
+  });
+}
+
+function ensureBestiaryDialog() {
+  if (!bestiaryDialog) {
+    bestiaryDialog = createPopupDialog('bestiary-dialog', 'Bestiary');
+    bestiaryContent = bestiaryDialog.content;
+    if (bestiaryContent) {
+      const blurb = document.createElement('p');
+      blurb.textContent = 'Records of wildlife encountered in each biome. Successful hunts reveal new creatures.';
+      blurb.style.marginBottom = '8px';
+      bestiaryContent.appendChild(blurb);
+    }
+  }
+  return bestiaryDialog;
+}
+
+function renderBestiaryDialog() {
+  const dialog = ensureBestiaryDialog();
+  if (!bestiaryContent || !dialog) return;
+
+  bestiaryContent.innerHTML = '';
+  const catalog = getBestiaryCatalog();
+  if (!catalog.total) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No wildlife has been documented yet. Complete hunting expeditions to populate the bestiary.';
+    bestiaryContent.appendChild(empty);
+    return;
+  }
+
+  const intro = document.createElement('p');
+  intro.textContent = `Creatures documented: ${catalog.discovered} of ${catalog.total}.`;
+  intro.style.marginBottom = '6px';
+  bestiaryContent.appendChild(intro);
+
+  catalog.sections.forEach(section => {
+    const sectionEl = document.createElement('section');
+    sectionEl.style.marginTop = '12px';
+
+    const heading = document.createElement('h4');
+    heading.textContent = `${section.biomeName} (${section.discoveredCount}/${section.total})`;
+    heading.style.margin = '0 0 4px 0';
+    sectionEl.appendChild(heading);
+
+    const table = document.createElement('table');
+    const thead = document.createElement('thead');
+    const headerRow = document.createElement('tr');
+    ['Creature', 'Difficulty', 'Aggression', 'Diet', 'Recommended Tools', 'Notes'].forEach(label => {
+      const th = document.createElement('th');
+      th.textContent = label;
+      headerRow.appendChild(th);
+    });
+    thead.appendChild(headerRow);
+    table.appendChild(thead);
+
+    const tbody = document.createElement('tbody');
+    section.entries.forEach(entry => {
+      const tr = document.createElement('tr');
+      if (!entry.discovered) {
+        tr.style.opacity = '0.65';
+      }
+
+      const nameCell = document.createElement('td');
+      if (entry.discovered) {
+        nameCell.textContent = entry.item.name;
+        nameCell.style.fontWeight = '600';
+      } else {
+        nameCell.textContent = getUnknownLabel('fauna');
+        nameCell.style.fontStyle = 'italic';
+      }
+      tr.appendChild(nameCell);
+
+      const difficultyCell = document.createElement('td');
+      difficultyCell.textContent = entry.discovered ? entry.item.difficulty : 'Unknown';
+      tr.appendChild(difficultyCell);
+
+      const aggressionCell = document.createElement('td');
+      aggressionCell.textContent = entry.discovered
+        ? entry.item.aggressive
+          ? 'Yes'
+          : 'No'
+        : 'Unknown';
+      tr.appendChild(aggressionCell);
+
+      const dietCell = document.createElement('td');
+      dietCell.textContent = entry.discovered ? entry.item.diet : 'Unknown';
+      tr.appendChild(dietCell);
+
+      const toolsCell = document.createElement('td');
+      toolsCell.textContent = entry.discovered
+        ? (entry.item.tools && entry.item.tools.length ? entry.item.tools.join(', ') : 'None')
+        : 'Unknown';
+      tr.appendChild(toolsCell);
+
+      const notesCell = document.createElement('td');
+      notesCell.textContent = entry.discovered ? entry.item.notes || 'No notes recorded.' : 'Unknown';
+      tr.appendChild(notesCell);
+
+      tbody.appendChild(tr);
+    });
+
+    table.appendChild(tbody);
+    applyCodexTableStyles(table);
+    sectionEl.appendChild(table);
+    bestiaryContent.appendChild(sectionEl);
+  });
+}
+
 function renderTextMap() {
   const loc = getActiveLocation();
   if (!loc || !mapView) return;
@@ -1224,11 +1463,28 @@ function handleGatherAction() {
     return;
   }
 
+  const gatherKeywords = [];
   result.gathered.forEach(entry => {
     addItem(entry.resource, entry.quantity);
     const durationNote = entry.timeHours ? ` It takes ${formatDuration(entry.timeHours)}.` : '';
     logEvent(`${entry.message}${durationNote}`);
+    gatherKeywords.push(entry.encounterName, entry.resource, entry.message);
   });
+
+  if (result.gathered.length && loc?.biome) {
+    const discovery = recordPlantDiscovery(loc.biome, {
+      encounter: result.gathered[0]?.encounterName,
+      resource: result.gathered[0]?.resource,
+      notes: result.gathered.map(entry => entry.message).join(' '),
+      keywords: gatherKeywords
+    });
+    if (discovery) {
+      logEvent(`Herbarium updated: ${discovery.name} catalogued.`);
+      if (isDialogVisible(herbariumDialog)) {
+        renderHerbariumDialog();
+      }
+    }
+  }
 
   const blockedMessages = formatBlockedMessages(result.blocked);
   blockedMessages.forEach(message => logEvent(message));
@@ -1662,6 +1918,12 @@ function createBuildCard(type, info) {
     );
     const deficitLine = createInfoLine('Needed', createResourceBadges(deficits));
     card.appendChild(deficitLine);
+    const shortfallMessage = formatResourceNeedsMessage(missingResources);
+    if (shortfallMessage) {
+      const shortfallNote = document.createElement('p');
+      shortfallNote.textContent = shortfallMessage;
+      card.appendChild(shortfallNote);
+    }
   }
 
   const buildBtn = document.createElement('button');
@@ -2095,6 +2357,36 @@ function render() {
   renderEventLog();
 }
 
+function handleOrderCompletionDiscoveries(order) {
+  if (!order) return;
+  const loc = getActiveLocation();
+  const biomeId = loc?.biome;
+  if (!biomeId) return;
+  if (order.type === 'hunting') {
+    const discovery = recordAnimalDiscovery(biomeId, {
+      notes: order.notes,
+      keywords: order.notes ? [order.notes] : []
+    });
+    if (discovery) {
+      logEvent(`Bestiary updated: ${discovery.name} documented.`);
+      if (isDialogVisible(bestiaryDialog)) {
+        renderBestiaryDialog();
+      }
+    }
+  } else if (order.type === 'gathering') {
+    const discovery = recordPlantDiscovery(biomeId, {
+      notes: order.notes,
+      keywords: order.notes ? [order.notes] : []
+    });
+    if (discovery) {
+      logEvent(`Herbarium updated: ${discovery.name} catalogued.`);
+      if (isDialogVisible(herbariumDialog)) {
+        renderHerbariumDialog();
+      }
+    }
+  }
+}
+
 function processOrderCycle() {
   const orders = getOrders();
   if (!orders.length) {
@@ -2122,6 +2414,7 @@ function processOrderCycle() {
     if (active.remainingHours <= 0) {
       const completed = updateOrder(active.id, { status: 'completed', remainingHours: 0 });
       awardProficiencyForOrder(completed);
+      handleOrderCompletionDiscoveries(completed);
       event = `${capitalize(completed.type)} order completed.`;
       break;
     }
@@ -2172,6 +2465,7 @@ function processOrderCycle() {
         const typeName = completed.metadata?.typeName || project?.typeId || 'Building';
         event = `${typeName} completed.`;
       } else {
+        handleOrderCompletionDiscoveries(completed);
         event = `${capitalize(completed.type)} order completed.`;
       }
       break;
@@ -2454,6 +2748,18 @@ export function showProfilePopup() {
     profileContent.appendChild(noFeatures);
   }
 
+  dialog.openDialog();
+}
+
+export function showHerbariumPopup() {
+  renderHerbariumDialog();
+  const dialog = ensureHerbariumDialog();
+  dialog.openDialog();
+}
+
+export function showBestiaryPopup() {
+  renderBestiaryDialog();
+  const dialog = ensureBestiaryDialog();
   dialog.openDialog();
 }
 

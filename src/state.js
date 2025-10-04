@@ -18,6 +18,8 @@ class DataStore {
     this.research = new Set();
     this.buildingSeq = 0;
     this.gatherNodes = new Map();
+    this.discoveredFauna = new Map();
+    this.discoveredFlora = new Map();
   }
 
   addItem(collection, item) {
@@ -67,7 +69,15 @@ class DataStore {
       unlockedBuildings: [...this.unlockedBuildings],
       research: [...this.research],
       buildingSeq: this.buildingSeq,
-      gatherNodes: [...this.gatherNodes.entries()]
+      gatherNodes: [...this.gatherNodes.entries()],
+      discoveredFauna: [...this.discoveredFauna.entries()].map(([biomeId, entries]) => [
+        biomeId,
+        [...entries]
+      ]),
+      discoveredFlora: [...this.discoveredFlora.entries()].map(([biomeId, entries]) => [
+        biomeId,
+        [...entries]
+      ])
     };
   }
 
@@ -105,6 +115,24 @@ class DataStore {
     this.research = new Set(data.research || []);
     this.buildingSeq = data.buildingSeq || 0;
     this.gatherNodes = new Map(data.gatherNodes || []);
+    const faunaEntries = Array.isArray(data.discoveredFauna)
+      ? data.discoveredFauna
+      : Object.entries(data.discoveredFauna || {});
+    this.discoveredFauna = new Map(
+      faunaEntries.map(entry => {
+        const [biomeId, items] = entry || [];
+        return [biomeId, new Set(items || [])];
+      })
+    );
+    const floraEntries = Array.isArray(data.discoveredFlora)
+      ? data.discoveredFlora
+      : Object.entries(data.discoveredFlora || {});
+    this.discoveredFlora = new Map(
+      floraEntries.map(entry => {
+        const [biomeId, items] = entry || [];
+        return [biomeId, new Set(items || [])];
+      })
+    );
   }
 }
 

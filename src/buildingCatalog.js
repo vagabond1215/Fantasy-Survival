@@ -32,7 +32,7 @@ export const buildingCatalog = [
         description: 'Cut saplings to form the main ridge pole and rear supports.',
         laborHours: 6,
         minBuilders: 1,
-        resources: { wood: 35 }
+        resources: { firewood: 28, 'plant fibers': 12, cord: 4 }
       },
       {
         id: 'roof',
@@ -40,7 +40,7 @@ export const buildingCatalog = [
         description: 'Lay overlapping boughs and brush to create a water-shedding roof.',
         laborHours: 5,
         minBuilders: 1,
-        resources: { wood: 15, 'crafted goods': 2 }
+        resources: { firewood: 18, 'plant fibers': 16, cord: 4 }
       }
     ],
     addons: [
@@ -51,7 +51,7 @@ export const buildingCatalog = [
         effects: { comfort: 1, demand: { firewood: -0.05 } },
         laborHours: 3,
         minBuilders: 1,
-        resources: { wood: 10 }
+        resources: { firewood: 12, 'plant fibers': 8, cord: 2 }
       },
       {
         id: 'raised-bed',
@@ -60,7 +60,7 @@ export const buildingCatalog = [
         effects: { comfort: 1 },
         laborHours: 4,
         minBuilders: 1,
-        resources: { wood: 12, 'crafted goods': 1 }
+        resources: { firewood: 10, 'plant fibers': 6, cord: 2, 'crafted goods': 1 }
       }
     ]
   },
@@ -116,7 +116,7 @@ export const buildingCatalog = [
         effects: { comfort: 1 },
         laborHours: 3,
         minBuilders: 1,
-        resources: { wood: 10, hides: 1 }
+        resources: { firewood: 12, 'plant fibers': 6, cord: 2, hides: 1 }
       },
       {
         id: 'stone-benches',
@@ -155,7 +155,7 @@ export const buildingCatalog = [
         description: 'Set four sturdy posts to lift the rack clear of pests.',
         laborHours: 4,
         minBuilders: 1,
-        resources: { wood: 24 }
+        resources: { firewood: 22, 'plant fibers': 8, cord: 3 }
       },
       {
         id: 'crossbeams',
@@ -163,7 +163,7 @@ export const buildingCatalog = [
         description: 'Lash horizontal beams and lattice for hanging materials.',
         laborHours: 5,
         minBuilders: 1,
-        resources: { wood: 16, 'crafted goods': 2 }
+        resources: { firewood: 16, 'plant fibers': 12, cord: 4, 'crafted goods': 1 }
       },
       {
         id: 'roof',
@@ -171,7 +171,7 @@ export const buildingCatalog = [
         description: 'Stretch hides or woven mats as a simple roof.',
         laborHours: 3,
         minBuilders: 1,
-        resources: { hides: 1, wood: 6 }
+        resources: { hides: 1, firewood: 6, 'plant fibers': 10, cord: 2 }
       }
     ],
     addons: [
@@ -182,7 +182,7 @@ export const buildingCatalog = [
         effects: { supply: { preservedFood: 0.5 } },
         laborHours: 2,
         minBuilders: 1,
-        resources: { wood: 6, 'crafted goods': 1 }
+        resources: { firewood: 8, 'plant fibers': 6, cord: 2, 'crafted goods': 1 }
       }
     ]
   },
@@ -213,7 +213,7 @@ export const buildingCatalog = [
         description: 'Drive support poles deep and brace against sway.',
         laborHours: 6,
         minBuilders: 2,
-        resources: { wood: 45, 'small stones': 12 }
+        resources: { firewood: 36, 'small stones': 12, 'plant fibers': 10, cord: 4 }
       },
       {
         id: 'floor',
@@ -221,7 +221,7 @@ export const buildingCatalog = [
         description: 'Lay planks and lashings to create a stable perch.',
         laborHours: 5,
         minBuilders: 2,
-        resources: { wood: 24, 'crafted goods': 2 }
+        resources: { firewood: 24, 'plant fibers': 12, cord: 4, 'crafted goods': 2 }
       },
       {
         id: 'walls',
@@ -229,7 +229,7 @@ export const buildingCatalog = [
         description: 'Weave brush and hides for concealment.',
         laborHours: 4,
         minBuilders: 1,
-        resources: { hides: 1, wood: 12 }
+        resources: { hides: 1, firewood: 12, 'plant fibers': 14, cord: 4 }
       },
       {
         id: 'roof',
@@ -237,7 +237,7 @@ export const buildingCatalog = [
         description: 'Slope the roof to shed rain and snow.',
         laborHours: 3,
         minBuilders: 1,
-        resources: { wood: 10 }
+        resources: { firewood: 10, 'plant fibers': 8, cord: 2 }
       }
     ],
     addons: [
@@ -248,7 +248,7 @@ export const buildingCatalog = [
         effects: { safety: 1 },
         laborHours: 2,
         minBuilders: 1,
-        resources: { wood: 8 }
+        resources: { firewood: 10, 'plant fibers': 6, cord: 2 }
       }
     ]
   },
@@ -287,7 +287,7 @@ export const buildingCatalog = [
         description: 'Raise sturdy posts and beams to support the roof.',
         laborHours: 8,
         minBuilders: 3,
-        resources: { wood: 70, 'crafted goods': 4 }
+        resources: { firewood: 70, 'plant fibers': 24, cord: 6, 'crafted goods': 4 }
       },
       {
         id: 'walls',
@@ -295,7 +295,7 @@ export const buildingCatalog = [
         description: 'Add waist-high walls with shelving and tool pegs.',
         laborHours: 6,
         minBuilders: 2,
-        resources: { wood: 40, 'crafted goods': 3 }
+        resources: { firewood: 48, 'plant fibers': 20, cord: 6, 'crafted goods': 3 }
       },
       {
         id: 'roof',
@@ -303,7 +303,7 @@ export const buildingCatalog = [
         description: 'Install a plank and bark roof to keep workers dry.',
         laborHours: 7,
         minBuilders: 2,
-        resources: { wood: 36 }
+        resources: { firewood: 36, 'plant fibers': 16, cord: 4 }
       }
     ],
     addons: [
@@ -314,7 +314,7 @@ export const buildingCatalog = [
         effects: { unlocks: ['metalworking-basics'], supply: { 'crafted goods': 1 } },
         laborHours: 6,
         minBuilders: 2,
-        resources: { 'small stones': 24, wood: 30, 'crafted goods': 3 }
+        resources: { 'small stones': 24, firewood: 36, 'plant fibers': 10, cord: 4, 'crafted goods': 3 }
       }
     ]
   },
@@ -353,7 +353,7 @@ export const buildingCatalog = [
         description: 'Stack logs and seal gaps with mud and moss.',
         laborHours: 9,
         minBuilders: 3,
-        resources: { wood: 120 }
+        resources: { firewood: 140, 'plant fibers': 30, cord: 8 }
       },
       {
         id: 'roof',
@@ -361,7 +361,7 @@ export const buildingCatalog = [
         description: 'Construct a vented roof to draw smoke upward.',
         laborHours: 7,
         minBuilders: 2,
-        resources: { wood: 40 }
+        resources: { firewood: 46, 'plant fibers': 20, cord: 4 }
       },
       {
         id: 'fireplace',
@@ -369,7 +369,7 @@ export const buildingCatalog = [
         description: 'Build a separate fire chamber and install hanging racks.',
         laborHours: 6,
         minBuilders: 2,
-        resources: { wood: 30, 'crafted goods': 4 }
+        resources: { firewood: 24, 'plant fibers': 10, cord: 3, 'crafted goods': 4 }
       }
     ],
     addons: [
@@ -380,7 +380,7 @@ export const buildingCatalog = [
         effects: { supply: { preservedFood: 1 }, storage: { salt: 50 } },
         laborHours: 4,
         minBuilders: 1,
-        resources: { wood: 12, 'crafted goods': 1 }
+        resources: { firewood: 16, 'plant fibers': 8, cord: 2, 'crafted goods': 1 }
       }
     ]
   },
@@ -413,7 +413,7 @@ export const buildingCatalog = [
         description: 'Set heavy sills on stone footings to lift the structure.',
         laborHours: 12,
         minBuilders: 4,
-        resources: { wood: 180, 'small stones': 40 }
+        resources: { firewood: 200, 'small stones': 40, 'plant fibers': 40, cord: 12 }
       },
       {
         id: 'main-supports',
@@ -421,7 +421,7 @@ export const buildingCatalog = [
         description: 'Erect tall arches and ridge poles for the expansive roof.',
         laborHours: 14,
         minBuilders: 4,
-        resources: { wood: 220, 'crafted goods': 6 }
+        resources: { firewood: 240, 'plant fibers': 60, cord: 16, 'crafted goods': 6 }
       },
       {
         id: 'walls',
@@ -429,7 +429,7 @@ export const buildingCatalog = [
         description: 'Install plank walls, smoke shutters, and wide doors.',
         laborHours: 12,
         minBuilders: 3,
-        resources: { wood: 160, 'crafted goods': 4 }
+        resources: { firewood: 180, 'plant fibers': 55, cord: 14, 'crafted goods': 4 }
       },
       {
         id: 'roof',
@@ -437,7 +437,7 @@ export const buildingCatalog = [
         description: 'Layer thatch over beams with adjustable smoke vents.',
         laborHours: 11,
         minBuilders: 3,
-        resources: { wood: 90, 'crafted goods': 3 }
+        resources: { firewood: 120, 'plant fibers': 80, cord: 20, 'crafted goods': 3 }
       },
       {
         id: 'fireplace',
@@ -445,7 +445,7 @@ export const buildingCatalog = [
         description: 'Construct two large hearths with stone surrounds.',
         laborHours: 8,
         minBuilders: 2,
-        resources: { 'small stones': 80, pebbles: 120 }
+        resources: { 'small stones': 80, pebbles: 120, firewood: 40, 'plant fibers': 10, cord: 4 }
       }
     ],
     addons: [
@@ -456,7 +456,7 @@ export const buildingCatalog = [
         effects: { comfort: 1, appeal: 1 },
         laborHours: 4,
         minBuilders: 1,
-        resources: { wood: 20, 'crafted goods': 2 }
+        resources: { firewood: 24, 'plant fibers': 36, cord: 10, 'crafted goods': 2 }
       },
       {
         id: 'insulated-roof',
@@ -465,7 +465,7 @@ export const buildingCatalog = [
         effects: { survivability: 1, demand: { firewood: -0.5 } },
         laborHours: 6,
         minBuilders: 2,
-        resources: { wood: 40, hides: 3 }
+        resources: { firewood: 40, hides: 3, 'plant fibers': 20, cord: 6 }
       }
     ]
   },
@@ -496,7 +496,7 @@ export const buildingCatalog = [
         description: 'Dig deep footings and backfill with stone for stability.',
         laborHours: 10,
         minBuilders: 3,
-        resources: { 'small stones': 70, pebbles: 80 }
+        resources: { 'small stones': 70, pebbles: 80, firewood: 60, 'plant fibers': 20, cord: 6 }
       },
       {
         id: 'main-supports',
@@ -504,7 +504,7 @@ export const buildingCatalog = [
         description: 'Raise heavy supports braced with diagonal timbers.',
         laborHours: 12,
         minBuilders: 3,
-        resources: { wood: 160, 'crafted goods': 4 }
+        resources: { firewood: 180, 'plant fibers': 50, cord: 14, 'crafted goods': 4 }
       },
       {
         id: 'floor',
@@ -512,7 +512,7 @@ export const buildingCatalog = [
         description: 'Lay planked flooring with railing.',
         laborHours: 6,
         minBuilders: 2,
-        resources: { wood: 60, 'crafted goods': 2 }
+        resources: { firewood: 80, 'plant fibers': 24, cord: 6, 'crafted goods': 2 }
       },
       {
         id: 'roof',
@@ -520,7 +520,7 @@ export const buildingCatalog = [
         description: 'Add a small roof and signal brazier platform.',
         laborHours: 5,
         minBuilders: 2,
-        resources: { wood: 40 }
+        resources: { firewood: 45, 'plant fibers': 18, cord: 4 }
       },
       {
         id: 'access',
@@ -528,7 +528,7 @@ export const buildingCatalog = [
         description: 'Construct a spiral stair for rapid ascent.',
         laborHours: 7,
         minBuilders: 2,
-        resources: { wood: 70, 'crafted goods': 2 }
+        resources: { firewood: 90, 'plant fibers': 26, cord: 8, 'crafted goods': 2 }
       }
     ],
     addons: [
@@ -539,7 +539,7 @@ export const buildingCatalog = [
         effects: { unlocks: ['regional-alliance'] },
         laborHours: 3,
         minBuilders: 1,
-        resources: { 'small stones': 20, wood: 12 }
+        resources: { 'small stones': 20, firewood: 24, 'plant fibers': 8, cord: 2 }
       }
     ]
   }
