@@ -90,6 +90,80 @@ let inventoryDialogContent = null;
 let inventoryTableBody = null;
 let inventoryVisible = false;
 
+const MASS_NOUNS = new Set(['wood', 'firewood', 'food', 'water']);
+
+function articleFor(word = '') {
+  const trimmed = String(word || '').trim().toLowerCase();
+  if (!trimmed) return 'a';
+  if (trimmed.startsWith('hour')) return 'an';
+  const first = trimmed[0];
+  return ['a', 'e', 'i', 'o', 'u'].includes(first) ? 'an' : 'a';
+}
+
+function singularizeWord(word = '') {
+  if (!word) return word;
+  if (/[^aeiou]ies$/i.test(word)) {
+    return word.replace(/ies$/i, 'y');
+  }
+  if (/(xes|ses|zes|ches|shes)$/i.test(word)) {
+    return word.replace(/es$/i, '');
+  }
+  if (/s$/i.test(word) && !/ss$/i.test(word)) {
+    return word.replace(/s$/i, '');
+  }
+  return word;
+}
+
+function singularizeResourceName(name = '') {
+  const trimmed = String(name || '').trim();
+  if (!trimmed) return '';
+  const parts = trimmed.split(/\s+/);
+  const last = parts.pop();
+  const singularLast = singularizeWord(last);
+  parts.push(singularLast);
+  return parts.join(' ');
+}
+
+function formatResourceNeed(name, amount) {
+  const deficit = Math.max(0, Math.ceil(amount || 0));
+  if (!deficit) return null;
+  const resourceName = String(name || '').trim() || 'resource';
+  if (deficit === 1) {
+    const lower = resourceName.toLowerCase();
+    if (MASS_NOUNS.has(lower)) {
+      return `1 more ${resourceName}`;
+    }
+    const singular = singularizeResourceName(resourceName);
+    return `${articleFor(singular)} ${singular}`;
+  }
+  return `${deficit} more ${resourceName}`;
+}
+
+function joinWithAnd(items = []) {
+  const filtered = items.filter(Boolean);
+  if (!filtered.length) return '';
+  if (filtered.length === 1) return filtered[0];
+  if (filtered.length === 2) return `${filtered[0]} and ${filtered[1]}`;
+  const head = filtered.slice(0, -1).join(', ');
+  const tail = filtered[filtered.length - 1];
+  return `${head}, and ${tail}`;
+}
+
+function formatResourceNeedsMessage(missing = []) {
+  if (!Array.isArray(missing) || !missing.length) return '';
+  const parts = missing
+    .map(entry => {
+      const required = Number(entry?.required) || 0;
+      const available = Number(entry?.available) || 0;
+      const deficit = required - available;
+      return formatResourceNeed(entry?.name, deficit);
+    })
+    .filter(Boolean);
+  if (!parts.length) return '';
+  const needsText = joinWithAnd(parts);
+  return needsText ? `You need ${needsText}.` : '';
+}
+
 export function showConstructionDashboard() {
   openConstructionModal();
 }
@@ -721,7 +795,7 @@ function getBuildActionItems() {
     } else if (!info.canBuildMore) {
       disabledReason = 'Maximum number already built.';
     } else if (!hasResources) {
-      disabledReason = 'Gather more materials first.';
+      disabledReason = formatResourceNeedsMessage(info.resourceStatus?.missing) || 'Gather more materials first.';
     }
     return {
       id: type.id,
@@ -777,7 +851,7 @@ function getCraftActionItems() {
       const toolList = info.missingTools.join(', ');
       disabledReason = toolList ? `Requires ${toolList}.` : 'Missing tools.';
     } else if (!info.hasMaterials) {
-      disabledReason = 'Gather more materials first.';
+      disabledReason = formatResourceNeedsMessage(info.missingMaterials) || 'Gather more materials first.';
     }
     const actionLabel = info.recipe.timeHours ? `Takes ${formatDuration(info.recipe.timeHours)}.` : '';
     return {
@@ -1283,7 +1357,7 @@ function createBuildCard(type, info) {
   buildBtn.textContent = `Build ${type.name}`;
   buildBtn.disabled = !info.hasResources;
   if (!info.hasResources) {
-    buildBtn.title = 'Gather more resources to begin construction.';
+    buildBtn.title = formatResourceNeedsMessage(missingResources) || 'Gather more resources to begin construction.';
   }
   buildBtn.addEventListener('click', () => {
     try {
