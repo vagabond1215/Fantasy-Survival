@@ -1,7 +1,7 @@
 import store from './state.js';
 
 export const DAYS_PER_MONTH = 28;
-const HOURS_PER_DAY = 24;
+export const HOURS_PER_DAY = 24;
 const DAWN_HOUR = 6;
 
 export const DARK_AGE_YEAR_RANGE = { min: 410, max: 987 };
@@ -196,6 +196,23 @@ export function advanceHours(hours = 1) {
 export function info() {
   const time = ensureTimeStructure();
   return { ...time, monthName: getMonthName(time.month) };
+}
+
+export function toAbsoluteHours(time = {}) {
+  const base = info();
+  const year = Number.isFinite(time.year) ? Math.floor(time.year) : base.year;
+  const month = Number.isFinite(time.month) ? Math.floor(time.month) : base.month;
+  const day = Number.isFinite(time.day) ? Math.floor(time.day) : base.day;
+  const hour = Number.isFinite(time.hour) ? Number(time.hour) : base.hour;
+  const normalizedMonth = ((month - 1) % MONTHS_PER_YEAR + MONTHS_PER_YEAR) % MONTHS_PER_YEAR;
+  const normalizedDay = Math.max(1, day);
+  const totalMonths = year * MONTHS_PER_YEAR + normalizedMonth;
+  const totalDays = totalMonths * DAYS_PER_MONTH + (normalizedDay - 1);
+  return totalDays * HOURS_PER_DAY + hour;
+}
+
+export function getCurrentAbsoluteHours() {
+  return toAbsoluteHours(info());
 }
 
 export { info as timeInfo };

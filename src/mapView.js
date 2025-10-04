@@ -11,16 +11,6 @@ const BUFFER_MARGIN = 12;
 const DEFAULT_VIEWPORT_SIZE = DEFAULT_MAP_WIDTH;
 const MAX_TILE_SIZE_RETRIES = 8;
 
-function summarizeTerrain(types = []) {
-  const counts = { water: 0, open: 0, forest: 0, ore: 0 };
-  types.forEach(row => {
-    row.forEach(type => {
-      if (type in counts) counts[type] += 1;
-    });
-  });
-  return counts;
-}
-
 function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
   const MIN_SIZE = 220;
 
@@ -118,7 +108,8 @@ export function createMapView(container, {
   onMapUpdate = null,
   onTileClick = null,
   navMode = 'viewport',
-  onNavigate = null
+  onNavigate = null,
+  actions = {}
 } = {}) {
   if (!container) throw new Error('Container is required for map view');
 
@@ -486,6 +477,182 @@ export function createMapView(container, {
     state.onTileClick(detail);
   });
 
+  const tileTooltip = document.createElement('div');
+  tileTooltip.className = 'map-tile-tooltip';
+  Object.assign(tileTooltip.style, {
+    position: 'absolute',
+    display: 'none',
+    pointerEvents: 'none',
+    padding: '6px 10px',
+    borderRadius: '10px',
+    background: 'rgba(26, 32, 44, 0.85)',
+    color: '#fff',
+    fontSize: '13px',
+    lineHeight: '1.2',
+    boxShadow: '0 8px 18px rgba(0, 0, 0, 0.35)',
+    transform: 'translate(-50%, calc(-100% - 12px))',
+    zIndex: '12',
+    whiteSpace: 'nowrap',
+    letterSpacing: '0.02em'
+  });
+  mapWrapper.appendChild(tileTooltip);
+
+  const tooltipState = {
+    visible: false,
+    tile: null,
+    pointerId: null,
+    pointerType: null,
+    holdTimer: null,
+    holdTarget: null,
+    holdOriginX: 0,
+    holdOriginY: 0
+  };
+
+  const hideTooltip = () => {
+    tooltipState.visible = false;
+    tooltipState.tile = null;
+    tooltipState.pointerId = null;
+    tooltipState.pointerType = null;
+    tileTooltip.style.display = 'none';
+  };
+
+  const updateTooltipPosition = (clientX, clientY, tile) => {
+    if (!tooltipState.visible) return;
+    const rect = mapWrapper.getBoundingClientRect();
+    let localX;
+    let localY;
+    if (Number.isFinite(clientX) && Number.isFinite(clientY)) {
+      localX = clientX - rect.left;
+      localY = clientY - rect.top;
+    } else if (tile) {
+      const tileRect = tile.getBoundingClientRect();
+      localX = tileRect.left - rect.left + tileRect.width / 2;
+      localY = tileRect.top - rect.top + tileRect.height / 2;
+    } else {
+      localX = rect.width / 2;
+      localY = rect.height / 2;
+    }
+    const clampedX = Math.min(rect.width - 12, Math.max(12, localX));
+    const clampedY = Math.min(rect.height - 12, Math.max(12, localY));
+    tileTooltip.style.left = `${clampedX}px`;
+    tileTooltip.style.top = `${clampedY}px`;
+  };
+
+  const describeTile = tile => {
+    if (!tile) return 'Unknown terrain';
+    const type = tile.dataset.terrain || '';
+    const label = legendLabels[type] || type || 'Unknown terrain';
+    const symbolEl = tile.querySelector('.map-tile-symbol');
+    const symbol = symbolEl?.textContent?.trim() || tile.textContent?.trim() || '';
+    const worldX = Number.isFinite(Number(tile.dataset.worldX)) ? Number(tile.dataset.worldX) : null;
+    const worldY = Number.isFinite(Number(tile.dataset.worldY)) ? Number(tile.dataset.worldY) : null;
+    const coordText = worldX !== null && worldY !== null ? ` (${worldX}, ${worldY})` : '';
+    return `${symbol ? `${symbol} ` : ''}${label}${coordText}`;
+  };
+
+  const showTooltip = (tile, event = null) => {
+    if (!tile) return;
+    tileTooltip.textContent = describeTile(tile);
+    tileTooltip.style.display = 'block';
+    tooltipState.visible = true;
+    tooltipState.tile = tile;
+    tooltipState.pointerId = event?.pointerId ?? null;
+    tooltipState.pointerType = event?.pointerType ?? null;
+    updateTooltipPosition(event?.clientX, event?.clientY, tile);
+  };
+
+  const clearHoldTimer = () => {
+    if (tooltipState.holdTimer) {
+      clearTimeout(tooltipState.holdTimer);
+      tooltipState.holdTimer = null;
+    }
+    tooltipState.holdTarget = null;
+    tooltipState.pointerId = null;
+    tooltipState.pointerType = null;
+  };
+
+  const scheduleHoldTooltip = (event, tile) => {
+    clearHoldTimer();
+    tooltipState.holdTarget = tile;
+    tooltipState.pointerId = event.pointerId;
+    tooltipState.pointerType = event.pointerType;
+    tooltipState.holdOriginX = event.clientX;
+    tooltipState.holdOriginY = event.clientY;
+    tooltipState.holdTimer = setTimeout(() => {
+      tooltipState.holdTimer = null;
+      showTooltip(tile, event);
+    }, 450);
+  };
+
+  const handlePointerOver = event => {
+    const tile = event.target instanceof Element ? event.target.closest('.map-tile') : null;
+    if (!tile) return;
+    if (event.pointerType === 'mouse') {
+      showTooltip(tile, event);
+    }
+  };
+
+  const handlePointerMove = event => {
+    const tile = event.target instanceof Element ? event.target.closest('.map-tile') : null;
+    if (tooltipState.holdTimer && tooltipState.pointerId === event.pointerId) {
+      const dx = event.clientX - tooltipState.holdOriginX;
+      const dy = event.clientY - tooltipState.holdOriginY;
+      if (Math.hypot(dx, dy) > 12) {
+        clearHoldTimer();
+      }
+    }
+    if (tooltipState.visible && tooltipState.pointerId === event.pointerId) {
+      updateTooltipPosition(event.clientX, event.clientY, tooltipState.tile);
+    } else if (event.pointerType === 'mouse' && tile) {
+      showTooltip(tile, event);
+    }
+  };
+
+  const handlePointerOut = event => {
+    if (event.pointerType === 'mouse') {
+      const relatedTile = event.relatedTarget instanceof Element ? event.relatedTarget.closest('.map-tile') : null;
+      if (!relatedTile) {
+        hideTooltip();
+      }
+    }
+  };
+
+  const handlePointerDown = event => {
+    const tile = event.target instanceof Element ? event.target.closest('.map-tile') : null;
+    if (!tile) return;
+    if (event.pointerType === 'mouse') {
+      hideTooltip();
+      return;
+    }
+    scheduleHoldTooltip(event, tile);
+  };
+
+  const handlePointerUp = event => {
+    if (tooltipState.holdTimer && tooltipState.pointerId === event.pointerId) {
+      clearHoldTimer();
+    }
+    if (tooltipState.visible && tooltipState.pointerId === event.pointerId && event.pointerType !== 'mouse') {
+      hideTooltip();
+    }
+  };
+
+  const handlePointerCancel = event => {
+    if (tooltipState.holdTimer && tooltipState.pointerId === event.pointerId) {
+      clearHoldTimer();
+    }
+    if (tooltipState.pointerId === event.pointerId) {
+      hideTooltip();
+    }
+  };
+
+  mapDisplay.addEventListener('pointerover', handlePointerOver);
+  mapDisplay.addEventListener('pointermove', handlePointerMove);
+  mapDisplay.addEventListener('pointerout', handlePointerOut);
+  mapDisplay.addEventListener('pointerdown', handlePointerDown);
+  mapDisplay.addEventListener('pointerup', handlePointerUp);
+  mapDisplay.addEventListener('pointercancel', handlePointerCancel);
+  mapWrapper.addEventListener('mouseleave', hideTooltip);
+
   const iconPreloader = document.createElement('div');
   iconPreloader.setAttribute('aria-hidden', 'true');
   iconPreloader.style.position = 'absolute';
@@ -593,25 +760,293 @@ export function createMapView(container, {
     updateZoomControls();
   }
 
-  let legendList = null;
-  let legendTitle = null;
-  let legendContainer = null;
+  const actionHandlers = {
+    build: actions.build || null,
+    craft: actions.craft || null,
+    gather: actions.gather || null
+  };
+
+  const actionButtons = new Map();
+  let actionPanel = null;
+  let submenuContainer = null;
+  let submenuTitle = null;
+  let submenuList = null;
+  let submenuEmpty = null;
+  let activeAction = null;
+
+  const updateActionButtonVisual = (button, active) => {
+    if (!button) return;
+    if (active) {
+      button.style.background = 'linear-gradient(135deg, rgba(45, 108, 223, 0.95), rgba(88, 173, 255, 0.95))';
+      button.style.color = '#fff';
+      button.style.boxShadow = '0 6px 16px rgba(45, 108, 223, 0.35)';
+    } else {
+      button.style.background = 'linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(235, 235, 235, 0.92))';
+      button.style.color = 'inherit';
+      button.style.boxShadow = '0 2px 6px rgba(0, 0, 0, 0.08)';
+    }
+  };
+
+  const setActiveButton = key => {
+    actionButtons.forEach((button, id) => {
+      const isActive = key === id;
+      button.dataset.active = isActive ? 'true' : 'false';
+      button.setAttribute('aria-pressed', isActive ? 'true' : 'false');
+      updateActionButtonVisual(button, isActive);
+    });
+  };
+
+  const hideSubmenu = () => {
+    if (submenuContainer) {
+      submenuContainer.style.display = 'none';
+    }
+    if (submenuList) {
+      submenuList.innerHTML = '';
+    }
+    if (submenuEmpty) {
+      submenuEmpty.textContent = '';
+      submenuEmpty.style.display = 'none';
+    }
+    activeAction = null;
+    setActiveButton(null);
+  };
+
+  const appendSubmenuItem = (item, handler) => {
+    if (!submenuList) return;
+    const option = document.createElement('button');
+    option.type = 'button';
+    option.className = 'map-action-option';
+    option.disabled = Boolean(item.disabled);
+    option.style.display = 'flex';
+    option.style.flexDirection = 'column';
+    option.style.alignItems = 'flex-start';
+    option.style.gap = '6px';
+    option.style.padding = '12px';
+    option.style.borderRadius = '12px';
+    option.style.border = '1px solid var(--map-border, #d0d0d0)';
+    option.style.background = 'var(--action-option-bg, rgba(255, 255, 255, 0.95))';
+    option.style.color = 'inherit';
+    option.style.boxShadow = '0 1px 4px rgba(0, 0, 0, 0.08)';
+    option.style.width = '100%';
+    option.style.textAlign = 'left';
+    option.style.transition = 'transform 0.15s ease, box-shadow 0.2s ease, border-color 0.2s ease';
+    option.style.cursor = option.disabled ? 'not-allowed' : 'pointer';
+
+    if (!option.disabled) {
+      option.addEventListener('mouseenter', () => {
+        option.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.12)';
+        option.style.transform = 'translateY(-1px)';
+      });
+      option.addEventListener('mouseleave', () => {
+        option.style.boxShadow = '0 1px 4px rgba(0, 0, 0, 0.08)';
+        option.style.transform = 'translateY(0)';
+      });
+    } else {
+      option.style.opacity = '0.65';
+    }
+
+    const label = document.createElement('span');
+    label.style.display = 'flex';
+    label.style.alignItems = 'center';
+    label.style.gap = '8px';
+    label.style.fontWeight = '600';
+    label.style.fontSize = '15px';
+    label.textContent = `${item.icon ? `${item.icon} ` : ''}${item.name || item.id}`;
+    option.appendChild(label);
+
+    if (item.description) {
+      const desc = document.createElement('span');
+      desc.style.fontSize = '13px';
+      desc.style.color = 'rgba(0, 0, 0, 0.68)';
+      desc.textContent = item.description;
+      option.appendChild(desc);
+    }
+
+    if (item.disabled && item.disabledReason) {
+      const note = document.createElement('span');
+      note.style.fontSize = '12px';
+      note.style.color = 'rgba(160, 32, 32, 0.85)';
+      note.textContent = item.disabledReason;
+      option.appendChild(note);
+    } else if (item.actionLabel) {
+      const hint = document.createElement('span');
+      hint.style.fontSize = '12px';
+      hint.style.color = 'rgba(0, 0, 0, 0.55)';
+      hint.textContent = item.actionLabel;
+      option.appendChild(hint);
+    }
+
+    option.addEventListener('click', () => {
+      if (option.disabled) return;
+      const result = typeof handler?.onSelect === 'function' ? handler.onSelect(item) : null;
+      if (result !== false) {
+        hideSubmenu();
+      }
+    });
+
+    submenuList.appendChild(option);
+  };
+
+  const renderSubmenu = key => {
+    const handler = actionHandlers[key];
+    if (!handler) {
+      hideSubmenu();
+      return;
+    }
+    const items = typeof handler.getItems === 'function' ? handler.getItems() : [];
+    if (submenuTitle) {
+      submenuTitle.textContent = handler.title || (key === 'build' ? 'Build Options' : key === 'craft' ? 'Crafting Recipes' : 'Actions');
+    }
+    if (submenuList) {
+      submenuList.innerHTML = '';
+    }
+    if (!items.length) {
+      if (submenuEmpty) {
+        submenuEmpty.textContent = handler.emptyMessage || 'Nothing is available right now.';
+        submenuEmpty.style.display = 'block';
+      }
+    } else {
+      if (submenuEmpty) {
+        submenuEmpty.textContent = '';
+        submenuEmpty.style.display = 'none';
+      }
+      items.forEach(item => appendSubmenuItem(item, handler));
+    }
+    if (submenuContainer) {
+      submenuContainer.style.display = 'flex';
+    }
+    activeAction = key;
+    setActiveButton(key);
+  };
+
+  const handleActionButton = key => {
+    if (key === 'gather') {
+      if (typeof actionHandlers.gather?.onExecute === 'function') {
+        actionHandlers.gather.onExecute();
+      }
+      hideSubmenu();
+      return;
+    }
+    if (activeAction === key) {
+      hideSubmenu();
+      return;
+    }
+    renderSubmenu(key);
+  };
+
+  const createActionButton = (key, icon, labelText) => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = `map-action-button map-action-${key}`;
+    button.textContent = `${icon ? `${icon} ` : ''}${labelText}`;
+    button.setAttribute('aria-pressed', 'false');
+    Object.assign(button.style, {
+      display: 'inline-flex',
+      alignItems: 'center',
+      justifyContent: 'center',
+      padding: '10px 18px',
+      borderRadius: '999px',
+      border: '1px solid var(--map-border, #ccc)',
+      fontWeight: '600',
+      fontSize: '15px',
+      letterSpacing: '0.03em',
+      textTransform: 'uppercase',
+      cursor: 'pointer',
+      transition: 'transform 0.15s ease, box-shadow 0.2s ease, background 0.2s ease',
+      minWidth: '120px'
+    });
+    updateActionButtonVisual(button, false);
+    button.addEventListener('mouseenter', () => {
+      if (button.dataset.active === 'true') return;
+      button.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.12)';
+    });
+    button.addEventListener('mouseleave', () => {
+      const isActive = button.dataset.active === 'true';
+      updateActionButtonVisual(button, isActive);
+    });
+    button.addEventListener('focus', () => {
+      if (button.dataset.active === 'true') return;
+      button.style.boxShadow = '0 6px 16px rgba(45, 108, 223, 0.28)';
+    });
+    button.addEventListener('blur', () => {
+      const isActive = button.dataset.active === 'true';
+      updateActionButtonVisual(button, isActive);
+    });
+    button.addEventListener('click', () => handleActionButton(key));
+    actionButtons.set(key, button);
+    return button;
+  };
+
   if (showLegend) {
-    legendContainer = document.createElement('div');
-    legendContainer.className = `${idPrefix}-legend-container map-legend-container`;
-    legendContainer.style.display = 'flex';
-    legendContainer.style.flexDirection = 'column';
-    legendContainer.style.alignItems = 'flex-start';
-    legendContainer.style.gap = '8px';
-    legendContainer.style.alignSelf = 'flex-start';
+    actionPanel = document.createElement('div');
+    actionPanel.className = `${idPrefix}-action-panel map-action-panel`;
+    actionPanel.style.display = 'flex';
+    actionPanel.style.flexDirection = 'column';
+    actionPanel.style.alignItems = 'stretch';
+    actionPanel.style.gap = '12px';
+    actionPanel.style.padding = '12px';
+    actionPanel.style.borderRadius = '16px';
+    actionPanel.style.border = '1px solid var(--map-border, #ccc)';
+    actionPanel.style.background = 'var(--action-panel-bg, rgba(250, 250, 255, 0.96))';
+    actionPanel.style.backdropFilter = 'blur(4px)';
+    actionPanel.style.boxShadow = '0 12px 28px rgba(0, 0, 0, 0.18)';
+    actionPanel.style.alignSelf = 'flex-start';
 
-    legendTitle = document.createElement('h4');
-    legendTitle.textContent = 'Legend';
-    legendContainer.appendChild(legendTitle);
+    const panelTitle = document.createElement('h4');
+    panelTitle.textContent = 'Actions';
+    panelTitle.style.margin = '0';
+    panelTitle.style.fontSize = '18px';
+    panelTitle.style.letterSpacing = '0.04em';
+    actionPanel.appendChild(panelTitle);
 
-    legendList = document.createElement('ul');
-    legendList.className = `${idPrefix}-legend`;
-    legendContainer.appendChild(legendList);
+    const buttonRow = document.createElement('div');
+    buttonRow.style.display = 'flex';
+    buttonRow.style.flexWrap = 'wrap';
+    buttonRow.style.gap = '10px';
+    buttonRow.style.justifyContent = 'flex-start';
+    actionPanel.appendChild(buttonRow);
+
+    ['build', 'craft', 'gather'].forEach(key => {
+      const config = {
+        build: { icon: '🏗️', label: 'Build' },
+        craft: { icon: '🛠️', label: 'Craft' },
+        gather: { icon: '🧺', label: 'Gather' }
+      }[key];
+      const button = createActionButton(key, config.icon, config.label);
+      buttonRow.appendChild(button);
+    });
+
+    submenuContainer = document.createElement('div');
+    submenuContainer.className = `${idPrefix}-action-submenu map-action-submenu`;
+    submenuContainer.style.display = 'none';
+    submenuContainer.style.flexDirection = 'column';
+    submenuContainer.style.gap = '8px';
+    submenuContainer.style.marginTop = '4px';
+    submenuContainer.style.paddingTop = '8px';
+    submenuContainer.style.borderTop = '1px solid var(--map-border, #d4d4d4)';
+
+    submenuTitle = document.createElement('h5');
+    submenuTitle.style.margin = '0';
+    submenuTitle.style.fontSize = '15px';
+    submenuTitle.style.letterSpacing = '0.05em';
+    submenuTitle.style.textTransform = 'uppercase';
+    submenuTitle.style.color = 'rgba(0, 0, 0, 0.65)';
+    submenuContainer.appendChild(submenuTitle);
+
+    submenuList = document.createElement('div');
+    submenuList.style.display = 'flex';
+    submenuList.style.flexDirection = 'column';
+    submenuList.style.gap = '8px';
+    submenuContainer.appendChild(submenuList);
+
+    submenuEmpty = document.createElement('p');
+    submenuEmpty.style.margin = '0';
+    submenuEmpty.style.fontSize = '13px';
+    submenuEmpty.style.color = 'rgba(0, 0, 0, 0.65)';
+    submenuEmpty.style.display = 'none';
+    submenuContainer.appendChild(submenuEmpty);
+
+    actionPanel.appendChild(submenuContainer);
   }
 
   function isLandscapeOrientation() {
@@ -628,8 +1063,8 @@ export function createMapView(container, {
   function applyResponsiveLayout() {
     const isLandscape = isLandscapeOrientation();
     const hasControls = showControls && controls;
-    const hasLegend = Boolean(legendContainer);
-    const hasSideContent = hasControls || hasLegend;
+    const hasActions = Boolean(actionPanel);
+    const hasSideContent = hasControls || hasActions;
 
     layoutRoot.style.flexWrap = hasSideContent ? 'nowrap' : 'wrap';
 
@@ -648,8 +1083,11 @@ export function createMapView(container, {
         controls.style.justifyContent = 'center';
         sideStack.appendChild(controls);
       }
-      if (hasLegend) {
-        sideStack.appendChild(legendContainer);
+      if (hasActions) {
+        if (actionPanel.parentElement) {
+          actionPanel.parentElement.removeChild(actionPanel);
+        }
+        sideStack.appendChild(actionPanel);
       }
     } else {
       mapContainer.style.flexDirection = 'column';
@@ -666,8 +1104,11 @@ export function createMapView(container, {
         controls.style.justifyContent = 'flex-start';
         mapContainer.appendChild(controls);
       }
-      if (hasLegend) {
-        layoutRoot.appendChild(legendContainer);
+      if (hasActions) {
+        if (actionPanel.parentElement) {
+          actionPanel.parentElement.removeChild(actionPanel);
+        }
+        layoutRoot.appendChild(actionPanel);
       }
     }
 
@@ -684,21 +1125,6 @@ export function createMapView(container, {
     const width = rect?.width ? Math.round(rect.width) : 0;
     if (!width) return;
     document.documentElement.style.setProperty('--map-layout-width', `${width}px`);
-  }
-
-  function updateLegend(counts = {}) {
-    if (!legendList) return;
-    legendList.innerHTML = '';
-    Object.entries(TERRAIN_SYMBOLS).forEach(([type, symbol]) => {
-      const li = document.createElement('li');
-      const label = legendLabels[type] || type;
-      li.textContent = `${symbol} – ${label}`;
-      const amount = counts[type];
-      if (Number.isFinite(amount)) {
-        li.title = `${amount} tile${amount === 1 ? '' : 's'}`;
-      }
-      legendList.appendChild(li);
-    });
   }
 
   function normalizeFocusCoords(coords = {}) {
@@ -977,7 +1403,6 @@ export function createMapView(container, {
     if (!state.map?.tiles?.length) {
       mapDisplay.replaceChildren();
       mapDisplay.style.gridTemplateColumns = 'none';
-      updateLegend(summarizeTerrain());
       updateWrapperSize();
       syncMarkers();
       return;
@@ -1010,7 +1435,6 @@ export function createMapView(container, {
         }
       });
     });
-    updateLegend(summarizeTerrain(state.map.types));
     updateWrapperSize();
     syncMarkers();
     requestFrame(updateTileSizing);
@@ -1075,6 +1499,8 @@ export function createMapView(container, {
 
   function handleDragStart(clientX, clientY) {
     if (!allowDrag) return;
+    clearHoldTimer();
+    hideTooltip();
     state.drag.active = true;
     state.drag.lastX = clientX;
     state.drag.lastY = clientY;
@@ -1287,8 +1713,9 @@ export function createMapView(container, {
       display: mapDisplay,
       markers: markerLayer,
       controls,
-      legendList,
-      legendContainer
+      actionPanel,
+      actionButtons,
+      submenu: submenuContainer
     }
   };
 }

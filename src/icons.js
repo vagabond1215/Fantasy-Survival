@@ -9,7 +9,15 @@ const RESOURCE_ICON_MAP = {
   'construction progress': { icon: '🏗️', label: 'Construction Progress' },
   preservedFood: { icon: '🥫', label: 'Preserved Food' },
   cookedMeals: { icon: '🍖', label: 'Cooked Meals' },
-  hidesPrepared: { icon: '🧵', label: 'Prepared Hides' }
+  hidesPrepared: { icon: '🧵', label: 'Prepared Hides' },
+  mushrooms: { icon: '🍄', label: 'Mushrooms' },
+  herbs: { icon: '🌿', label: 'Wild Herbs' },
+  berries: { icon: '🍓', label: 'Wild Berries' },
+  pinecones: { icon: '🌰', label: 'Pinecones' },
+  'plant fibers': { icon: '🌾', label: 'Plant Fibers' },
+  cord: { icon: '🪢', label: 'Cord' },
+  'sharpened stone': { icon: '🗡️', label: 'Sharpened Stone' },
+  'raw ore': { icon: '⛏️', label: 'Raw Ore' }
 };
 
 export function getResourceIcon(name) {

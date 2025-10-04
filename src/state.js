@@ -16,6 +16,7 @@ class DataStore {
     this.unlockedBuildings = new Set();
     this.research = new Set();
     this.buildingSeq = 0;
+    this.gatherNodes = new Map();
   }
 
   addItem(collection, item) {
@@ -63,7 +64,8 @@ class DataStore {
       orderSeq: this.orderSeq,
       unlockedBuildings: [...this.unlockedBuildings],
       research: [...this.research],
-      buildingSeq: this.buildingSeq
+      buildingSeq: this.buildingSeq,
+      gatherNodes: [...this.gatherNodes.entries()]
     };
   }
 
@@ -99,6 +101,7 @@ class DataStore {
     this.unlockedBuildings = new Set(data.unlockedBuildings || []);
     this.research = new Set(data.research || []);
     this.buildingSeq = data.buildingSeq || 0;
+    this.gatherNodes = new Map(data.gatherNodes || []);
   }
 }
 
