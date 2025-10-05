@@ -6,6 +6,8 @@ duplicate or inconsistent data. Modules currently include:
 
 - **buildings** – available building types, constructed buildings and buildable
   options tied to unlocked technology.
+- **population** – procedurally generates the starting settlers, maintains
+  biographies, and coordinates job assignments based on proficiencies.
 - **people** – population details and aggregate statistics.
 - **inventory** – resources with quantity, forecast supply, and demand tracking.
 - **location** – geographical generation based on biome.
@@ -50,9 +52,12 @@ The inventory view is now accessed from the floating menu (`🎒`). The popup li
 
 ### Proficiency system
 
-`src/proficiencies.js` maintains settlement skills (hunting, foraging, gathering,
-swimming, tree felling, crafting, construction, combat). Each proficiency stores a level
-between 1 and 100 and gains are awarded via `rewardOrderProficiency` when orders complete.
+`src/proficiencies.js` maintains settlement skills (hunting, tracking, fishing,
+smithing, weaving, agriculture, construction, combat, and more). Each proficiency
+stores a level between 1 and 100 and gains are awarded via `rewardOrderProficiency`
+when orders complete. The expanded list covers every major craft and gathering role,
+including smithing, smelting, pottery, leatherworking, carpentry, masonry, cooking,
+and other settlement essentials.
 
 Task metadata should include:
 
@@ -75,6 +80,24 @@ Existing orders populate these fields automatically:
 
 Future features should follow the same pattern: define a `metadata` object when calling
 `queueOrder` so that proficiencies and inventory projections remain accurate.
+
+### Population generation and assignments
+
+`src/population.js` produces the starting settlement roster. On a new game the module:
+
+- Seeds a pseudo-random generator (optionally with the setup seed) and assembles
+  family households.
+- Ensures every settler is between 14 and 45 years of age with a mix of men and women.
+- Assigns names, backstories, interests, talents (skill strengths), deficiencies
+  (skill weaknesses), and family relationships (parents, children, spouses).
+- Stores a skill profile that prefers relevant settlers for each job type.
+
+`initializePopulation(size, { seed })` resets `store.people` with the generated roster.
+`syncJobAssignments(store.jobs, listJobDefinitions())` (invoked automatically via
+`getJobOverview` and `setJob`) ranks settlers for each job based on the preferred skill
+list on every job definition, their talents/interests, and experience. The chosen
+workers are surfaced on the job assignment screen so future updates can consult a
+single source of truth instead of duplicating tracking logic.
 
 ## Development
 

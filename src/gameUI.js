@@ -1000,6 +1000,10 @@ function renderJobsDialog() {
     const tooltipParts = [];
     if (job.description) tooltipParts.push(job.description);
     tooltipParts.push(`Assigned ${job.assigned} of ${maxForJob}`);
+    if (Array.isArray(job.roster) && job.roster.length) {
+      const workerNames = job.roster.map(entry => entry.name).join(', ');
+      tooltipParts.push(`Assigned settlers: ${workerNames}`);
+    }
     tooltipParts.push(`Unassigned laborers: ${overview.laborer}`);
     tooltipParts.push(`Workday: ${job.workdayHours} hours`);
     const tooltip = tooltipParts.join('\n');
@@ -1133,6 +1137,28 @@ function renderJobsDialog() {
     controls.appendChild(increaseBtn);
 
     row.appendChild(controls);
+
+    const rosterDetails = document.createElement('div');
+    rosterDetails.style.gridColumn = '1 / -1';
+    rosterDetails.style.fontSize = '12px';
+    rosterDetails.style.opacity = '0.82';
+    rosterDetails.style.paddingTop = '4px';
+    const rosterEntries = Array.isArray(job.roster)
+      ? job.roster.map(entry => {
+          const parts = [entry.name];
+          if (entry.focusSkillName) {
+            parts.push(`specialises in ${entry.focusSkillName.toLowerCase()}`);
+          }
+          if (Number.isFinite(entry.score)) {
+            parts.push(`score ${entry.score}`);
+          }
+          return parts.join(' • ');
+        })
+      : [];
+    rosterDetails.textContent = rosterEntries.length
+      ? `Assigned: ${rosterEntries.join(', ')}`
+      : 'Assigned: None — laborers will rotate through as needed.';
+    row.appendChild(rosterDetails);
 
     list.appendChild(row);
   });

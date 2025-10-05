@@ -10,6 +10,26 @@ export function updatePerson(person) {
   updateGlobals();
 }
 
+export function setPeople(people = []) {
+  if (!(store.people instanceof Map)) {
+    store.people = new Map();
+  } else {
+    store.people.clear();
+  }
+  people.forEach(person => {
+    if (!person?.id) return;
+    store.people.set(person.id, { ...person });
+  });
+  updateGlobals();
+}
+
+export function listPeople() {
+  if (!(store.people instanceof Map)) {
+    return [];
+  }
+  return [...store.people.values()].map(person => ({ ...person }));
+}
+
 function updateGlobals() {
   const people = [...store.people.values()];
   const total = people.length;
