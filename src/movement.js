@@ -6,6 +6,7 @@ const TERRAIN_TIME_MULTIPLIER = {
   open: 1,
   forest: 1.7,
   ore: 1.3,
+  stone: 1.4,
   water: 4,
   default: 1.25
 };
@@ -63,6 +64,8 @@ export function describeTerrainDifficulty(type) {
       return 'Dense canopy and underbrush slow travel.';
     case 'ore':
       return 'Rocky outcrops require careful footing.';
+    case 'stone':
+      return 'Jagged stone forces a cautious pace.';
     case 'water':
       return 'Requires swimming or a bridge to cross.';
     case 'open':

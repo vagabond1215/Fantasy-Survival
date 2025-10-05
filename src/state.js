@@ -20,6 +20,8 @@ class DataStore {
     this.gatherNodes = new Map();
     this.discoveredFauna = new Map();
     this.discoveredFlora = new Map();
+    this.jobSettings = {};
+    this.jobDaily = {};
   }
 
   addItem(collection, item) {
@@ -77,7 +79,9 @@ class DataStore {
       discoveredFlora: [...this.discoveredFlora.entries()].map(([biomeId, entries]) => [
         biomeId,
         [...entries]
-      ])
+      ]),
+      jobSettings: this.jobSettings,
+      jobDaily: this.jobDaily
     };
   }
 
@@ -115,6 +119,8 @@ class DataStore {
     this.research = new Set(data.research || []);
     this.buildingSeq = data.buildingSeq || 0;
     this.gatherNodes = new Map(data.gatherNodes || []);
+    this.jobSettings = data.jobSettings || {};
+    this.jobDaily = data.jobDaily || {};
     const faunaEntries = Array.isArray(data.discoveredFauna)
       ? data.discoveredFauna
       : Object.entries(data.discoveredFauna || {});

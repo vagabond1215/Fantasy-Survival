@@ -47,7 +47,7 @@ import {
 import { calculateTravelTime, describeTerrainDifficulty } from './movement.js';
 import { performGathering, formatBlockedMessages } from './gathering.js';
 import { getUnlockedRecipes, craftRecipe } from './crafting.js';
-import { getJobOverview, setJob } from './jobs.js';
+import { getJobOverview, setJob, setJobWorkday } from './jobs.js';
 import { getCraftTarget, setCraftTarget, listCraftTargets, calculateReservedQuantity } from './craftPlanner.js';
 import {
   recordPlantDiscovery,
@@ -56,12 +56,14 @@ import {
   getBestiaryCatalog,
   getUnknownLabel
 } from './naturalHistory.js';
+import { fellTreesAtTile, mineOreAtTile, getTileResource } from './terrainResources.js';
 
 const LEGEND_LABELS = {
   water: 'Water',
   open: 'Open Land',
   forest: 'Forest',
-  ore: 'Ore Deposits'
+  ore: 'Ore Deposits',
+  stone: 'Stone Outcrop'
 };
 
 const ENEMY_EVENT_CHANCE_PER_HOUR = 0.05;
@@ -287,13 +289,61 @@ function getPlayerTerrain() {
   return getTerrainTypeAt(loc, player.x, player.y);
 }
 
-function determinePlayerActions({ terrain, season, weather, biome }) {
+function summarizeTreeStand(node) {
+  if (!node?.trees) return '';
+  const { small = 0, medium = 0, large = 0 } = node.trees;
+  const segments = [];
+  if (large) segments.push(`${large} large`);
+  if (medium) segments.push(`${medium} medium`);
+  if (small) segments.push(`${small} small`);
+  if (!segments.length) return 'Sparse saplings remain';
+  return `${segments.join(', ')} trees standing`;
+}
+
+function summarizeOreNode(node) {
+  if (!node) return '';
+  const parts = [];
+  if (Array.isArray(node.deposits)) {
+    node.deposits.forEach(dep => {
+      if (!dep?.quantity) return;
+      parts.push(`${dep.quantity} ${dep.type}`);
+    });
+  }
+  if (node.stone > 0) {
+    parts.push(`${node.stone} stone blocks`);
+  }
+  if (!parts.length) return 'Nothing of value remains';
+  return parts.join(', ');
+}
+
+function determinePlayerActions({ terrain, season, weather, biome, locationId = null, x = 0, y = 0 }) {
   const actions = [];
   const seasonName = season || store.time.season || '';
   const weatherName = weather || store.time.weather || '';
   const coldSeason = /Frost/i.test(seasonName);
   const wetWeather = /(Rain|Storm|Snow|Sleet)/i.test(weatherName);
   const caution = wetWeather ? ' Weather may slow progress.' : '';
+
+  const node = locationId ? getTileResource(locationId, x, y) : null;
+
+  const canFellTrees = hasAnyTool([
+    'sharpened stone',
+    'stone hand axe',
+    'bronze axe',
+    'iron axe',
+    'steel axe',
+    'steel saw'
+  ]);
+
+  const canMineOre = hasAnyTool([
+    'wooden hammer',
+    'sharpened stone',
+    'stone hand axe',
+    'stone pick',
+    'bronze pick',
+    'iron pick',
+    'steel pick'
+  ]);
 
   actions.push({
     id: 'survey',
@@ -302,6 +352,14 @@ function determinePlayerActions({ terrain, season, weather, biome }) {
   });
 
   if (terrain === 'forest') {
+    const treesRemaining = (node?.trees?.small || 0) + (node?.trees?.medium || 0) + (node?.trees?.large || 0);
+    if (canFellTrees && treesRemaining > 0) {
+      actions.push({
+        id: 'fell-trees',
+        label: 'Fell trees',
+        description: `Cut timber from nearby stands (${summarizeTreeStand(node)}).`
+      });
+    }
     if (hasAnyTool(['stone hand axe', 'stone knife'])) {
       actions.push({
         id: 'gather-wood',
@@ -364,16 +422,27 @@ function determinePlayerActions({ terrain, season, weather, biome }) {
       description: 'Inspect the waterline for driftwood, shellfish, and other useful finds.'
     });
   } else if (terrain === 'ore') {
+    const oreRemaining = Array.isArray(node?.deposits)
+      ? node.deposits.reduce((sum, dep) => sum + (dep.quantity || 0), 0)
+      : 0;
+    const stoneRemaining = node?.stone || 0;
     actions.push({
       id: 'survey-ore',
       label: 'Survey ore deposit',
       description: 'Mark promising veins and note the surrounding stone.'
     });
-    if (hasAnyTool(['stone hand axe'])) {
+    if (canMineOre && (oreRemaining > 0 || stoneRemaining > 0)) {
       actions.push({
         id: 'chip-ore',
         label: 'Chip ore sample',
-        description: `Break loose a sample for study.${caution}`
+        description: `Break loose a sample (${summarizeOreNode(node)}).${caution}`
+      });
+    }
+    if (canMineOre && (oreRemaining > 0 || stoneRemaining > 0)) {
+      actions.push({
+        id: 'mine-ore',
+        label: 'Mine exposed ore',
+        description: `Work the deposit (${summarizeOreNode(node)}).${caution}`
       });
     }
   }
@@ -500,7 +569,10 @@ function renderPlayerPanel() {
       terrain,
       season: time.season,
       weather: time.weather,
-      biome: loc.biome
+      biome: loc.biome,
+      locationId: loc.id,
+      x: player.x,
+      y: player.y
     });
     if (!actions.length) {
       const empty = document.createElement('span');
@@ -534,6 +606,73 @@ function handlePlayerAction(action) {
   const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
   const terrainLabel = describeTerrainType(getPlayerTerrain());
   logEvent(`${action.label} selected at (${player.x}, ${player.y}) within the ${terrainLabel}. ${action.description}`);
+
+  if (!loc) return;
+
+  if (action.id === 'fell-trees') {
+    const availableTools = listAvailableToolNames();
+    const result = fellTreesAtTile({
+      locationId: loc.id,
+      x: player.x,
+      y: player.y,
+      tools: availableTools
+    });
+    if (!result?.success) {
+      if (result?.reason) logEvent(result.reason);
+      return;
+    }
+    Object.entries(result.yields || {}).forEach(([name, amount]) => {
+      if (!amount) return;
+      addItem(name, amount);
+    });
+    const yieldText = formatResourceList(result.yields || {});
+    const summary = formatFelledSummary(result.felled || {});
+    const messageParts = [`Felled ${summary}`];
+    if (yieldText) {
+      messageParts.push(`gaining ${yieldText}`);
+    }
+    logEvent(`${messageParts.join(' ')}.`);
+    if (result.cleared) {
+      logEvent('The last of the timber falls, opening the land.');
+    }
+    if (result.timeHours) {
+      advanceHours(result.timeHours);
+    }
+    render();
+    return;
+  }
+
+  if (action.id === 'mine-ore') {
+    const availableTools = listAvailableToolNames();
+    const result = mineOreAtTile({
+      locationId: loc.id,
+      x: player.x,
+      y: player.y,
+      tools: availableTools
+    });
+    if (!result?.success) {
+      if (result?.reason) logEvent(result.reason);
+      return;
+    }
+    Object.entries(result.yields || {}).forEach(([name, amount]) => {
+      if (!amount) return;
+      addItem(name, amount);
+    });
+    const yieldText = formatResourceList(result.yields || {});
+    if (yieldText) {
+      logEvent(`Recovered ${yieldText} from the exposed rock.`);
+    } else {
+      logEvent('Chipped away at the rockface.');
+    }
+    if (result.exhausted) {
+      logEvent('The vein runs dry, leaving only bare stone.');
+    }
+    if (result.timeHours) {
+      advanceHours(result.timeHours);
+    }
+    render();
+    return;
+  }
 }
 
 function handlePlayerNavigate({ dx = 0, dy = 0, recenter = false } = {}) {
@@ -848,7 +987,7 @@ function renderJobsDialog() {
     row.setAttribute('role', 'listitem');
     Object.assign(row.style, {
       display: 'grid',
-      gridTemplateColumns: '1fr auto auto',
+      gridTemplateColumns: '1fr auto auto auto',
       alignItems: 'center',
       gap: '8px',
       padding: '8px 12px',
@@ -862,6 +1001,7 @@ function renderJobsDialog() {
     if (job.description) tooltipParts.push(job.description);
     tooltipParts.push(`Assigned ${job.assigned} of ${maxForJob}`);
     tooltipParts.push(`Unassigned laborers: ${overview.laborer}`);
+    tooltipParts.push(`Workday: ${job.workdayHours} hours`);
     const tooltip = tooltipParts.join('\n');
     row.title = tooltip;
     row.setAttribute('aria-label', `${job.label}. ${tooltipParts.join('. ')}`);
@@ -873,6 +1013,76 @@ function renderJobsDialog() {
     name.style.overflow = 'hidden';
     name.style.textOverflow = 'ellipsis';
     row.appendChild(name);
+
+    const workdayContainer = document.createElement('div');
+    Object.assign(workdayContainer.style, {
+      display: 'flex',
+      alignItems: 'center',
+      gap: '4px',
+      justifySelf: 'center'
+    });
+
+    const clock = document.createElement('span');
+    clock.textContent = '⏰';
+    clock.setAttribute('aria-hidden', 'true');
+    workdayContainer.appendChild(clock);
+
+    const workdayValue = document.createElement('span');
+    workdayValue.textContent = `${job.workdayHours}h`;
+    workdayValue.style.fontVariantNumeric = 'tabular-nums';
+    workdayValue.style.minWidth = '38px';
+    workdayValue.style.textAlign = 'center';
+    workdayContainer.appendChild(workdayValue);
+
+    const workdayButtons = document.createElement('div');
+    Object.assign(workdayButtons.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '2px'
+    });
+
+    const minWorkday = 4;
+    const maxWorkday = 16;
+
+    const createWorkdayButton = (symbol, delta, ariaLabel) => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = symbol;
+      btn.setAttribute('aria-label', ariaLabel);
+      Object.assign(btn.style, {
+        width: '22px',
+        height: '18px',
+        borderRadius: '4px',
+        border: '1px solid var(--map-border, #999)',
+        background: 'var(--menu-bg)',
+        cursor: 'pointer',
+        lineHeight: '1'
+      });
+      btn.addEventListener('click', event => {
+        event.preventDefault();
+        const next = Math.max(minWorkday, Math.min(maxWorkday, (job.workdayHours || 10) + delta));
+        setJobWorkday(job.id, next);
+        renderJobsDialog();
+      });
+      return btn;
+    };
+
+    const decreaseHours = createWorkdayButton('▼', -1, `Reduce ${job.label} workday`);
+    const increaseHours = createWorkdayButton('▲', 1, `Increase ${job.label} workday`);
+    decreaseHours.disabled = job.workdayHours <= minWorkday;
+    increaseHours.disabled = job.workdayHours >= maxWorkday;
+    if (decreaseHours.disabled) {
+      decreaseHours.style.cursor = 'not-allowed';
+      decreaseHours.style.opacity = '0.5';
+    }
+    if (increaseHours.disabled) {
+      increaseHours.style.cursor = 'not-allowed';
+      increaseHours.style.opacity = '0.5';
+    }
+    workdayButtons.appendChild(increaseHours);
+    workdayButtons.appendChild(decreaseHours);
+    workdayContainer.appendChild(workdayButtons);
+    row.appendChild(workdayContainer);
 
     const count = document.createElement('span');
     count.textContent = String(job.assigned || 0);
@@ -1363,6 +1573,34 @@ function padNumber(value, digits = 2) {
   const numeric = Number.isFinite(value) ? Math.trunc(value) : 0;
   const safe = numeric < 0 ? 0 : numeric;
   return String(safe).padStart(digits, '0');
+}
+
+function joinWithAnd(items = []) {
+  const list = items.filter(Boolean);
+  if (!list.length) return '';
+  if (list.length === 1) return list[0];
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  const head = list.slice(0, -1).join(', ');
+  const tail = list[list.length - 1];
+  return `${head}, and ${tail}`;
+}
+
+function formatResourceList(resources = {}) {
+  const entries = Object.entries(resources)
+    .filter(([, amount]) => Number.isFinite(amount) && Math.abs(amount) > 0.001)
+    .map(([name, amount]) => `${Math.round(amount * 100) / 100} ${name}`);
+  return joinWithAnd(entries);
+}
+
+function formatFelledSummary(felled = {}) {
+  const segments = [];
+  const total = (felled.small || 0) + (felled.medium || 0) + (felled.large || 0);
+  if (felled.large) segments.push(`${felled.large} large`);
+  if (felled.medium) segments.push(`${felled.medium} medium`);
+  if (felled.small) segments.push(`${felled.small} small`);
+  const summary = segments.length ? joinWithAnd(segments) : 'a few';
+  const plural = total === 1 ? 'tree' : 'trees';
+  return `${summary} ${plural}`;
 }
 
 function listAvailableToolNames() {

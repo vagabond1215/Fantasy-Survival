@@ -11,7 +11,8 @@ export const TERRAIN_SYMBOLS = {
   water: '💧',
   open: '🌾',
   forest: '🌲',
-  ore: '⛏️'
+  ore: '⛏️',
+  stone: '🪨'
 };
 
 export function computeCenteredStart(width = DEFAULT_MAP_WIDTH, height = DEFAULT_MAP_HEIGHT, focusX = 0, focusY = 0) {
@@ -56,6 +57,10 @@ function mulberry32(a) {
 function coordRand(seed, x, y, salt = '') {
   const rng = mulberry32(xmur3(`${seed}:${x}:${y}:${salt}`)());
   return rng();
+}
+
+export function coordinateRandom(seed, x, y, salt = '') {
+  return coordRand(seed, x, y, salt);
 }
 
 function lerp(a, b, t) {

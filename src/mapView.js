@@ -4,7 +4,8 @@ const LEGEND_DEFAULTS = {
   water: 'Water',
   open: 'Open Land',
   forest: 'Forest',
-  ore: 'Ore Deposits'
+  ore: 'Ore Deposits',
+  stone: 'Stone Outcrop'
 };
 
 const BUFFER_MARGIN = 12;
