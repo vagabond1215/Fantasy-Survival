@@ -110,7 +110,8 @@ export function createMapView(container, {
   onTileClick = null,
   navMode = 'viewport',
   onNavigate = null,
-  actions = {}
+  actions = {},
+  jobSelector = null
 } = {}) {
   if (!container) throw new Error('Container is required for map view');
 
@@ -669,9 +670,12 @@ export function createMapView(container, {
   const layoutRoot = document.createElement('div');
   layoutRoot.className = `${idPrefix}-layout map-layout`;
   layoutRoot.style.display = 'flex';
-  layoutRoot.style.alignItems = 'flex-start';
+  layoutRoot.style.flexDirection = 'column';
+  layoutRoot.style.alignItems = 'stretch';
   layoutRoot.style.flexWrap = 'nowrap';
   layoutRoot.style.gap = '16px';
+  layoutRoot.style.width = '100%';
+  layoutRoot.style.maxWidth = '100%';
 
   const mapContainer = document.createElement('div');
   mapContainer.className = `${idPrefix}-map-container map-container`;
@@ -787,6 +791,165 @@ export function createMapView(container, {
     craft: 'Queue up tools and supplies for your artisans to produce.',
     gather: 'Send your people to comb the surrounding area for useful resources.'
   };
+
+  const jobSelectorConfig = jobSelector && typeof jobSelector === 'object' ? jobSelector : {};
+  let jobSelect = null;
+  let jobSummaryContainer = null;
+  let jobMetaLine = null;
+  let jobDescriptionLine = null;
+  let jobEmptyNotice = null;
+
+  const jobSelectorState = {
+    options: [],
+    selectedId: null,
+    laborers: null
+  };
+
+  function normalizeJobOption(option = {}) {
+    const idValue = typeof option.id === 'string' && option.id.trim() ? option.id.trim() : null;
+    if (!idValue) return null;
+    const label = option.label || idValue;
+    const assigned = Number.isFinite(option.assigned) ? Math.max(0, Math.trunc(option.assigned)) : 0;
+    const capacity = Number.isFinite(option.capacity) ? Math.max(0, Math.trunc(option.capacity)) : null;
+    const description = option.description || '';
+    const workdayHours = Number.isFinite(option.workdayHours)
+      ? Math.max(1, Math.trunc(option.workdayHours))
+      : null;
+    return { id: idValue, label, assigned, capacity, description, workdayHours };
+  }
+
+  function renderJobSummary() {
+    if (!jobSummaryContainer) return;
+    const selected = jobSelectorState.options.find(option => option.id === jobSelectorState.selectedId);
+    if (!selected) {
+      jobSummaryContainer.style.display = 'none';
+      if (jobEmptyNotice) {
+        jobEmptyNotice.textContent = jobSelectorConfig.emptyMessage || 'No jobs are available right now.';
+        jobEmptyNotice.style.display = jobSelectorState.options.length ? 'none' : 'block';
+      }
+      return;
+    }
+
+    jobSummaryContainer.style.display = 'flex';
+    if (jobEmptyNotice) {
+      jobEmptyNotice.style.display = 'none';
+    }
+
+    if (jobMetaLine) {
+      const metaParts = [`Assigned ${selected.assigned}`];
+      if (Number.isFinite(selected.capacity)) {
+        metaParts.push(`Capacity ${selected.capacity}`);
+      }
+      if (Number.isFinite(selected.workdayHours)) {
+        metaParts.push(`${selected.workdayHours}h day`);
+      }
+      if (Number.isFinite(jobSelectorState.laborers)) {
+        metaParts.push(`${jobSelectorState.laborers} laborers free`);
+      }
+      jobMetaLine.textContent = metaParts.join(' · ');
+    }
+
+    if (jobDescriptionLine) {
+      if (selected.description) {
+        jobDescriptionLine.textContent = selected.description;
+        jobDescriptionLine.style.display = 'block';
+      } else if (jobSelectorConfig.defaultDescription) {
+        jobDescriptionLine.textContent = jobSelectorConfig.defaultDescription;
+        jobDescriptionLine.style.display = 'block';
+      } else {
+        jobDescriptionLine.textContent = '';
+        jobDescriptionLine.style.display = 'none';
+      }
+    }
+  }
+
+  function applyJobSelection(jobId, { fromUser = false } = {}) {
+    if (!jobSelectorState.options.length) {
+      jobSelectorState.selectedId = null;
+      renderJobSummary();
+      return;
+    }
+
+    const selected = jobSelectorState.options.find(option => option.id === jobId)
+      || jobSelectorState.options[0]
+      || null;
+    jobSelectorState.selectedId = selected ? selected.id : null;
+    if (jobSelect) {
+      jobSelect.value = jobSelectorState.selectedId || '';
+    }
+    renderJobSummary();
+    if (fromUser && typeof jobSelectorConfig.onSelect === 'function') {
+      try {
+        jobSelectorConfig.onSelect(jobSelectorState.selectedId, {
+          options: jobSelectorState.options.slice()
+        });
+      } catch (error) {
+        console.warn('Job selector onSelect failed', error);
+      }
+    }
+  }
+
+  function refreshJobSelectorUI() {
+    if (!jobSelect) return;
+    jobSelect.innerHTML = '';
+
+    if (!jobSelectorState.options.length) {
+      jobSelect.disabled = true;
+      const placeholder = document.createElement('option');
+      placeholder.value = '';
+      placeholder.textContent = jobSelectorConfig.emptyOptionLabel || 'No jobs available';
+      jobSelect.appendChild(placeholder);
+      if (jobSummaryContainer) {
+        jobSummaryContainer.style.display = 'none';
+      }
+      if (jobEmptyNotice) {
+        jobEmptyNotice.textContent = jobSelectorConfig.emptyMessage || 'No jobs are available right now.';
+        jobEmptyNotice.style.display = 'block';
+      }
+      return;
+    }
+
+    jobSelect.disabled = false;
+    jobSelectorState.options.forEach(option => {
+      const optionElement = document.createElement('option');
+      optionElement.value = option.id;
+      const assignedSuffix = Number.isFinite(option.assigned) ? ` (${option.assigned})` : '';
+      optionElement.textContent = `${option.label}${assignedSuffix}`;
+      if (option.description) {
+        optionElement.title = option.description;
+      }
+      jobSelect.appendChild(optionElement);
+    });
+
+    if (!jobSelectorState.options.some(option => option.id === jobSelectorState.selectedId)) {
+      jobSelectorState.selectedId = jobSelectorState.options[0]?.id || null;
+    }
+
+    jobSelect.value = jobSelectorState.selectedId || '';
+
+    if (jobEmptyNotice) {
+      jobEmptyNotice.style.display = 'none';
+    }
+
+    renderJobSummary();
+  }
+
+  function applyJobOptions(options = [], { selectedId = null, laborers = null } = {}) {
+    jobSelectorState.options = Array.isArray(options)
+      ? options.map(normalizeJobOption).filter(Boolean)
+      : [];
+    jobSelectorState.laborers = Number.isFinite(laborers)
+      ? Math.max(0, Math.trunc(laborers))
+      : null;
+
+    if (selectedId && jobSelectorState.options.some(option => option.id === selectedId)) {
+      jobSelectorState.selectedId = selectedId;
+    } else if (!jobSelectorState.options.some(option => option.id === jobSelectorState.selectedId)) {
+      jobSelectorState.selectedId = jobSelectorState.options[0]?.id || null;
+    }
+
+    refreshJobSelectorUI();
+  }
 
   const updateActionButtonVisual = (button, active) => {
     if (!button) return;
@@ -1146,25 +1309,114 @@ export function createMapView(container, {
     actionPanel.style.alignSelf = 'flex-start';
 
     const panelTitle = document.createElement('h4');
-    panelTitle.textContent = 'Actions';
+    panelTitle.textContent = jobSelectorConfig.title || 'Actions';
     panelTitle.style.margin = '0';
     panelTitle.style.fontSize = '18px';
     panelTitle.style.letterSpacing = '0.04em';
     actionPanel.appendChild(panelTitle);
 
-    const buttonRow = document.createElement('div');
-    buttonRow.style.display = 'flex';
-    buttonRow.style.flexDirection = 'column';
-    buttonRow.style.gap = '10px';
-    buttonRow.style.justifyContent = 'flex-start';
-    buttonRow.style.alignItems = 'stretch';
-    actionPanel.appendChild(buttonRow);
+    const jobSection = document.createElement('div');
+    jobSection.style.display = 'flex';
+    jobSection.style.flexDirection = 'column';
+    jobSection.style.gap = '8px';
+    actionPanel.appendChild(jobSection);
 
-    ['build', 'craft', 'gather'].forEach(key => {
-      const label = key === 'build' ? 'Build' : key === 'craft' ? 'Craft' : key === 'gather' ? 'Gather' : key;
-      const button = createActionButton(key, label);
-      buttonRow.appendChild(button);
+    const jobLabel = document.createElement('label');
+    jobLabel.textContent = jobSelectorConfig.label || 'Jobs';
+    jobLabel.htmlFor = `${idPrefix}-job-select`;
+    jobLabel.style.fontSize = '15px';
+    jobLabel.style.fontWeight = '600';
+    jobLabel.style.letterSpacing = '0.04em';
+    jobLabel.style.textTransform = 'uppercase';
+    jobSection.appendChild(jobLabel);
+
+    const selectWrapper = document.createElement('div');
+    selectWrapper.style.position = 'relative';
+    selectWrapper.style.display = 'flex';
+    selectWrapper.style.alignItems = 'center';
+    jobSection.appendChild(selectWrapper);
+
+    jobSelect = document.createElement('select');
+    jobSelect.id = `${idPrefix}-job-select`;
+    Object.assign(jobSelect.style, {
+      width: '100%',
+      borderRadius: '14px',
+      border: '1px solid var(--map-border, #ccc)',
+      padding: '12px 42px 12px 18px',
+      fontWeight: '600',
+      fontSize: '15px',
+      letterSpacing: '0.03em',
+      textTransform: 'uppercase',
+      background: 'var(--action-button-bg, linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(235, 235, 235, 0.92)))',
+      color: 'var(--action-button-text, inherit)',
+      boxShadow: 'var(--action-button-shadow, 0 2px 6px rgba(0, 0, 0, 0.08))',
+      cursor: 'pointer',
+      appearance: 'none',
+      WebkitAppearance: 'none',
+      MozAppearance: 'none',
+      lineHeight: '1.2'
     });
+    jobSelect.setAttribute('aria-label', jobSelectorConfig.ariaLabel || jobSelectorConfig.label || 'Jobs');
+    jobSelect.addEventListener('change', () => {
+      applyJobSelection(jobSelect.value, { fromUser: true });
+    });
+    selectWrapper.appendChild(jobSelect);
+
+    const caret = document.createElement('span');
+    caret.textContent = '▾';
+    caret.setAttribute('aria-hidden', 'true');
+    Object.assign(caret.style, {
+      position: 'absolute',
+      right: '16px',
+      top: '50%',
+      transform: 'translateY(-50%)',
+      pointerEvents: 'none',
+      fontSize: '14px',
+      opacity: '0.6'
+    });
+    selectWrapper.appendChild(caret);
+
+    jobSummaryContainer = document.createElement('div');
+    Object.assign(jobSummaryContainer.style, {
+      display: 'none',
+      flexDirection: 'column',
+      gap: '4px',
+      fontSize: '13px',
+      opacity: '0.85'
+    });
+    jobSection.appendChild(jobSummaryContainer);
+
+    jobMetaLine = document.createElement('span');
+    jobSummaryContainer.appendChild(jobMetaLine);
+
+    jobDescriptionLine = document.createElement('span');
+    jobDescriptionLine.style.opacity = '0.78';
+    jobDescriptionLine.style.lineHeight = '1.35';
+    jobDescriptionLine.style.display = 'none';
+    jobSummaryContainer.appendChild(jobDescriptionLine);
+
+    jobEmptyNotice = document.createElement('span');
+    jobEmptyNotice.style.fontSize = '13px';
+    jobEmptyNotice.style.opacity = '0.75';
+    jobEmptyNotice.style.display = 'none';
+    jobSection.appendChild(jobEmptyNotice);
+
+    if (jobSelectorConfig.helper) {
+      const helper = document.createElement('span');
+      helper.textContent = jobSelectorConfig.helper;
+      helper.style.fontSize = '12px';
+      helper.style.opacity = '0.72';
+      jobSection.appendChild(helper);
+    }
+
+    if (jobSelectorState.options.length) {
+      refreshJobSelectorUI();
+    } else {
+      applyJobOptions(Array.isArray(jobSelectorConfig.options) ? jobSelectorConfig.options : [], {
+        selectedId: jobSelectorConfig.initialId || null,
+        laborers: jobSelectorConfig.laborers
+      });
+    }
   }
 
   function isLandscapeOrientation() {
@@ -1182,52 +1434,66 @@ export function createMapView(container, {
     const isLandscape = isLandscapeOrientation();
     const hasControls = showControls && controls;
     const hasActions = Boolean(actionPanel);
-    const hasSideContent = hasControls || hasActions;
+    layoutRoot.style.flexDirection = 'column';
+    layoutRoot.style.alignItems = 'stretch';
+    layoutRoot.style.flexWrap = 'nowrap';
 
-    layoutRoot.style.flexWrap = hasSideContent ? 'nowrap' : 'wrap';
-
-    if (isLandscape && hasSideContent) {
+    if (isLandscape && hasControls) {
       mapContainer.style.flexDirection = 'row';
       mapContainer.style.flexWrap = 'nowrap';
       mapContainer.style.gap = '16px';
       mapContainer.style.justifyContent = 'flex-start';
+      mapContainer.style.alignItems = 'stretch';
       if (!sideStack.parentElement) {
         mapContainer.appendChild(sideStack);
       }
-      if (hasControls) {
-        controls.style.margin = '0';
-        controls.style.alignItems = 'center';
-        controls.style.alignSelf = 'flex-start';
-        controls.style.justifyContent = 'center';
+      sideStack.style.alignItems = 'center';
+      sideStack.style.justifyContent = 'center';
+      if (controls.parentElement !== sideStack) {
+        if (controls.parentElement) {
+          controls.parentElement.removeChild(controls);
+        }
         sideStack.appendChild(controls);
       }
-      if (hasActions) {
-        if (actionPanel.parentElement) {
-          actionPanel.parentElement.removeChild(actionPanel);
-        }
-        sideStack.appendChild(actionPanel);
-      }
+      controls.style.margin = '0';
+      controls.style.alignItems = 'center';
+      controls.style.alignSelf = 'flex-start';
+      controls.style.justifyContent = 'center';
     } else {
       mapContainer.style.flexDirection = 'column';
       mapContainer.style.flexWrap = 'nowrap';
       mapContainer.style.gap = '12px';
       mapContainer.style.justifyContent = 'flex-start';
+      mapContainer.style.alignItems = 'flex-start';
       if (sideStack.parentElement) {
         sideStack.parentElement.removeChild(sideStack);
       }
       if (hasControls) {
+        if (controls.parentElement && controls.parentElement !== mapContainer) {
+          controls.parentElement.removeChild(controls);
+        }
+        if (controls.parentElement !== mapContainer) {
+          mapContainer.appendChild(controls);
+        }
         controls.style.margin = '8px 0 0';
         controls.style.alignItems = 'flex-start';
         controls.style.alignSelf = 'flex-start';
         controls.style.justifyContent = 'flex-start';
-        mapContainer.appendChild(controls);
+      } else if (controls?.parentElement) {
+        controls.parentElement.removeChild(controls);
       }
-      if (hasActions) {
-        if (actionPanel.parentElement) {
-          actionPanel.parentElement.removeChild(actionPanel);
-        }
-        layoutRoot.appendChild(actionPanel);
+    }
+
+    if (!hasControls && sideStack.parentElement) {
+      sideStack.parentElement.removeChild(sideStack);
+    }
+
+    if (hasActions && actionPanel) {
+      if (actionPanel.parentElement && actionPanel.parentElement !== layoutRoot) {
+        actionPanel.parentElement.removeChild(actionPanel);
       }
+      layoutRoot.appendChild(actionPanel);
+      actionPanel.style.alignSelf = 'stretch';
     }
 
     requestFrame(updateTileSizing);
@@ -1799,6 +2065,12 @@ export function createMapView(container, {
       updateTileSizing();
       applyResponsiveLayout();
     },
+    setJobOptions(options = [], context = {}) {
+      applyJobOptions(options, context);
+    },
+    getSelectedJob() {
+      return jobSelectorState.selectedId;
+    },
     center: centerMap,
     setFocus,
     setMarkers: applyMarkers,
@@ -1842,7 +2114,8 @@ export function createMapView(container, {
       markers: markerLayer,
       controls,
       actionPanel,
-      actionButtons
+      actionButtons,
+      jobSelect
     }
   };
 }
