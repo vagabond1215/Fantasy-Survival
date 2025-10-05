@@ -15,6 +15,7 @@ import store from './state.js';
 import { showBackButton, mountMenuActions } from './menu.js';
 import { allLocations } from './location.js';
 import { generateColorMap, TERRAIN_SYMBOLS, GRID_DISTANCE_METERS } from './map.js';
+import { getTileResource } from './terrainResources.js';
 import { getBiome } from './biomes.js';
 import {
   addOrder as queueOrder,
@@ -22,7 +23,6 @@ import {
   activateNextOrder,
   removeOrder,
   updateOrder,
-  clearCompletedOrders,
   getActiveOrder
 } from './orders.js';
 import { calculateOrderDelta, calculateExpectedInventoryFlows } from './resources.js';
@@ -45,7 +45,7 @@ import {
   inferOrderProficiency
 } from './proficiencies.js';
 import { calculateTravelTime, describeTerrainDifficulty } from './movement.js';
-import { performGathering, formatBlockedMessages } from './gathering.js';
+import { performGathering, formatBlockedMessages, getHabitatProspects } from './gathering.js';
 import { getUnlockedRecipes, craftRecipe } from './crafting.js';
 import { getJobOverview, setJob, setJobWorkday, listJobDefinitions } from './jobs.js';
 import { getCraftTarget, setCraftTarget, listCraftTargets, calculateReservedQuantity } from './craftPlanner.js';
@@ -104,7 +104,6 @@ let buildOptionsContainer = null;
 let projectList = null;
 let completedList = null;
 let lockedList = null;
-let constructionSummaryContainer = null;
 let constructionModal = null;
 let constructionModalContent = null;
 let openConstructionModal = () => {};
@@ -135,6 +134,8 @@ let herbariumDialog = null;
 let herbariumContent = null;
 let bestiaryDialog = null;
 let bestiaryContent = null;
+let tileInfoPanel = null;
+let tileInfoContent = null;
 
 const MASS_NOUNS = new Set(['wood', 'firewood', 'food', 'water']);
 
@@ -208,6 +209,306 @@ function formatResourceNeedsMessage(missing = []) {
   if (!parts.length) return '';
   const needsText = joinWithAnd(parts);
   return needsText ? `You need ${needsText}.` : '';
+}
+
+function roundToTenth(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num)) return 0;
+  return Math.round(num * 10) / 10;
+}
+
+function formatResourceAmount(name, amount) {
+  const numeric = Number(amount);
+  if (!Number.isFinite(numeric) || numeric <= 0) return null;
+  const rounded = roundToTenth(numeric);
+  const iconInfo = getResourceIcon(name);
+  const label = iconInfo?.icon ? `${iconInfo.icon} ${name}` : name;
+  return `${rounded} ${label}`;
+}
+
+function summarizeTreeStand(trees = {}) {
+  const order = [
+    { key: 'large', label: 'large' },
+    { key: 'medium', label: 'medium' },
+    { key: 'small', label: 'small' }
+  ];
+  const parts = [];
+  let total = 0;
+  order.forEach(({ key, label }) => {
+    const count = Number(trees?.[key]) || 0;
+    if (!count) return;
+    total += count;
+    const noun = count === 1 ? 'tree' : 'trees';
+    parts.push(`${count} ${label} ${noun}`);
+  });
+  if (!total) {
+    return 'Only stumps and brush remain; the grove has been cleared.';
+  }
+  return `Standing timber includes ${joinWithAnd(parts)}.`;
+}
+
+function summarizeOreDeposits(node = {}) {
+  const deposits = Array.isArray(node.deposits) ? node.deposits.filter(dep => (dep?.quantity || 0) > 0) : [];
+  if (deposits.length) {
+    const parts = deposits.map(dep => `${dep.quantity} ${dep.type}`);
+    return `Veins promise ${joinWithAnd(parts)}.`;
+  }
+  const stone = Number(node.stone) || 0;
+  if (stone > 0) {
+    return `Loose stone remains in workable supply (${roundToTenth(stone)} blocks).`;
+  }
+  return 'The exposed rock has already been stripped of useful ore.';
+}
+
+function describeTileStockpiles(stockpiles = {}) {
+  const entries = Object.entries(stockpiles).filter(([, amount]) => Number(amount) > 0);
+  if (!entries.length) return '';
+  const parts = entries
+    .map(([name, amount]) => formatResourceAmount(name, amount))
+    .filter(Boolean);
+  const list = joinWithAnd(parts);
+  return list ? `Set aside nearby: ${list}.` : '';
+}
+
+function describeTerrainNarrative(terrain, node) {
+  const normalized = String(terrain || '').toLowerCase();
+  const result = { lead: '', extras: [] };
+  switch (normalized) {
+    case 'forest':
+      result.lead = 'is a patch of forest canopy';
+      result.extras.push(summarizeTreeStand(node?.trees));
+      break;
+    case 'ore':
+      result.lead = 'sits atop an exposed ore seam';
+      result.extras.push(summarizeOreDeposits(node));
+      break;
+    case 'stone':
+      result.lead = 'is a bare stone outcrop';
+      if (Number(node?.stone) > 0) {
+        result.extras.push(`Chiseled rubble amounts to ${roundToTenth(node.stone)} blocks.`);
+      }
+      break;
+    case 'water':
+      result.lead = 'is a shallow pool fed by the surrounding terrain';
+      break;
+    default:
+      result.lead = 'is mostly open ground ready for work';
+      break;
+  }
+  result.extras = result.extras.filter(Boolean);
+  return result;
+}
+
+function ensureTileInfoPanel(parent) {
+  if (!parent) return null;
+  if (!tileInfoPanel) {
+    tileInfoPanel = document.createElement('section');
+    tileInfoPanel.id = 'tile-info-panel';
+    Object.assign(tileInfoPanel.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      border: '1px solid var(--map-border, #ccc)',
+      borderRadius: '12px',
+      padding: '16px',
+      background: 'var(--bg-color, #fff)',
+      gridColumn: '1 / -1',
+      minWidth: '0'
+    });
+    tileInfoContent = document.createElement('div');
+    tileInfoContent.className = 'tile-info-content';
+    Object.assign(tileInfoContent.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px'
+    });
+    tileInfoPanel.appendChild(tileInfoContent);
+  }
+  if (tileInfoPanel.parentElement !== parent) {
+    tileInfoPanel.parentElement?.removeChild(tileInfoPanel);
+    parent.appendChild(tileInfoPanel);
+  }
+  return tileInfoPanel;
+}
+
+function matchesProjectTile(project, x, y) {
+  if (!project) return false;
+  const tile = project.tile;
+  if (tile && Number.isFinite(tile.x) && Number.isFinite(tile.y)) {
+    return Math.trunc(tile.x) === Math.trunc(x) && Math.trunc(tile.y) === Math.trunc(y);
+  }
+  return !tile && Math.trunc(x) === 0 && Math.trunc(y) === 0;
+}
+
+function createConstructionDetails(project) {
+  const type = getBuildingType(project.typeId);
+  const details = document.createElement('details');
+  details.style.borderTop = '1px solid rgba(128, 128, 128, 0.25)';
+  details.style.paddingTop = '6px';
+
+  const summary = document.createElement('summary');
+  summary.style.fontWeight = '600';
+  const icon = type?.icon ? `${type.icon} ` : '';
+  const name = type?.name || project.typeId;
+  const totalLabor = Number(project.totalLaborHours) || 0;
+  const progressHours = Math.min(totalLabor, Number(project.progressHours) || 0);
+  const progress = totalLabor ? Math.round((progressHours / totalLabor) * 100) : 0;
+  summary.textContent = `${icon}${name} — ${progress}% complete`;
+  details.appendChild(summary);
+
+  const body = document.createElement('div');
+  Object.assign(body.style, {
+    display: 'flex',
+    flexDirection: 'column',
+    gap: '6px',
+    marginTop: '6px'
+  });
+
+  const workerLabel = project.assignedWorkers === 1 ? 'builder' : 'builders';
+  const laborLine = document.createElement('p');
+  laborLine.style.margin = '0';
+  laborLine.textContent = `Labor recorded: ${roundToTenth(progressHours)} / ${roundToTenth(totalLabor)} worker-hours with ${project.assignedWorkers} ${workerLabel} assigned.`;
+  body.appendChild(laborLine);
+
+  const required = project.requiredResources || {};
+  const consumed = project.consumedResources || {};
+  const resourceNames = Object.keys(required);
+  if (resourceNames.length) {
+    const heading = document.createElement('p');
+    heading.style.margin = '0';
+    heading.textContent = 'Materials drawn so far:';
+    body.appendChild(heading);
+    const list = document.createElement('ul');
+    list.style.margin = '0';
+    list.style.paddingLeft = '20px';
+    resourceNames.forEach(name => {
+      const total = Number(required[name]) || 0;
+      const used = Math.min(total, Number(consumed[name]) || 0);
+      const remaining = Math.max(0, total - used);
+      const iconInfo = getResourceIcon(name);
+      const prefix = iconInfo?.icon ? `${iconInfo.icon} ` : '';
+      const item = document.createElement('li');
+      item.textContent = `${prefix}${name}: ${roundToTenth(used)} / ${roundToTenth(total)}${remaining > 0 ? ` (${roundToTenth(remaining)} remaining)` : ''}`;
+      list.appendChild(item);
+    });
+    body.appendChild(list);
+  } else {
+    const noMaterials = document.createElement('p');
+    noMaterials.style.margin = '0';
+    noMaterials.textContent = 'No material stockpiles are required for this project.';
+    body.appendChild(noMaterials);
+  }
+
+  const category = project.siteCategory || type?.stats?.site?.primaryCategory;
+  if (category || project.siteSurfaceArea) {
+    const siteLine = document.createElement('p');
+    siteLine.style.margin = '0';
+    const categoryLabel = category ? formatSiteCategory(category) : 'Site';
+    const areaText = project.siteSurfaceArea
+      ? `${formatSquareMeters(project.siteSurfaceArea)} footprint`
+      : 'Flexible footprint';
+    siteLine.textContent = `${categoryLabel}: ${areaText}.`;
+    body.appendChild(siteLine);
+  }
+
+  details.appendChild(body);
+  return details;
+}
+
+function renderTileInfo() {
+  if (!tileInfoContent) {
+    const container = document.getElementById('game');
+    if (container) ensureTileInfoPanel(container);
+  }
+  if (!tileInfoContent) return;
+  tileInfoContent.replaceChildren();
+
+  const loc = getActiveLocation();
+  if (!loc) {
+    const idle = document.createElement('p');
+    idle.textContent = 'No survey site is currently active.';
+    tileInfoContent.appendChild(idle);
+    return;
+  }
+
+  const player = ensurePlayerState(loc.id);
+  const tileX = Math.trunc(player.x || 0);
+  const tileY = Math.trunc(player.y || 0);
+  const node = getTileResource(loc.id, tileX, tileY) || {};
+  const terrain = getTerrainTypeAt(loc, tileX, tileY) || node.type || 'open';
+  const narrative = describeTerrainNarrative(terrain, node);
+  const firstParagraph = document.createElement('p');
+  let intro = `The survey tile at (${tileX}, ${tileY}) ${narrative.lead}.`;
+  if (narrative.extras?.length) {
+    intro += ` ${narrative.extras.join(' ')}`;
+  }
+  firstParagraph.textContent = intro;
+  tileInfoContent.appendChild(firstParagraph);
+
+  const stockpileText = describeTileStockpiles(node.stockpiles);
+  if (stockpileText) {
+    const stockpileParagraph = document.createElement('p');
+    stockpileParagraph.textContent = stockpileText;
+    tileInfoContent.appendChild(stockpileParagraph);
+  }
+
+  const prospects = getHabitatProspects(terrain);
+  if (prospects.length) {
+    const encounterNames = [...new Set(prospects.map(item => item.encounterName || item.resource).filter(Boolean))];
+    if (encounterNames.length) {
+      const forageParagraph = document.createElement('p');
+      forageParagraph.textContent = `Foragers expect to find ${joinWithAnd(encounterNames)} here.`;
+      tileInfoContent.appendChild(forageParagraph);
+    }
+    const toolSet = new Set();
+    prospects.forEach(item => {
+      if (Array.isArray(item.toolsRequired)) {
+        item.toolsRequired.forEach(tool => toolSet.add(tool));
+      }
+    });
+    if (toolSet.size) {
+      const toolParagraph = document.createElement('p');
+      toolParagraph.style.margin = '0';
+      toolParagraph.style.fontStyle = 'italic';
+      toolParagraph.textContent = `Some finds will require ${joinWithAnd([...toolSet])}.`;
+      tileInfoContent.appendChild(toolParagraph);
+    }
+  } else {
+    const barrenParagraph = document.createElement('p');
+    barrenParagraph.textContent = 'Little of value grows here to gather right now.';
+    tileInfoContent.appendChild(barrenParagraph);
+  }
+
+  const projects = getBuildings().filter(project => project.locationId === loc.id && matchesProjectTile(project, tileX, tileY));
+  const completed = projects.filter(project => project.status === 'completed');
+  const underway = projects.filter(project => project.status === 'under-construction');
+
+  if (!projects.length) {
+    const emptyLine = document.createElement('p');
+    emptyLine.textContent = 'No structures have been recorded on this tile yet.';
+    tileInfoContent.appendChild(emptyLine);
+    return;
+  }
+
+  if (completed.length) {
+    const names = completed.map(project => {
+      const type = getBuildingType(project.typeId);
+      const icon = type?.icon ? `${type.icon} ` : '';
+      return `${icon}${type?.name || project.typeId}`;
+    });
+    const completeParagraph = document.createElement('p');
+    completeParagraph.textContent = `Completed structures: ${joinWithAnd(names)}.`;
+    tileInfoContent.appendChild(completeParagraph);
+  }
+
+  if (underway.length) {
+    const introParagraph = document.createElement('p');
+    introParagraph.textContent = 'Construction underway:';
+    tileInfoContent.appendChild(introParagraph);
+    underway.forEach(project => {
+      tileInfoContent.appendChild(createConstructionDetails(project));
+    });
+  }
 }
 
 function formatMeters(value) {
@@ -2530,7 +2831,14 @@ function createBuildCard(type, info) {
   }
   buildBtn.addEventListener('click', () => {
     try {
-      const { order } = beginConstruction(type.id, { workers: type.stats.minBuilders });
+      const loc = getActiveLocation();
+      const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
+      const { order } = beginConstruction(type.id, {
+        workers: type.stats.minBuilders,
+        locationId: loc?.id,
+        x: player?.x,
+        y: player?.y
+      });
       queueOrder(order);
       logEvent(`Construction started on the ${type.name}.`);
       refreshInventoryProjections();
@@ -2661,88 +2969,8 @@ function ensureConstructionModal() {
   closeConstructionModal();
 }
 
-function renderConstructionSummary(projects = []) {
-  if (!constructionSummaryContainer) return;
-  constructionSummaryContainer.innerHTML = '';
-  if (!projects.length) {
-    const empty = document.createElement('p');
-    empty.textContent = 'No structures are currently under construction.';
-    constructionSummaryContainer.appendChild(empty);
-    return;
-  }
-
-  const list = document.createElement('ul');
-  list.style.listStyle = 'none';
-  list.style.padding = '0';
-  list.style.margin = '0';
-
-  projects.forEach(project => {
-    const type = getBuildingType(project.typeId);
-    const name = type?.name || project.typeId;
-    const icon = type?.icon ? `${type.icon} ` : '';
-    const totalLabor = project.totalLaborHours || 0;
-    const progressHours = Math.min(totalLabor, project.progressHours || 0);
-    const progress = totalLabor ? Math.round((progressHours / totalLabor) * 100) : 0;
-
-    const item = document.createElement('li');
-    item.style.display = 'flex';
-    item.style.flexWrap = 'wrap';
-    item.style.gap = '8px';
-    item.style.alignItems = 'center';
-
-    const label = document.createElement('span');
-    label.textContent = `${icon}${name} ${progress}%`;
-    item.appendChild(label);
-
-    const progressHoursRounded = Math.round((progressHours || 0) * 10) / 10;
-    const totalLaborRounded = Math.round((totalLabor || 0) * 10) / 10;
-    const laborIcon = getResourceIcon('construction progress');
-    const laborSymbol = laborIcon?.icon || '🏗️';
-    const laborQuote = document.createElement('span');
-    laborQuote.style.whiteSpace = 'nowrap';
-    laborQuote.textContent = `"${progressHoursRounded} / ${totalLaborRounded} ${laborSymbol}"`;
-    item.appendChild(laborQuote);
-
-    const required = project.requiredResources || {};
-    const consumed = project.consumedResources || {};
-    const resourceNames = Object.keys(required);
-
-    if (resourceNames.length) {
-      resourceNames.forEach(resource => {
-        const total = required[resource] || 0;
-        const used = Math.min(total, consumed[resource] || 0);
-        const iconInfo = getResourceIcon(resource);
-        const iconSymbol = iconInfo?.icon || resource;
-        const usedRounded = Math.round((used || 0) * 10) / 10;
-        const totalRounded = Math.round((total || 0) * 10) / 10;
-        const quote = document.createElement('span');
-        quote.style.whiteSpace = 'nowrap';
-        quote.textContent = `"${usedRounded} / ${totalRounded} ${iconSymbol}"`;
-        item.appendChild(quote);
-      });
-    } else {
-      const note = document.createElement('span');
-      note.textContent = '(No material requirements)';
-      item.appendChild(note);
-    }
-
-    if (type?.stats?.site?.surfaceArea) {
-      const siteNote = document.createElement('span');
-      siteNote.style.whiteSpace = 'nowrap';
-      const siteLabel = formatSiteCategory(project.siteCategory || type.stats.site.primaryCategory);
-      siteNote.textContent = `${siteLabel}: ${formatSquareMeters(type.stats.site.surfaceArea)}`;
-      item.appendChild(siteNote);
-    }
-
-    list.appendChild(item);
-  });
-
-  constructionSummaryContainer.appendChild(list);
-}
-
 function renderBuildMenu() {
   const projects = getBuildings({ statuses: ['under-construction'] });
-  renderConstructionSummary(projects);
 
   if (!buildOptionsContainer || !projectList || !completedList || !lockedList) return;
 
@@ -2774,7 +3002,11 @@ function renderBuildMenu() {
       const progress = project.totalLaborHours ? Math.round((project.progressHours / project.totalLaborHours) * 100) : 0;
       const worked = Math.round(project.progressHours * 10) / 10;
       const total = Math.round(project.totalLaborHours * 10) / 10;
-      li.textContent = `${type?.icon ? `${type.icon} ` : ''}${type?.name || project.typeId} – ${progress}% complete (${worked}/${total} worker-hours, ${project.assignedWorkers} builders)`;
+      const tile = project.tile;
+      const coordText = tile && Number.isFinite(tile.x) && Number.isFinite(tile.y)
+        ? ` @ (${Math.trunc(tile.x)}, ${Math.trunc(tile.y)})`
+        : '';
+      li.textContent = `${type?.icon ? `${type.icon} ` : ''}${type?.name || project.typeId}${coordText} – ${progress}% complete (${worked}/${total} worker-hours, ${project.assignedWorkers} builders)`;
       list.appendChild(li);
     });
     projectList.appendChild(list);
@@ -2792,7 +3024,11 @@ function renderBuildMenu() {
       const type = getBuildingType(entry.typeId);
       const li = document.createElement('li');
       const name = type?.name || entry.typeId;
-      li.textContent = `${type?.icon ? `${type.icon} ` : ''}${name}`;
+      const tile = entry.tile;
+      const coordText = tile && Number.isFinite(tile.x) && Number.isFinite(tile.y)
+        ? ` @ (${Math.trunc(tile.x)}, ${Math.trunc(tile.y)})`
+        : '';
+      li.textContent = `${type?.icon ? `${type.icon} ` : ''}${name}${coordText}`;
       list.appendChild(li);
     });
     completedList.appendChild(list);
@@ -2969,6 +3205,7 @@ function render() {
   renderTimeBanner();
   renderTextMap();
   renderPlayerPanel();
+  renderTileInfo();
   renderBuildMenu();
   renderOrders();
   refreshInventoryProjections();
@@ -3478,6 +3715,7 @@ export function initGameUI() {
         loc.map = { ...loc.map, ...updated };
         updatePlayerMarker();
         renderPlayerPanel();
+        renderTileInfo();
       }
     });
     mapView.setMap(loc.map, {
@@ -3490,6 +3728,7 @@ export function initGameUI() {
     ensurePlayerPanel(playerPanelContainer);
     updatePlayerMarker();
     renderPlayerPanel();
+    renderTileInfo();
     centerOnPlayer({ recenter: true });
 
     lastSeason = store.time.season;
@@ -3498,76 +3737,14 @@ export function initGameUI() {
     playerPanelContainer = container;
     ensurePlayerPanel(playerPanelContainer);
     renderPlayerPanel();
+    renderTileInfo();
   }
+
+  ensureTileInfoPanel(container);
 
   ensureConstructionModal();
   closeConstructionModal();
 
-  const summarySection = document.createElement('section');
-  summarySection.id = 'construction-summary';
-  Object.assign(summarySection.style, {
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-    gridColumn: '1 / -1',
-    minWidth: '0'
-  });
-  const summaryTitle = document.createElement('h3');
-  summaryTitle.textContent = 'Construction Status';
-  summarySection.appendChild(summaryTitle);
-
-  constructionSummaryContainer = document.createElement('div');
-  constructionSummaryContainer.id = 'construction-summary-list';
-  summarySection.appendChild(constructionSummaryContainer);
-
-  container.appendChild(summarySection);
-
-  const ordersSection = document.createElement('section');
-  ordersSection.id = 'orders-section';
-  Object.assign(ordersSection.style, {
-    gridColumn: '1 / -1',
-    display: 'flex',
-    flexDirection: 'column',
-    gap: '12px',
-    minWidth: '0'
-  });
-  const ordersTitle = document.createElement('h3');
-  ordersTitle.textContent = 'Orders Board';
-  ordersSection.appendChild(ordersTitle);
-
-  const ordersBlurb = document.createElement('p');
-  ordersBlurb.textContent = 'Queue hunting, gathering, crafting, building, or combat patrols. Press Start to carry them out until something demands your attention.';
-  ordersSection.appendChild(ordersBlurb);
-
-  buildOrderForm(ordersSection);
-
-  ordersList = document.createElement('div');
-  ordersList.id = 'orders-list';
-  ordersList.style.marginTop = '8px';
-  ordersSection.appendChild(ordersList);
-
-  const controlsRow = document.createElement('div');
-  controlsRow.style.display = 'flex';
-  controlsRow.style.gap = '8px';
-  controlsRow.style.marginTop = '8px';
-
-  startBtn = document.createElement('button');
-  startBtn.textContent = 'Start';
-  startBtn.addEventListener('click', processOrderCycle);
-  controlsRow.appendChild(startBtn);
-
-  const clearBtn = document.createElement('button');
-  clearBtn.textContent = 'Clear Completed';
-  clearBtn.addEventListener('click', () => {
-    clearCompletedOrders();
-    refreshInventoryProjections();
-    render();
-  });
-  controlsRow.appendChild(clearBtn);
-
-  ordersSection.appendChild(controlsRow);
-
-  container.appendChild(ordersSection);
   container.style.display = 'grid';
   ensureInventoryDialog();
   refreshInventoryProjections();
