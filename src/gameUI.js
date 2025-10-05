@@ -1575,16 +1575,6 @@ function padNumber(value, digits = 2) {
   return String(safe).padStart(digits, '0');
 }
 
-function joinWithAnd(items = []) {
-  const list = items.filter(Boolean);
-  if (!list.length) return '';
-  if (list.length === 1) return list[0];
-  if (list.length === 2) return `${list[0]} and ${list[1]}`;
-  const head = list.slice(0, -1).join(', ');
-  const tail = list[list.length - 1];
-  return `${head}, and ${tail}`;
-}
-
 function formatResourceList(resources = {}) {
   const entries = Object.entries(resources)
     .filter(([, amount]) => Number.isFinite(amount) && Math.abs(amount) > 0.001)
