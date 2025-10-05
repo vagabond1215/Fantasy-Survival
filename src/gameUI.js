@@ -124,6 +124,8 @@ let timeLapseButtonsContainer = null;
 let timeControlsSection = null;
 let sleepButton = null;
 const timeLapseButtons = new Map();
+let pendingJobHighlightId = null;
+let jobHighlightTimer = null;
 let inventoryDialog = null;
 let inventoryDialogContent = null;
 let inventoryTableBody = null;
@@ -870,9 +872,10 @@ function ensureMapTimeControls() {
     Object.assign(timeControlsSection.style, {
       display: 'flex',
       flexDirection: 'column',
-      gap: '8px',
-      paddingTop: '8px',
-      borderTop: '1px solid var(--map-border, #ccc)'
+      gap: '10px',
+      paddingTop: '12px',
+      borderTop: '1px solid var(--map-border, #ccc)',
+      alignItems: 'stretch'
     });
 
     const timeHeader = document.createElement('h5');
@@ -885,8 +888,8 @@ function ensureMapTimeControls() {
     timeLapseButtonsContainer = document.createElement('div');
     Object.assign(timeLapseButtonsContainer.style, {
       display: 'flex',
-      flexWrap: 'wrap',
-      gap: '6px'
+      flexDirection: 'column',
+      gap: '8px'
     });
     timeControlsSection.appendChild(timeLapseButtonsContainer);
 
@@ -897,15 +900,18 @@ function ensureMapTimeControls() {
       btn.textContent = option.label;
       btn.dataset.timeOptionId = option.id;
       Object.assign(btn.style, {
-        borderRadius: '6px',
+        borderRadius: '12px',
         border: '1px solid var(--map-border, #999)',
-        padding: '6px 10px',
+        padding: '10px 14px',
         background: 'var(--action-button-bg)',
         color: 'var(--action-button-text)',
         cursor: 'pointer',
         boxShadow: 'var(--action-button-shadow)',
-        fontSize: '0.9rem',
-        minWidth: '72px'
+        fontSize: '0.95rem',
+        fontWeight: '600',
+        letterSpacing: '0.04em',
+        textTransform: 'uppercase',
+        width: '100%'
       });
       btn.addEventListener('click', () => {
         handleTimeLapse(option.id);
@@ -929,7 +935,8 @@ function ensureMapTimeControls() {
       textTransform: 'uppercase',
       boxShadow: 'var(--action-button-shadow)',
       fontSize: '0.95rem',
-      alignSelf: 'stretch'
+      alignSelf: 'stretch',
+      width: '100%'
     });
     sleepButton.addEventListener('click', handleSleep);
     timeControlsSection.appendChild(sleepButton);
@@ -938,6 +945,32 @@ function ensureMapTimeControls() {
   if (timeControlsSection.parentElement !== actionPanel) {
     actionPanel.appendChild(timeControlsSection);
   }
+}
+
+function buildJobSelectorOptions() {
+  const overview = getJobOverview();
+  const options = overview.assignments.map(job => ({
+    id: job.id,
+    label: job.label,
+    assigned: job.assigned,
+    capacity: Math.max(0, overview.adults - (overview.assigned - job.assigned)),
+    description: job.description,
+    workdayHours: job.workdayHours
+  }));
+  return { options, laborers: overview.laborer };
+}
+
+function updateMapJobSelector() {
+  if (!mapView || typeof mapView.setJobOptions !== 'function') return;
+  const { options, laborers } = buildJobSelectorOptions();
+  const selectedId = typeof mapView.getSelectedJob === 'function' ? mapView.getSelectedJob() : null;
+  mapView.setJobOptions(options, { selectedId, laborers });
+}
+
+function handleMapJobSelect(jobId) {
+  if (!jobId) return;
+  pendingJobHighlightId = jobId;
+  showJobs();
 }
 
 function updatePlayerMarker() {
@@ -972,6 +1005,7 @@ function renderPlayerPanel() {
     ensurePlayerPanel(playerPanelContainer);
   }
   ensureMapTimeControls();
+  updateMapJobSelector();
   if (!playerPanel) return;
   const loc = getActiveLocation();
   const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
@@ -1694,6 +1728,23 @@ function renderJobsDialog() {
 
     list.appendChild(row);
   });
+
+  updateMapJobSelector();
+
+  if (pendingJobHighlightId) {
+    const highlightId = pendingJobHighlightId;
+    pendingJobHighlightId = null;
+    const targetRow = list.querySelector(`[data-job-id="${highlightId}"]`);
+    if (targetRow) {
+      const originalShadow = targetRow.style.boxShadow;
+      targetRow.style.boxShadow = '0 0 0 3px rgba(74, 144, 226, 0.45)';
+      targetRow.scrollIntoView({ block: 'center', behavior: 'smooth' });
+      clearTimeout(jobHighlightTimer);
+      jobHighlightTimer = setTimeout(() => {
+        targetRow.style.boxShadow = originalShadow || '';
+      }, 1600);
+    }
+  }
 }
 
 function ensureCraftPlannerDialog() {
@@ -3774,28 +3825,13 @@ export function initGameUI() {
       idPrefix: 'game-map',
       navMode: 'player',
       onNavigate: handlePlayerNavigate,
-      actions: {
-        build: {
-          title: 'Build Projects',
-          description: 'Select a structure to plan and raise for the settlement.',
-          getItems: getBuildActionItems,
-          onSelect: handleBuildActionSelect,
-          emptyMessage: 'No structures are currently available.'
-        },
-        craft: {
-          title: 'Crafting Recipes',
-          description: 'Assign artisans to produce tools and supplies.',
-          getItems: getCraftActionItems,
-          onSelect: handleCraftActionSelect,
-          emptyMessage: 'No recipes are currently unlocked.'
-        },
-        gather: {
-          title: 'Gather Resources',
-          description: 'Send nearby settlers to comb the area for immediate materials.',
-          primaryLabel: 'Begin gathering run',
-          actionHint: 'Takes time as settlers search the surrounding terrain.',
-          onExecute: handleGatherAction
-        }
+      jobSelector: {
+        title: 'Village',
+        label: 'Jobs',
+        helper: 'Select a role to review its assignment details in the Jobs panel.',
+        emptyMessage: 'No jobs are available yet.',
+        defaultDescription: 'Open the Jobs panel to adjust staffing and work schedules.',
+        onSelect: handleMapJobSelect
       },
       fetchMap: ({ xStart, yStart, width, height, seed, season, viewport }) => {
         const baseSeed = seed ?? loc.map?.seed ?? Date.now();
@@ -3825,6 +3861,7 @@ export function initGameUI() {
       season: loc.map?.season,
       focus: { x: player.x, y: player.y }
     });
+    updateMapJobSelector();
     playerPanelContainer = mapSection;
     ensurePlayerPanel(playerPanelContainer);
     updatePlayerMarker();
