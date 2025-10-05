@@ -2,7 +2,7 @@ import store from './state.js';
 import { hasTechnology } from './technology.js';
 import { buildingCatalog } from './buildingCatalog.js';
 import { getItem } from './inventory.js';
-import { allLocations } from './location.js';
+import { allLocations, getLocationSiteCapacities } from './location.js';
 import { timeInfo } from './time.js';
 
 const buildingTypes = new Map();
@@ -31,24 +31,167 @@ function cloneResourceMap(map = {}) {
   return Object.fromEntries(Object.entries(map).map(([k, v]) => [k, v]));
 }
 
+function normalizePositive(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return 0;
+  return num;
+}
+
+function normalizeSiteDefinition(site = {}) {
+  if (!site) return null;
+  const categories = [];
+  if (Array.isArray(site.categories)) {
+    site.categories.forEach(category => {
+      if (!category && category !== 0) return;
+      const normalized = String(category).trim().toLowerCase();
+      if (normalized) categories.push(normalized);
+    });
+  }
+  if (site.category) {
+    const normalized = String(site.category).trim().toLowerCase();
+    if (normalized) categories.push(normalized);
+  }
+  const uniqueCategories = [...new Set(categories)];
+  if (!uniqueCategories.length) {
+    return null;
+  }
+
+  const dimensions = site.dimensions || {};
+  const width = normalizePositive(dimensions.width);
+  const depth = normalizePositive(dimensions.depth);
+
+  const access = site.accessClearance || {};
+  const fallbackSide = normalizePositive(access.side);
+  const accessClearance = {
+    front: normalizePositive(access.front),
+    back: normalizePositive(access.back),
+    left: normalizePositive(access.left) || fallbackSide,
+    right: normalizePositive(access.right) || fallbackSide
+  };
+
+  let surfaceArea = normalizePositive(site.surfaceArea);
+  if (!surfaceArea) {
+    const totalWidth = width + accessClearance.left + accessClearance.right;
+    const totalDepth = depth + accessClearance.front + accessClearance.back;
+    if (totalWidth > 0 && totalDepth > 0) {
+      surfaceArea = totalWidth * totalDepth;
+    }
+  }
+
+  return {
+    categories: uniqueCategories,
+    primaryCategory: uniqueCategories[0],
+    surfaceArea,
+    dimensions: { width, depth },
+    accessClearance,
+    raw: { ...site }
+  };
+}
+
+function getPrimaryLocation() {
+  const locations = allLocations();
+  return locations[0] || null;
+}
+
+function calculateSiteUsage(locationId, category) {
+  if (!locationId || !category) return 0;
+  ensureBuildingMap();
+  const normalized = String(category).toLowerCase();
+  let usage = 0;
+  store.buildings.forEach(entry => {
+    if (entry.locationId !== locationId) return;
+    const type = buildingTypes.get(entry.typeId);
+    const site = type?.stats?.site;
+    if (!site || !site.surfaceArea) return;
+    const projectCategory = String(entry.siteCategory || site.primaryCategory || '').toLowerCase();
+    if (projectCategory !== normalized) return;
+    usage += site.surfaceArea || 0;
+  });
+  return usage;
+}
+
+function computeSiteStatus(type, location) {
+  const site = type?.stats?.site;
+  if (!site || !site.surfaceArea || !site.categories?.length) {
+    return { siteOk: true, status: null };
+  }
+
+  if (!location) {
+    const categories = site.categories.map(category => ({
+      category,
+      capacity: 0,
+      usage: 0,
+      remaining: 0
+    }));
+    return { siteOk: false, status: { categories, selected: categories[0] || null } };
+  }
+
+  const capacities = getLocationSiteCapacities(location.id);
+  const categories = site.categories.map(category => {
+    const capacity = capacities?.[category] ?? 0;
+    const usage = calculateSiteUsage(location.id, category);
+    const remaining = capacity - usage;
+    return {
+      category,
+      capacity,
+      usage,
+      remaining
+    };
+  });
+
+  const requirement = site.surfaceArea || 0;
+  let selected = categories.find(entry => entry.remaining >= requirement - 1e-6);
+  if (!selected && categories.length) {
+    selected = categories[0];
+  }
+  const siteOk = Boolean(selected && selected.remaining >= requirement - 1e-6);
+  return { siteOk, status: { categories, selected: selected || null } };
+}
+
 function computeStats(definition = {}) {
+  const site = normalizeSiteDefinition(definition.requirements?.site);
   const stats = {
     totalLaborHours: 0,
     minBuilders: Math.max(1, definition.requirements?.minBuilders || 1),
     totalResources: {},
     components: [],
-    addons: []
+    addons: [],
+    site,
+    coreComponent: null,
+    coreResources: {},
+    coreLaborHours: 0
   };
 
-  (definition.components || []).forEach(component => {
+  (definition.components || []).forEach((component, index) => {
     const labor = Math.max(0, component.laborHours || 0);
     const minBuilders = Math.max(1, component.minBuilders || 1);
     stats.totalLaborHours += labor;
     stats.minBuilders = Math.max(stats.minBuilders, minBuilders);
     const resources = cloneResourceMap(component.resources || {});
     mergeResourceMaps(stats.totalResources, resources);
-    stats.components.push({ ...component, laborHours: labor, minBuilders, resources });
+    const isCore = Boolean(component.isCore) || (!stats.coreComponent && index === 0);
+    const normalizedComponent = {
+      ...component,
+      isCore,
+      laborHours: labor,
+      minBuilders,
+      resources
+    };
+    stats.components.push(normalizedComponent);
+    if (isCore && !stats.coreComponent) {
+      stats.coreComponent = normalizedComponent;
+      stats.coreResources = cloneResourceMap(resources);
+      stats.coreLaborHours = labor;
+    }
   });
+
+  if (!stats.coreComponent && stats.components.length) {
+    const first = stats.components[0];
+    first.isCore = true;
+    stats.coreComponent = first;
+    stats.coreResources = cloneResourceMap(first.resources || {});
+    stats.coreLaborHours = first.laborHours || 0;
+  }
 
   (definition.addons || []).forEach(addon => {
     const labor = Math.max(0, addon.laborHours || 0);
@@ -94,14 +237,14 @@ function featureMatches(features = [], tag = '') {
   return features.some(feature => feature.toLowerCase().includes(lowerTag));
 }
 
-function locationSupports(type) {
+function locationSupports(type, location = null) {
   const tags = type.requirements?.locationTags || [];
   if (!tags.length) return true;
   const normalizedTags = tags.map(tag => String(tag || '').toLowerCase());
   if (normalizedTags.some(tag => tag === 'open' || tag === 'any')) {
     return true;
   }
-  const locations = allLocations();
+  const locations = location ? [location] : allLocations();
   if (!locations.length) return false;
   const features = (locations[0]?.features || []).map(f => f.toLowerCase());
   return normalizedTags.some(tag => featureMatches(features, tag));
@@ -197,15 +340,25 @@ export function evaluateBuilding(typeId) {
   const maxCount = getMaxCount(type);
   const existing = countBuildings(typeId);
   const canBuildMore = existing < maxCount;
-  const locationOk = locationSupports(type);
-  const resourceStatus = computeResourceStatus(type.stats.totalResources);
+  const location = getPrimaryLocation();
+  const terrainOk = locationSupports(type, location);
+  const { siteOk, status: siteStatus } = computeSiteStatus(type, location);
+  const locationOk = terrainOk && siteOk;
+  const resourceStatus = computeResourceStatus(type.stats.coreResources);
+  const totalResourceStatus = computeResourceStatus(type.stats.totalResources);
+  const craftedStatus = computeResourceStatus(type.requirements?.craftedGoods || {});
   return {
     type,
     unlocked,
     canBuildMore,
+    terrainOk,
+    siteOk,
     locationOk,
     hasResources: resourceStatus.missing.length === 0,
     resourceStatus,
+    craftedStatus,
+    totalResourceStatus,
+    siteStatus,
     existing,
     maxCount
   };
@@ -242,6 +395,11 @@ export function beginConstruction(typeId, { workers, locationId } = {}) {
   const assignedWorkers = Math.max(type.stats.minBuilders, workers || type.stats.minBuilders || 1);
   const totalLabor = Math.max(1, type.stats.totalLaborHours);
   const totalResources = cloneResourceMap(type.stats.totalResources);
+  const coreResources = cloneResourceMap(type.stats.coreResources);
+  const siteCategory = (evaluation?.siteStatus?.selected?.category || type.stats.site?.primaryCategory || null);
+  const normalizedSiteCategory = siteCategory ? String(siteCategory).toLowerCase() : null;
+  const siteSurfaceArea = type.stats.site?.surfaceArea || 0;
+  const coreComponentId = type.stats.coreComponent?.id || null;
 
   const projectId = nextBuildingId();
   const project = {
@@ -254,7 +412,11 @@ export function beginConstruction(typeId, { workers, locationId } = {}) {
     assignedWorkers,
     requiredResources: totalResources,
     consumedResources: {},
-    addons: []
+    addons: [],
+    coreResources,
+    coreComponentId,
+    siteCategory: normalizedSiteCategory,
+    siteSurfaceArea
   };
   store.addItem('buildings', project);
 
