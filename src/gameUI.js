@@ -121,6 +121,8 @@ let playerJobSelect = null;
 let playerJobDescription = null;
 let playerTimeHint = null;
 let timeLapseButtonsContainer = null;
+let timeControlsSection = null;
+let sleepButton = null;
 const timeLapseButtons = new Map();
 let inventoryDialog = null;
 let inventoryDialogContent = null;
@@ -824,12 +826,61 @@ function ensurePlayerPanel(parent) {
     playerJobDescription.style.opacity = '0.82';
     playerActionList.appendChild(playerJobDescription);
 
-    const timeHeader = document.createElement('h6');
+    playerTimeHint = document.createElement('p');
+    playerTimeHint.style.margin = '8px 0 0';
+    playerTimeHint.style.fontSize = '0.8rem';
+    playerTimeHint.style.opacity = '0.75';
+    playerActionList.appendChild(playerTimeHint);
+    populatePlayerJobOptions();
+  }
+
+  if (playerPanel.parentElement !== parent) {
+    playerPanel.parentElement?.removeChild(playerPanel);
+    parent.appendChild(playerPanel);
+  }
+
+  return playerPanel;
+}
+
+function resetTimeControlElements() {
+  if (timeControlsSection?.parentElement) {
+    timeControlsSection.parentElement.removeChild(timeControlsSection);
+  }
+  timeControlsSection = null;
+  timeLapseButtonsContainer = null;
+  sleepButton = null;
+  timeLapseButtons.clear();
+}
+
+function ensureMapTimeControls() {
+  const actionPanel = mapView?.elements?.actionPanel;
+  if (!actionPanel) {
+    if (timeControlsSection) {
+      resetTimeControlElements();
+    }
+    return;
+  }
+
+  if (timeControlsSection && !timeControlsSection.isConnected) {
+    resetTimeControlElements();
+  }
+
+  if (!timeControlsSection) {
+    timeControlsSection = document.createElement('div');
+    Object.assign(timeControlsSection.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      paddingTop: '8px',
+      borderTop: '1px solid var(--map-border, #ccc)'
+    });
+
+    const timeHeader = document.createElement('h5');
     timeHeader.textContent = 'Time lapse';
-    timeHeader.style.margin = '8px 0 0';
-    timeHeader.style.fontSize = '0.9rem';
+    timeHeader.style.margin = '4px 0 0';
+    timeHeader.style.fontSize = '0.95rem';
     timeHeader.style.fontWeight = '600';
-    playerActionList.appendChild(timeHeader);
+    timeControlsSection.appendChild(timeHeader);
 
     timeLapseButtonsContainer = document.createElement('div');
     Object.assign(timeLapseButtonsContainer.style, {
@@ -837,7 +888,7 @@ function ensurePlayerPanel(parent) {
       flexWrap: 'wrap',
       gap: '6px'
     });
-    playerActionList.appendChild(timeLapseButtonsContainer);
+    timeControlsSection.appendChild(timeLapseButtonsContainer);
 
     timeLapseButtons.clear();
     TIME_LAPSE_OPTIONS.forEach(option => {
@@ -863,20 +914,30 @@ function ensurePlayerPanel(parent) {
       timeLapseButtons.set(option.id, btn);
     });
 
-    playerTimeHint = document.createElement('p');
-    playerTimeHint.style.margin = '0';
-    playerTimeHint.style.fontSize = '0.8rem';
-    playerTimeHint.style.opacity = '0.75';
-    playerActionList.appendChild(playerTimeHint);
-    populatePlayerJobOptions();
+    sleepButton = document.createElement('button');
+    sleepButton.type = 'button';
+    sleepButton.textContent = 'Sleep';
+    Object.assign(sleepButton.style, {
+      borderRadius: '12px',
+      border: '1px solid var(--map-border, #999)',
+      padding: '10px 14px',
+      background: 'var(--action-button-bg)',
+      color: 'var(--action-button-text)',
+      cursor: 'pointer',
+      fontWeight: '600',
+      letterSpacing: '0.04em',
+      textTransform: 'uppercase',
+      boxShadow: 'var(--action-button-shadow)',
+      fontSize: '0.95rem',
+      alignSelf: 'stretch'
+    });
+    sleepButton.addEventListener('click', handleSleep);
+    timeControlsSection.appendChild(sleepButton);
   }
 
-  if (playerPanel.parentElement !== parent) {
-    playerPanel.parentElement?.removeChild(playerPanel);
-    parent.appendChild(playerPanel);
+  if (timeControlsSection.parentElement !== actionPanel) {
+    actionPanel.appendChild(timeControlsSection);
   }
-
-  return playerPanel;
 }
 
 function updatePlayerMarker() {
@@ -910,6 +971,7 @@ function renderPlayerPanel() {
   if (playerPanelContainer) {
     ensurePlayerPanel(playerPanelContainer);
   }
+  ensureMapTimeControls();
   if (!playerPanel) return;
   const loc = getActiveLocation();
   const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
@@ -994,11 +1056,14 @@ function renderPlayerJobControls(player, { enabled = true, disabledMessage = '' 
 }
 
 function renderTimeLapseButtons(time, { hasLocation = true } = {}) {
+  ensureMapTimeControls();
+  if (!timeLapseButtonsContainer) return;
   const hour = Number.isFinite(time?.hour) ? Number(time.hour) : 0;
   const currentMinutes = Math.max(0, hour * 60);
   const dayEndMinutes = DAY_END_HOUR * 60;
   const timeRemaining = Math.max(0, dayEndMinutes - currentMinutes);
   const variancePercent = Math.round(TIME_LAPSE_VARIANCE_RATIO * 100);
+  const isAfterNightfall = hour >= 20;
 
   TIME_LAPSE_OPTIONS.forEach(option => {
     const button = timeLapseButtons.get(option.id);
@@ -1024,11 +1089,25 @@ function renderTimeLapseButtons(time, { hasLocation = true } = {}) {
     }
   });
 
+  if (sleepButton) {
+    const canSleep = hasLocation && (isAfterNightfall || timeRemaining <= 0);
+    sleepButton.disabled = !canSleep;
+    if (!hasLocation) {
+      sleepButton.title = 'Sleep is unavailable without an active expedition.';
+    } else if (!canSleep) {
+      sleepButton.title = 'Night has not yet fallen.';
+    } else {
+      sleepButton.title = 'Turn in for the night and wake at dawn.';
+    }
+  }
+
   if (playerTimeHint) {
     if (!hasLocation) {
       playerTimeHint.textContent = 'Time controls are unavailable without an active expedition.';
     } else if (timeRemaining <= 0) {
       playerTimeHint.textContent = 'Daylight has faded; rest beckons.';
+    } else if (isAfterNightfall) {
+      playerTimeHint.textContent = 'Night has fallen; wrap up or slip into sleep when ready.';
     } else {
       playerTimeHint.textContent = `Daylight remaining: ${formatDuration(timeRemaining / 60)} (until ${formatHour(DAY_END_HOUR)}).`;
     }
@@ -1095,6 +1174,28 @@ function handleTimeLapse(optionId) {
   const endText = formatHour(endTime.hour);
   const jobPhrase = job?.label ? `${job.label.toLowerCase()} duties` : 'daily tasks';
   logEvent(`Worked on ${jobPhrase} from ${startText} for about ${durationText} (planned ${plannedText}). Wrapped near ${endText}.`);
+  render();
+}
+
+function handleSleep() {
+  const loc = getActiveLocation();
+  if (!loc) {
+    logEvent('An active expedition is required before settling in to sleep.');
+    return;
+  }
+  const time = timeInfo();
+  const hour = Number.isFinite(time?.hour) ? Number(time.hour) : 0;
+  if (hour < 20) {
+    logEvent('It is too early to sleep; daylight remains to be spent.');
+    return;
+  }
+  const startText = formatHour(hour);
+  advanceDay();
+  resetToDawn();
+  saveGame();
+  const wakeTime = timeInfo();
+  const wakeText = formatHour(wakeTime.hour);
+  logEvent(`The settlement rests from ${startText} and greets the dawn at ${wakeText}.`);
   render();
 }
 
