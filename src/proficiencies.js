@@ -11,6 +11,15 @@ export const PROFICIENCY_DEFINITIONS = [
     startLevel: 5
   },
   {
+    id: 'tracking',
+    name: 'Tracking',
+    description: 'Reading prints, scat, and disturbances to follow prey or intruders.',
+    baseRate: 1,
+    defaultComplexity: 40,
+    diminishing: 0.85,
+    startLevel: 5
+  },
+  {
     id: 'foraging',
     name: 'Foraging',
     description: 'Identifying edible and medicinal plants in the wild.',
@@ -29,13 +38,31 @@ export const PROFICIENCY_DEFINITIONS = [
     startLevel: 5
   },
   {
-    id: 'swimming',
-    name: 'Swimming',
-    description: 'Crossing rivers, lakes, and flooded ground without aid.',
-    baseRate: 0.8,
-    defaultComplexity: 38,
-    diminishing: 1.2,
-    startLevel: 1
+    id: 'fishing',
+    name: 'Fishing',
+    description: 'Casting nets, setting lines, and harvesting aquatic life.',
+    baseRate: 0.96,
+    defaultComplexity: 34,
+    diminishing: 0.82,
+    startLevel: 5
+  },
+  {
+    id: 'agriculture',
+    name: 'Agriculture',
+    description: 'Cultivating crops, tending soil, and rotating fields for food security.',
+    baseRate: 0.94,
+    defaultComplexity: 42,
+    diminishing: 0.8,
+    startLevel: 5
+  },
+  {
+    id: 'herbalism',
+    name: 'Herbalism',
+    description: 'Harvesting, preparing, and preserving medicinal plants.',
+    baseRate: 0.92,
+    defaultComplexity: 36,
+    diminishing: 0.78,
+    startLevel: 5
   },
   {
     id: 'woodcutting',
@@ -47,13 +74,103 @@ export const PROFICIENCY_DEFINITIONS = [
     startLevel: 5
   },
   {
+    id: 'carpentry',
+    name: 'Carpentry',
+    description: 'Working seasoned lumber into beams, furniture, and fittings.',
+    baseRate: 0.98,
+    defaultComplexity: 44,
+    diminishing: 0.9,
+    startLevel: 5
+  },
+  {
+    id: 'masonry',
+    name: 'Stone Masonry',
+    description: 'Shaping, laying, and mortaring stone for durable structures.',
+    baseRate: 0.92,
+    defaultComplexity: 50,
+    diminishing: 0.88,
+    startLevel: 5
+  },
+  {
+    id: 'mining',
+    name: 'Mining',
+    description: 'Extracting ore, stone, and minerals safely from the earth.',
+    baseRate: 0.9,
+    defaultComplexity: 52,
+    diminishing: 0.95,
+    startLevel: 5
+  },
+  {
+    id: 'smelting',
+    name: 'Smelting',
+    description: 'Refining ore in a furnace to produce workable metals.',
+    baseRate: 0.88,
+    defaultComplexity: 56,
+    diminishing: 0.9,
+    startLevel: 5
+  },
+  {
+    id: 'smithing',
+    name: 'Smithing',
+    description: 'Forging, shaping, and tempering metal tools and weapons.',
+    baseRate: 0.9,
+    defaultComplexity: 58,
+    diminishing: 0.92,
+    startLevel: 5
+  },
+  {
+    id: 'leatherworking',
+    name: 'Leatherworking',
+    description: 'Tanning hides and sewing them into garments, armor, and goods.',
+    baseRate: 0.9,
+    defaultComplexity: 40,
+    diminishing: 0.82,
+    startLevel: 5
+  },
+  {
+    id: 'weaving',
+    name: 'Weaving',
+    description: 'Spinning fibers and weaving textiles for clothing and trade.',
+    baseRate: 0.92,
+    defaultComplexity: 42,
+    diminishing: 0.8,
+    startLevel: 5
+  },
+  {
+    id: 'pottery',
+    name: 'Pottery',
+    description: 'Forming clay vessels and firing them for storage and trade.',
+    baseRate: 0.88,
+    defaultComplexity: 46,
+    diminishing: 0.85,
+    startLevel: 5
+  },
+  {
     id: 'crafting',
-    name: 'Crafting',
+    name: 'General Crafting',
     description: 'Hand crafting tools, garments, and trade goods.',
     baseRate: 0.92,
     defaultComplexity: 36,
     diminishing: 0.85,
     startLevel: 5
+  },
+  {
+    id: 'cooking',
+    name: 'Cooking',
+    description: 'Preparing meals, preserving food, and balancing flavours.',
+    baseRate: 0.94,
+    defaultComplexity: 30,
+    diminishing: 0.76,
+    startLevel: 5
+  },
+  {
+    id: 'swimming',
+    name: 'Swimming',
+    description: 'Crossing rivers, lakes, and flooded ground without aid.',
+    baseRate: 0.8,
+    defaultComplexity: 38,
+    diminishing: 1.2,
+    startLevel: 1
   },
   {
     id: 'construction',

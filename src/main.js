@@ -1,5 +1,4 @@
 import store from './state.js';
-import { addPerson } from './people.js';
 import { addItem } from './inventory.js';
 import { refreshBuildingUnlocks } from './buildings.js';
 import { unlockTechnology } from './technology.js';
@@ -8,6 +7,7 @@ import { calculateStartingGoods, harvestWood } from './resources.js';
 import { initSetupUI } from './ui.js';
 import { saveGame, loadGame, clearSave } from './persistence.js';
 import { difficultySettings } from './difficulty.js';
+import { initializePopulation } from './population.js';
 import {
   initGameUI,
   showJobs,
@@ -28,9 +28,8 @@ function startGame(settings = {}) {
   const diff = settings.difficulty || 'normal';
   const cfg = difficultySettings[diff];
 
-  for (let i = 1; i <= cfg.people; i++) {
-    addPerson({ id: `p${i}`, age: 20 + i, sex: i % 2 ? 'M' : 'F', job: null, home: null, family: [] });
-  }
+  store.jobs = { gather: 0, hunt: 0, craft: 0, build: 0, guard: 0 };
+  initializePopulation(cfg.people, { seed: settings.seed });
 
   const startingGoods = calculateStartingGoods(cfg);
   Object.entries(startingGoods).forEach(([item, qty]) => addItem(item, qty));
@@ -66,8 +65,6 @@ function startGame(settings = {}) {
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
   refreshBuildingUnlocks();
   store.difficulty = diff;
-  // Initialize available jobs
-  store.jobs = { gather: 0, hunt: 0, craft: 0, build: 0, guard: 0 };
   store.craftTargets = new Map();
   store.buildQueue = 0;
   store.haulQueue = 0;

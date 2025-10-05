@@ -1,32 +1,38 @@
 import store from './state.js';
 import { stats as peopleStats } from './people.js';
 import { saveGame } from './persistence.js';
+import { syncJobAssignments } from './population.js';
 
 const JOB_DEFINITIONS = [
   {
     id: 'gather',
     label: 'Gatherers',
-    description: 'Collect forage, firewood, and loose materials from the surrounding area.'
+    description: 'Collect forage, firewood, and loose materials from the surrounding area.',
+    preferredSkills: ['foraging', 'gathering', 'herbalism', 'agriculture']
   },
   {
     id: 'hunt',
     label: 'Hunters',
-    description: 'Track game to keep the settlement supplied with meat and hides.'
+    description: 'Track game to keep the settlement supplied with meat and hides.',
+    preferredSkills: ['hunting', 'tracking', 'fishing']
   },
   {
     id: 'craft',
     label: 'Crafters',
-    description: 'Maintain tools, weave cordage, and assemble needed goods.'
+    description: 'Maintain tools, weave cordage, and assemble needed goods.',
+    preferredSkills: ['crafting', 'carpentry', 'smithing', 'weaving', 'pottery', 'leatherworking']
   },
   {
     id: 'build',
     label: 'Builders',
-    description: 'Raise new structures and shore up existing shelters.'
+    description: 'Raise new structures and shore up existing shelters.',
+    preferredSkills: ['construction', 'carpentry', 'masonry', 'smithing']
   },
   {
     id: 'guard',
     label: 'Guards',
-    description: 'Keep watch for danger and respond to hostile threats.'
+    description: 'Keep watch for danger and respond to hostile threats.',
+    preferredSkills: ['combat', 'hunting', 'tracking']
   }
 ];
 
@@ -67,11 +73,13 @@ export function listJobDefinitions() {
 
 export function getJobOverview() {
   ensureJobs();
+  const rosterSummary = syncJobAssignments(store.jobs, JOB_DEFINITIONS) || {};
   const adults = peopleStats().adults || 0;
   const assignments = JOB_DEFINITIONS.map(def => ({
     ...def,
     assigned: store.jobs[def.id] || 0,
-    workdayHours: getJobWorkday(def.id)
+    workdayHours: getJobWorkday(def.id),
+    roster: rosterSummary[def.id] || []
   }));
   const assignedTotal = assignments.reduce((sum, job) => sum + job.assigned, 0);
   const laborer = Math.max(0, adults - assignedTotal);
@@ -98,6 +106,7 @@ export function setJob(name, count) {
   const max = Math.max(0, adults - others);
   const desired = Math.max(0, Math.trunc(Number.isFinite(count) ? count : 0));
   store.jobs[name] = Math.max(0, Math.min(desired, max));
+  syncJobAssignments(store.jobs, JOB_DEFINITIONS);
   saveGame();
 }
 
