@@ -187,6 +187,79 @@ function formatResourceNeedsMessage(missing = []) {
   return needsText ? `You need ${needsText}.` : '';
 }
 
+function formatMeters(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return '0';
+  if (num >= 10) return `${Math.round(num)}`;
+  return `${Math.round(num * 10) / 10}`;
+}
+
+function formatSquareMeters(value) {
+  const num = Number(value);
+  if (!Number.isFinite(num) || num <= 0) return '0 m²';
+  if (num >= 100) return `${Math.round(num)} m²`;
+  return `${Math.round(num * 10) / 10} m²`;
+}
+
+function formatSiteCategory(category) {
+  const normalized = String(category || '').toLowerCase();
+  switch (normalized) {
+    case 'forest':
+      return 'Forest understory';
+    case 'cleared':
+      return 'Cleared ground';
+    default:
+      return normalized ? capitalize(normalized) : 'Site';
+  }
+}
+
+function createSiteSummary(site = {}, siteStatus = null) {
+  const wrapper = document.createElement('span');
+  if (!site || !site.categories?.length) {
+    wrapper.textContent = 'Flexible site';
+    return wrapper;
+  }
+  const selected = siteStatus?.selected || siteStatus?.categories?.find(entry => entry.category === site.primaryCategory) || {
+    category: site.primaryCategory,
+    capacity: 0,
+    usage: 0,
+    remaining: 0
+  };
+  const categoryLabel = formatSiteCategory(selected?.category || site.primaryCategory);
+  const requiredArea = formatSquareMeters(site.surfaceArea);
+  const mainLine = document.createElement('span');
+  let lineText = `${categoryLabel} site – needs ${requiredArea}`;
+  if (selected && Number.isFinite(selected.remaining)) {
+    const remaining = Math.max(0, selected.remaining);
+    lineText += ` (approx. ${formatSquareMeters(remaining)} open)`;
+  }
+  mainLine.textContent = lineText;
+  wrapper.appendChild(mainLine);
+
+  const details = [];
+  if (site.dimensions?.width && site.dimensions?.depth) {
+    details.push(`Structure ${formatMeters(site.dimensions.width)}×${formatMeters(site.dimensions.depth)} m`);
+  }
+  const access = site.accessClearance || {};
+  const accessParts = [];
+  if (access.front) accessParts.push(`front ${formatMeters(access.front)} m`);
+  if (access.back) accessParts.push(`rear ${formatMeters(access.back)} m`);
+  if (access.left) accessParts.push(`left ${formatMeters(access.left)} m`);
+  if (access.right) accessParts.push(`right ${formatMeters(access.right)} m`);
+  if (accessParts.length) {
+    details.push(`Access clearance: ${accessParts.join(', ')}`);
+  }
+  if (details.length) {
+    wrapper.appendChild(document.createElement('br'));
+    const detailLine = document.createElement('span');
+    detailLine.textContent = details.join(' • ');
+    detailLine.style.display = 'block';
+    detailLine.style.marginTop = '2px';
+    wrapper.appendChild(detailLine);
+  }
+  return wrapper;
+}
+
 function applyCodexTableStyles(table) {
   if (!table) return;
   table.style.width = '100%';
@@ -1642,11 +1715,35 @@ function getBuildActionItems() {
     const hasResources = info.hasResources;
     let disabledReason = '';
     if (!info.locationOk) {
-      disabledReason = 'Requires specific terrain.';
+      if (!info.terrainOk) {
+        const tags = type.requirements?.locationTags?.join(', ') || 'suitable terrain';
+        disabledReason = `Requires terrain with: ${tags}`;
+      } else if (!info.siteOk) {
+        const site = type.stats?.site;
+        if (site?.surfaceArea) {
+          const selected = info.siteStatus?.selected || null;
+          const available = selected && Number.isFinite(selected.remaining) ? Math.max(0, selected.remaining) : null;
+          disabledReason = `Needs ${formatSquareMeters(site.surfaceArea)} of ${formatSiteCategory(selected?.category || site.primaryCategory).toLowerCase()} space`;
+          if (available !== null) {
+            disabledReason += available > 0
+              ? ` (only ${formatSquareMeters(available)} free)`
+              : ' (no open space remaining)';
+          }
+        } else {
+          disabledReason = 'Insufficient buildable surface area.';
+        }
+      } else {
+        disabledReason = 'Requires specific terrain.';
+      }
     } else if (!info.canBuildMore) {
       disabledReason = 'Maximum number already built.';
     } else if (!hasResources) {
-      disabledReason = formatResourceNeedsMessage(info.resourceStatus?.missing) || 'Gather more materials first.';
+      const needs = (info.resourceStatus?.missing || [])
+        .map(entry => formatResourceNeed(entry.name, (entry.required || 0) - (entry.available || 0)))
+        .filter(Boolean);
+      disabledReason = needs.length
+        ? `Core structure requires ${joinWithAnd(needs)}.`
+        : 'Gather more materials first.';
     }
     return {
       id: type.id,
@@ -2264,7 +2361,14 @@ function createBuildCard(type, info) {
 
   card.appendChild(createInfoLine('Labor', `${type.stats.totalLaborHours} worker-hours`));
   card.appendChild(createInfoLine('Minimum Builders', type.stats.minBuilders));
-  card.appendChild(createInfoLine('Resources', createResourceBadges(type.stats.totalResources)));
+  if (type.stats.site) {
+    card.appendChild(createInfoLine('Site', createSiteSummary(type.stats.site, info.siteStatus)));
+  }
+  card.appendChild(createInfoLine('Core Structure', createResourceBadges(type.stats.coreResources)));
+  card.appendChild(createInfoLine('Full Build', createResourceBadges(type.stats.totalResources)));
+  if (type.requirements?.craftedGoods) {
+    card.appendChild(createInfoLine('Crafted Goods', createResourceBadges(type.requirements.craftedGoods)));
+  }
 
   const effectLines = describeEffects(type.effects);
   if (effectLines.length) {
@@ -2283,13 +2387,24 @@ function createBuildCard(type, info) {
   if (type.stats.components?.length) {
     const details = document.createElement('details');
     const summary = document.createElement('summary');
-    summary.textContent = 'Core components';
+    summary.textContent = 'Construction segments';
     details.appendChild(summary);
     type.stats.components.forEach(component => {
       const section = document.createElement('div');
       section.style.marginBottom = '6px';
       const heading = document.createElement('p');
-      heading.innerHTML = `<strong>${component.name}:</strong> ${component.description}`;
+      const nameStrong = document.createElement('strong');
+      nameStrong.textContent = component.name;
+      heading.appendChild(nameStrong);
+      if (component.isCore) {
+        const coreBadge = document.createElement('em');
+        coreBadge.textContent = ' (Core structure)';
+        coreBadge.style.marginLeft = '4px';
+        heading.appendChild(coreBadge);
+      }
+      if (component.description) {
+        heading.appendChild(document.createTextNode(` – ${component.description}`));
+      }
       section.appendChild(heading);
       section.appendChild(createInfoLine('Labor', `${component.laborHours} hrs @ ≥${component.minBuilders} builders`));
       section.appendChild(createInfoLine('Resources', createResourceBadges(component.resources)));
@@ -2328,18 +2443,38 @@ function createBuildCard(type, info) {
     card.appendChild(addonDetails);
   }
 
-  const missingResources = info.resourceStatus?.missing || [];
-  if (missingResources.length) {
+  const missingCore = info.resourceStatus?.missing || [];
+  if (missingCore.length) {
     const deficits = Object.fromEntries(
-      missingResources.map(entry => [entry.name, entry.required - entry.available])
+      missingCore.map(entry => [entry.name, Math.max(0, (entry.required || 0) - (entry.available || 0))])
     );
-    const deficitLine = createInfoLine('Needed', createResourceBadges(deficits));
+    const deficitLine = createInfoLine('Core Shortfall', createResourceBadges(deficits));
     card.appendChild(deficitLine);
-    const shortfallMessage = formatResourceNeedsMessage(missingResources);
-    if (shortfallMessage) {
+    const needs = missingCore
+      .map(entry => formatResourceNeed(entry.name, (entry.required || 0) - (entry.available || 0)))
+      .filter(Boolean);
+    if (needs.length) {
       const shortfallNote = document.createElement('p');
-      shortfallNote.textContent = shortfallMessage;
+      shortfallNote.textContent = `Core structure requires ${joinWithAnd(needs)}.`;
       card.appendChild(shortfallNote);
+    }
+  }
+
+  const missingCrafted = info.craftedStatus?.missing || [];
+  if (missingCrafted.length) {
+    const deficits = Object.fromEntries(
+      missingCrafted.map(entry => [entry.name, Math.max(0, (entry.required || 0) - (entry.available || 0))])
+    );
+    const craftedLine = createInfoLine('Later Crafted Needs', createResourceBadges(deficits));
+    card.appendChild(craftedLine);
+    const needs = missingCrafted
+      .map(entry => formatResourceNeed(entry.name, (entry.required || 0) - (entry.available || 0)))
+      .filter(Boolean);
+    if (needs.length) {
+      const craftedNote = document.createElement('p');
+      craftedNote.style.fontStyle = 'italic';
+      craftedNote.textContent = `Later phases will also need ${joinWithAnd(needs)}.`;
+      card.appendChild(craftedNote);
     }
   }
 
@@ -2347,7 +2482,12 @@ function createBuildCard(type, info) {
   buildBtn.textContent = `Build ${type.name}`;
   buildBtn.disabled = !info.hasResources;
   if (!info.hasResources) {
-    buildBtn.title = formatResourceNeedsMessage(missingResources) || 'Gather more resources to begin construction.';
+    const needs = missingCore
+      .map(entry => formatResourceNeed(entry.name, (entry.required || 0) - (entry.available || 0)))
+      .filter(Boolean);
+    buildBtn.title = needs.length
+      ? `Core structure requires ${joinWithAnd(needs)}.`
+      : 'Gather more resources to begin construction.';
   }
   buildBtn.addEventListener('click', () => {
     try {
@@ -2547,6 +2687,14 @@ function renderConstructionSummary(projects = []) {
       item.appendChild(note);
     }
 
+    if (type?.stats?.site?.surfaceArea) {
+      const siteNote = document.createElement('span');
+      siteNote.style.whiteSpace = 'nowrap';
+      const siteLabel = formatSiteCategory(project.siteCategory || type.stats.site.primaryCategory);
+      siteNote.textContent = `${siteLabel}: ${formatSquareMeters(type.stats.site.surfaceArea)}`;
+      item.appendChild(siteNote);
+    }
+
     list.appendChild(item);
   });
 
@@ -2626,9 +2774,23 @@ function renderBuildMenu() {
       if (!info.unlocked) {
         reasons.push('Prerequisites not yet met');
       }
-      if (info.unlocked && !info.locationOk) {
-        const tags = type.requirements?.locationTags?.join(', ') || 'special terrain';
+      if (info.unlocked && !info.terrainOk) {
+        const tags = type.requirements?.locationTags?.join(', ') || 'suitable terrain';
         reasons.push(`Requires terrain with: ${tags}`);
+      }
+      if (info.unlocked && info.terrainOk && !info.siteOk) {
+        const site = type.stats?.site;
+        if (site?.surfaceArea) {
+          const selected = info.siteStatus?.selected || null;
+          const available = selected && Number.isFinite(selected.remaining) ? Math.max(0, selected.remaining) : null;
+          let message = `Needs ${formatSquareMeters(site.surfaceArea)} of ${formatSiteCategory(selected?.category || site.primaryCategory).toLowerCase()} space`;
+          if (available !== null) {
+            message += ` (only ${formatSquareMeters(available)} free)`;
+          }
+          reasons.push(message);
+        } else {
+          reasons.push('Insufficient buildable surface area');
+        }
       }
       if (info.unlocked && !info.canBuildMore) {
         reasons.push('Maximum built for now');

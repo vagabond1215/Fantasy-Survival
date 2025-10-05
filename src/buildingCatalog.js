@@ -9,7 +9,13 @@ export const buildingCatalog = [
     unlock: { always: true },
     requirements: {
       minBuilders: 1,
-      locationTags: ['forest', 'grove']
+      locationTags: ['forest', 'grove'],
+      site: {
+        category: 'forest',
+        dimensions: { width: 3.6, depth: 2.1 },
+        accessClearance: { front: 2.4, back: 0.6, left: 0.6, right: 0.6 }
+      },
+      craftedGoods: { cord: 8 }
     },
     effects: {
       occupancy: 2,
@@ -28,16 +34,17 @@ export const buildingCatalog = [
       },
       {
         id: 'main-supports',
-        name: 'Frame & Supports',
-        description: 'Cut saplings to form the main ridge pole and rear supports.',
+        name: 'Ridge Frame & Lashings',
+        description: 'Raise forked poles and lash the ridge beam that anchors the shelter.',
         laborHours: 6,
         minBuilders: 1,
+        isCore: true,
         resources: { firewood: 28, 'plant fibers': 12, cord: 4 }
       },
       {
         id: 'roof',
-        name: 'Roof Thatched Cover',
-        description: 'Lay overlapping boughs and brush to create a water-shedding roof.',
+        name: 'Weather Shed Cover',
+        description: 'Lay overlapping boughs down the leeward slope and extend a front overhang for access.',
         laborHours: 5,
         minBuilders: 1,
         resources: { firewood: 18, 'plant fibers': 16, cord: 4 }
@@ -74,7 +81,13 @@ export const buildingCatalog = [
     unlock: { always: true },
     requirements: {
       minBuilders: 1,
-      locationTags: ['meadow', 'open']
+      locationTags: ['forest', 'grove', 'meadow', 'open'],
+      site: {
+        categories: ['forest', 'cleared'],
+        dimensions: { width: 1.8, depth: 1.8 },
+        accessClearance: { front: 1.8, back: 1.8, left: 1.8, right: 1.8 }
+      },
+      craftedGoods: { 'crafted goods': 2 }
     },
     effects: {
       comfort: 1,
@@ -89,6 +102,7 @@ export const buildingCatalog = [
         description: 'Excavate a shallow basin and line it with gravel for drainage.',
         laborHours: 3,
         minBuilders: 1,
+        isCore: true,
         resources: { pebbles: 30 }
       },
       {
@@ -141,7 +155,13 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 1,
-      locationTags: ['meadow', 'shore', 'open']
+      locationTags: ['meadow', 'shore', 'open'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 3, depth: 1.8 },
+        accessClearance: { front: 1.2, back: 1.2, left: 1, right: 1 }
+      },
+      craftedGoods: { cord: 9, 'crafted goods': 1 }
     },
     effects: {
       supply: { preservedFood: 1, hides: 0.5 },
@@ -155,6 +175,7 @@ export const buildingCatalog = [
         description: 'Set four sturdy posts to lift the rack clear of pests.',
         laborHours: 4,
         minBuilders: 1,
+        isCore: true,
         resources: { firewood: 22, 'plant fibers': 8, cord: 3 }
       },
       {
@@ -199,7 +220,13 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 2,
-      locationTags: ['forest']
+      locationTags: ['forest'],
+      site: {
+        category: 'forest',
+        dimensions: { width: 2.4, depth: 2.4 },
+        accessClearance: { front: 1.8, back: 1.2, left: 1.5, right: 1.5 }
+      },
+      craftedGoods: { cord: 14, 'crafted goods': 2 }
     },
     effects: {
       supply: { food: 1.5, hides: 0.5 },
@@ -213,6 +240,7 @@ export const buildingCatalog = [
         description: 'Drive support poles deep and brace against sway.',
         laborHours: 6,
         minBuilders: 2,
+        isCore: true,
         resources: { firewood: 36, 'small stones': 12, 'plant fibers': 10, cord: 4 }
       },
       {
@@ -265,7 +293,13 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 3,
-      locationTags: ['meadow', 'open']
+      locationTags: ['meadow', 'open'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 6, depth: 8 },
+        accessClearance: { front: 2.5, back: 2, left: 1.5, right: 1.5 }
+      },
+      craftedGoods: { cord: 16, 'crafted goods': 7 }
     },
     effects: {
       supply: { 'crafted goods': 2 },
@@ -279,6 +313,7 @@ export const buildingCatalog = [
         description: 'Lay compacted earth and stone to level the workspace.',
         laborHours: 6,
         minBuilders: 2,
+        isCore: true,
         resources: { 'small stones': 30, pebbles: 40 }
       },
       {
@@ -331,7 +366,13 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 3,
-      locationTags: ['river', 'lake', 'shore', 'open']
+      locationTags: ['river', 'lake', 'shore', 'open'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 4.2, depth: 4.2 },
+        accessClearance: { front: 3, back: 1.5, left: 1.5, right: 1.5 }
+      },
+      craftedGoods: { cord: 15, 'crafted goods': 4 }
     },
     effects: {
       supply: { preservedFood: 4 },
@@ -345,6 +386,7 @@ export const buildingCatalog = [
         description: 'Create a sealed stone base to contain smoke.',
         laborHours: 8,
         minBuilders: 3,
+        isCore: true,
         resources: { 'small stones': 60, pebbles: 60 }
       },
       {
@@ -397,7 +439,13 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 4,
-      locationTags: ['meadow', 'open']
+      locationTags: ['meadow', 'open'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 8, depth: 24 },
+        accessClearance: { front: 3, back: 3, left: 2.5, right: 2.5 }
+      },
+      craftedGoods: { cord: 66, 'crafted goods': 13 }
     },
     effects: {
       occupancy: 12,
@@ -413,6 +461,7 @@ export const buildingCatalog = [
         description: 'Set heavy sills on stone footings to lift the structure.',
         laborHours: 12,
         minBuilders: 4,
+        isCore: true,
         resources: { firewood: 200, 'small stones': 40, 'plant fibers': 40, cord: 12 }
       },
       {
@@ -482,7 +531,13 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 3,
-      locationTags: ['cliff', 'ridge', 'hill', 'high']
+      locationTags: ['cliff', 'ridge', 'hill', 'high'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 4, depth: 4 },
+        accessClearance: { front: 3, back: 3, left: 3, right: 3 }
+      },
+      craftedGoods: { cord: 38, 'crafted goods': 8 }
     },
     effects: {
       survivability: 3,
@@ -496,6 +551,7 @@ export const buildingCatalog = [
         description: 'Dig deep footings and backfill with stone for stability.',
         laborHours: 10,
         minBuilders: 3,
+        isCore: true,
         resources: { 'small stones': 70, pebbles: 80, firewood: 60, 'plant fibers': 20, cord: 6 }
       },
       {
