@@ -1,4 +1,5 @@
 import store from './state.js';
+import { applyJobProductivity, resetDailyJobProgress } from './jobProductivity.js';
 
 export const DAYS_PER_MONTH = 28;
 export const HOURS_PER_DAY = 24;
@@ -99,6 +100,14 @@ function ensureTimeStructure() {
   return store.time;
 }
 
+function getDayStampFromTime(time = ensureTimeStructure()) {
+  const year = Number.isFinite(time.year) ? Math.floor(time.year) : 0;
+  const month = Number.isFinite(time.month) ? Math.floor(time.month) : 1;
+  const day = Number.isFinite(time.day) ? Math.floor(time.day) : 1;
+  const monthIndex = ((month - 1) % MONTHS_PER_YEAR + MONTHS_PER_YEAR) % MONTHS_PER_YEAR;
+  return year * MONTHS_PER_YEAR * DAYS_PER_MONTH + monthIndex * DAYS_PER_MONTH + (day - 1);
+}
+
 export function getSeasonForMonth(month = 1) {
   const base = Number.isFinite(month) ? Math.floor(month) : 1;
   const normalized = ((base - 1) % MONTHS_PER_YEAR + MONTHS_PER_YEAR) % MONTHS_PER_YEAR;
@@ -186,10 +195,27 @@ export function advanceDay() {
 export function advanceHours(hours = 1) {
   const time = ensureTimeStructure();
   const increment = Math.max(0, Number.isFinite(hours) ? hours : 0);
-  time.hour += increment;
-  while (time.hour >= HOURS_PER_DAY) {
-    time.hour -= HOURS_PER_DAY;
-    advanceDay();
+  if (increment <= 0) return;
+  resetDailyJobProgress(getDayStampFromTime(time));
+  let remaining = increment;
+  while (remaining > 0) {
+    const dayStamp = getDayStampFromTime(time);
+    const hoursUntilMidnight = HOURS_PER_DAY - time.hour;
+    const step = Math.min(remaining, hoursUntilMidnight);
+    if (step > 0) {
+      applyJobProductivity(step, { dayStamp });
+      time.hour += step;
+      remaining -= step;
+    } else {
+      // Safeguard against floating point rounding issues.
+      time.hour += remaining;
+      remaining = 0;
+    }
+    if (time.hour >= HOURS_PER_DAY - 1e-9) {
+      time.hour -= HOURS_PER_DAY;
+      advanceDay();
+      resetDailyJobProgress(getDayStampFromTime(time));
+    }
   }
 }
 

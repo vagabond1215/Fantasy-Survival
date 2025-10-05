@@ -111,7 +111,8 @@ export function initSetupUI(onStart) {
     water: 'Water',
     open: 'Open Land',
     forest: 'Forest',
-    ore: 'Ore Deposits'
+    ore: 'Ore Deposits',
+    stone: 'Stone Outcrop'
   };
 
   function hideSpawnPrompt() {

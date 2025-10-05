@@ -41,8 +41,20 @@ function normalizeLegacyJobs() {
   }
 }
 
+function ensureJobSettings() {
+  if (!store.jobSettings || typeof store.jobSettings !== 'object') {
+    store.jobSettings = {};
+  }
+  JOB_DEFINITIONS.forEach(def => {
+    const existing = store.jobSettings[def.id];
+    const workday = Number.isFinite(existing?.workdayHours) ? existing.workdayHours : 10;
+    store.jobSettings[def.id] = { workdayHours: Math.max(1, Math.round(workday)) };
+  });
+}
+
 function ensureJobs() {
   normalizeLegacyJobs();
+  ensureJobSettings();
   JOB_DEFINITIONS.forEach(def => {
     const current = Number(store.jobs[def.id]);
     store.jobs[def.id] = Number.isFinite(current) && current > 0 ? Math.trunc(current) : 0;
@@ -58,7 +70,8 @@ export function getJobOverview() {
   const adults = peopleStats().adults || 0;
   const assignments = JOB_DEFINITIONS.map(def => ({
     ...def,
-    assigned: store.jobs[def.id] || 0
+    assigned: store.jobs[def.id] || 0,
+    workdayHours: getJobWorkday(def.id)
   }));
   const assignedTotal = assignments.reduce((sum, job) => sum + job.assigned, 0);
   const laborer = Math.max(0, adults - assignedTotal);
@@ -86,6 +99,26 @@ export function setJob(name, count) {
   const desired = Math.max(0, Math.trunc(Number.isFinite(count) ? count : 0));
   store.jobs[name] = Math.max(0, Math.min(desired, max));
   saveGame();
+}
+
+export function getJobWorkday(name) {
+  ensureJobSettings();
+  const entry = store.jobSettings?.[name];
+  const hours = Number.isFinite(entry?.workdayHours) ? entry.workdayHours : 10;
+  return Math.max(1, Math.round(hours));
+}
+
+export function setJobWorkday(name, hours) {
+  ensureJobSettings();
+  if (!JOB_DEFINITIONS.find(def => def.id === name)) return;
+  const clamped = Math.max(4, Math.min(16, Math.round(Number.isFinite(hours) ? hours : 10)));
+  store.jobSettings[name] = { workdayHours: clamped };
+  saveGame();
+}
+
+export function getJobSettings() {
+  ensureJobSettings();
+  return { ...store.jobSettings };
 }
 
 export function totalAssigned() {
