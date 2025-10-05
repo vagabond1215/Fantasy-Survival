@@ -1,7 +1,63 @@
 import store from './state.js';
 import { getCurrentAbsoluteHours } from './time.js';
 
-const HABITAT_ITEMS = [
+function slugify(value = '') {
+  return String(value || '')
+    .trim()
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+}
+
+const DEFAULT_STICK_SEASON_WEIGHTS = { Thawbound: 2, Sunheight: 3, Emberwane: 3, Frostshroud: 2 };
+
+const STURDY_TREE_STICK_CONFIG = [
+  {
+    name: 'Rowan',
+    habitats: ['forest'],
+    encounterName: 'storm-felled rowan limb',
+    successSuffix: 'from a storm-felled rowan branch ideal for hafting tools.'
+  },
+  {
+    name: 'Buttonwood',
+    habitats: ['water'],
+    encounterName: 'salt-hardened buttonwood branch',
+    successSuffix: 'from the tide-smoothed buttonwood branch, tough enough for sturdy grips.'
+  },
+  {
+    name: 'Carob',
+    habitats: ['forest', 'open'],
+    encounterName: 'fallen carob limb',
+    successSuffix: 'after trimming a dense carob branch suited for tool hafts.'
+  }
+];
+
+const STURDY_TREE_STICK_ITEMS = STURDY_TREE_STICK_CONFIG.map(config => {
+  const slug = slugify(config.name);
+  const lowerName = config.name.toLowerCase();
+  const resourceName = `sturdy ${lowerName} stick`;
+  return {
+    id: `sturdy-stick-${slug}`,
+    resource: resourceName,
+    singularName: resourceName,
+    encounterName: config.encounterName || `fallen ${lowerName} branch`,
+    type: 'loose',
+    habitats: Array.isArray(config.habitats) && config.habitats.length ? [...config.habitats] : ['forest'],
+    baseWeight: Number.isFinite(config.baseWeight) ? config.baseWeight : 2,
+    seasonWeights: { ...DEFAULT_STICK_SEASON_WEIGHTS, ...(config.seasonWeights || {}) },
+    minQuantity: Number.isFinite(config.minQuantity) ? config.minQuantity : 1,
+    maxQuantity: Number.isFinite(config.maxQuantity) ? config.maxQuantity : 2,
+    timePerUnit: Number.isFinite(config.timePerUnit) ? config.timePerUnit : 0.35,
+    respawnHours: Number.isFinite(config.respawnHours) ? config.respawnHours : 16,
+    successSuffix:
+      typeof config.successSuffix === 'string'
+        ? config.successSuffix
+        : `from a resilient ${lowerName} branch ready to be carved into handles.`,
+    blockedVerb: 'gather'
+  };
+});
+
+const BASE_HABITAT_ITEMS = [
   {
     id: 'forest-mushrooms',
     resource: 'mushrooms',
@@ -173,6 +229,10 @@ const HABITAT_ITEMS = [
     blockedVerb: 'mine'
   }
 ];
+
+const HABITAT_ITEMS = [...BASE_HABITAT_ITEMS, ...STURDY_TREE_STICK_ITEMS];
+
+export const STURDY_STICK_RESOURCES = STURDY_TREE_STICK_ITEMS.map(item => item.resource);
 
 function ensureGatherStore() {
   if (!(store.gatherNodes instanceof Map)) {
