@@ -47,7 +47,7 @@ import {
 import { calculateTravelTime, describeTerrainDifficulty } from './movement.js';
 import { performGathering, formatBlockedMessages } from './gathering.js';
 import { getUnlockedRecipes, craftRecipe } from './crafting.js';
-import { getJobOverview, setJob, setJobWorkday } from './jobs.js';
+import { getJobOverview, setJob, setJobWorkday, listJobDefinitions } from './jobs.js';
 import { getCraftTarget, setCraftTarget, listCraftTargets, calculateReservedQuantity } from './craftPlanner.js';
 import {
   recordPlantDiscovery,
@@ -56,7 +56,7 @@ import {
   getBestiaryCatalog,
   getUnknownLabel
 } from './naturalHistory.js';
-import { fellTreesAtTile, mineOreAtTile, getTileResource } from './terrainResources.js';
+import { saveGame } from './persistence.js';
 
 const LEGEND_LABELS = {
   water: 'Water',
@@ -70,6 +70,24 @@ const ENEMY_EVENT_CHANCE_PER_HOUR = 0.05;
 const PLAYER_ICON = '🧍';
 const PLAYER_MARKER_ID = 'player-marker';
 const EVENT_LOG_SUMMARY_LIMIT = 4;
+const DEFAULT_PLAYER_JOB_ID = 'survey';
+const PLAYER_JOB_BASE_OPTIONS = [
+  {
+    id: DEFAULT_PLAYER_JOB_ID,
+    label: 'Surveyor',
+    description: 'Scout the surrounding wilderness and chart safe paths for settlers.'
+  }
+];
+const DAY_END_HOUR = 22;
+const TIME_LAPSE_BUFFER_RATIO = 0.1;
+const TIME_LAPSE_VARIANCE_RATIO = 0.1;
+const TIME_LAPSE_OPTIONS = [
+  { id: '15m', label: '15 min', minutes: 15 },
+  { id: '30m', label: '30 min', minutes: 30 },
+  { id: '60m', label: '60 min', minutes: 60 },
+  { id: '180m', label: '3 hr', minutes: 180 },
+  { id: 'all-day', label: 'All Day', minutes: null }
+];
 
 let mapView = null;
 let lastSeason = null;
@@ -100,6 +118,11 @@ let playerPanelContainer = null;
 let playerLocationLabel = null;
 let playerTerrainLabel = null;
 let playerActionList = null;
+let playerJobSelect = null;
+let playerJobDescription = null;
+let playerTimeHint = null;
+let timeLapseButtonsContainer = null;
+const timeLapseButtons = new Map();
 let inventoryDialog = null;
 let inventoryDialogContent = null;
 let inventoryTableBody = null;
@@ -308,9 +331,69 @@ function hasAnyTool(names = []) {
   return names.some(name => hasTool(name));
 }
 
+function toSingularJobLabel(label = '') {
+  const trimmed = String(label || '').trim();
+  if (!trimmed) return 'Generalist';
+  if (/ies$/i.test(trimmed)) {
+    return trimmed.replace(/ies$/i, 'y');
+  }
+  if (/ers$/i.test(trimmed)) {
+    return trimmed.replace(/ers$/i, 'er');
+  }
+  if (/s$/i.test(trimmed) && !/ss$/i.test(trimmed)) {
+    return trimmed.replace(/s$/i, '');
+  }
+  return trimmed;
+}
+
+function getPlayerJobOptions() {
+  const options = [];
+  const seen = new Set();
+  PLAYER_JOB_BASE_OPTIONS.forEach(entry => {
+    if (!entry) return;
+    const id = entry.id || DEFAULT_PLAYER_JOB_ID;
+    if (seen.has(id)) return;
+    seen.add(id);
+    options.push({ id, label: entry.label, description: entry.description || '' });
+  });
+  listJobDefinitions()
+    .filter(Boolean)
+    .forEach(def => {
+      const id = def.id || '';
+      if (!id || seen.has(id)) return;
+      seen.add(id);
+      options.push({
+        id,
+        label: toSingularJobLabel(def.label || id),
+        description: def.description || ''
+      });
+    });
+  if (!options.length) {
+    options.push({ id: DEFAULT_PLAYER_JOB_ID, label: 'Surveyor', description: 'Scout the surroundings.' });
+  }
+  return options;
+}
+
+function getPlayerJobOption(jobId) {
+  const options = getPlayerJobOptions();
+  return options.find(option => option.id === jobId) || options[0] || null;
+}
+
+function ensurePlayerJob(player) {
+  if (!player || typeof player !== 'object') return DEFAULT_PLAYER_JOB_ID;
+  if (typeof player.jobId !== 'string' || !player.jobId) {
+    player.jobId = DEFAULT_PLAYER_JOB_ID;
+  }
+  const options = getPlayerJobOptions();
+  if (!options.some(option => option.id === player.jobId)) {
+    player.jobId = options[0]?.id || DEFAULT_PLAYER_JOB_ID;
+  }
+  return player.jobId;
+}
+
 function ensurePlayerState(locationId = null) {
   if (!store.player || typeof store.player !== 'object') {
-    store.player = { locationId: locationId ?? null, x: 0, y: 0 };
+    store.player = { locationId: locationId ?? null, x: 0, y: 0, jobId: DEFAULT_PLAYER_JOB_ID };
   }
   if (locationId && store.player.locationId !== locationId) {
     store.player.locationId = locationId;
@@ -321,6 +404,7 @@ function ensurePlayerState(locationId = null) {
   if (!Number.isFinite(store.player.y)) store.player.y = 0;
   store.player.x = Math.trunc(store.player.x);
   store.player.y = Math.trunc(store.player.y);
+  ensurePlayerJob(store.player);
   return store.player;
 }
 
@@ -362,174 +446,6 @@ function getPlayerTerrain() {
   return getTerrainTypeAt(loc, player.x, player.y);
 }
 
-function summarizeTreeStand(node) {
-  if (!node?.trees) return '';
-  const { small = 0, medium = 0, large = 0 } = node.trees;
-  const segments = [];
-  if (large) segments.push(`${large} large`);
-  if (medium) segments.push(`${medium} medium`);
-  if (small) segments.push(`${small} small`);
-  if (!segments.length) return 'Sparse saplings remain';
-  return `${segments.join(', ')} trees standing`;
-}
-
-function summarizeOreNode(node) {
-  if (!node) return '';
-  const parts = [];
-  if (Array.isArray(node.deposits)) {
-    node.deposits.forEach(dep => {
-      if (!dep?.quantity) return;
-      parts.push(`${dep.quantity} ${dep.type}`);
-    });
-  }
-  if (node.stone > 0) {
-    parts.push(`${node.stone} stone blocks`);
-  }
-  if (!parts.length) return 'Nothing of value remains';
-  return parts.join(', ');
-}
-
-function determinePlayerActions({ terrain, season, weather, biome, locationId = null, x = 0, y = 0 }) {
-  const actions = [];
-  const seasonName = season || store.time.season || '';
-  const weatherName = weather || store.time.weather || '';
-  const coldSeason = /Frost/i.test(seasonName);
-  const wetWeather = /(Rain|Storm|Snow|Sleet)/i.test(weatherName);
-  const caution = wetWeather ? ' Weather may slow progress.' : '';
-
-  const node = locationId ? getTileResource(locationId, x, y) : null;
-
-  const canFellTrees = hasAnyTool([
-    'sharpened stone',
-    'stone hand axe',
-    'bronze axe',
-    'iron axe',
-    'steel axe',
-    'steel saw'
-  ]);
-
-  const canMineOre = hasAnyTool([
-    'wooden hammer',
-    'sharpened stone',
-    'stone hand axe',
-    'stone pick',
-    'bronze pick',
-    'iron pick',
-    'steel pick'
-  ]);
-
-  actions.push({
-    id: 'survey',
-    label: 'Survey area',
-    description: `Study the surroundings for opportunities and hazards.${caution}`
-  });
-
-  if (terrain === 'forest') {
-    const treesRemaining = (node?.trees?.small || 0) + (node?.trees?.medium || 0) + (node?.trees?.large || 0);
-    if (canFellTrees && treesRemaining > 0) {
-      actions.push({
-        id: 'fell-trees',
-        label: 'Fell trees',
-        description: `Cut timber from nearby stands (${summarizeTreeStand(node)}).`
-      });
-    }
-    if (hasAnyTool(['stone hand axe', 'stone knife'])) {
-      actions.push({
-        id: 'gather-wood',
-        label: 'Gather wood',
-        description: `Use your tools to cut timber from the forest.${wetWeather ? ' Damp wood will need drying.' : ''}`
-      });
-    } else {
-      actions.push({
-        id: 'collect-branches',
-        label: 'Collect branches',
-        description: 'Gather fallen branches and twigs for kindling.'
-      });
-    }
-    if (!coldSeason) {
-      actions.push({
-        id: 'forage-forest',
-        label: 'Forage for herbs',
-        description: `Search for edible shoots and mushrooms beneath the canopy.${caution}`
-      });
-    }
-    if (hasAnyTool(['bow'])) {
-      actions.push({
-        id: 'hunt-forest',
-        label: 'Hunt game',
-        description: `Track deer or boar sheltering in the woods.${wetWeather ? ' Muddy ground makes tracking tricky.' : ''}`
-      });
-    }
-  } else if (terrain === 'open') {
-    if (!coldSeason) {
-      actions.push({
-        id: 'forage-open',
-        label: 'Forage wild grains',
-        description: `Gather seeds and berries from the open meadows.${caution}`
-      });
-    } else {
-      actions.push({
-        id: 'glean-winter',
-        label: 'Gather winter grasses',
-        description: 'Collect hardy grasses and roots poking through the frost.'
-      });
-    }
-    if (hasAnyTool(['bow'])) {
-      actions.push({
-        id: 'hunt-open',
-        label: 'Hunt small game',
-        description: `Use your bow to stalk hares darting across the plain.${caution}`
-      });
-    }
-  } else if (terrain === 'water') {
-    if (hasAnyTool(['stone hand axe', 'stone knife'])) {
-      actions.push({
-        id: 'gather-reeds',
-        label: 'Gather reeds',
-        description: `Harvest reeds for shelter and weaving projects.${caution}`
-      });
-    }
-    actions.push({
-      id: 'scavenge-shore',
-      label: 'Scavenge shoreline',
-      description: 'Inspect the waterline for driftwood, shellfish, and other useful finds.'
-    });
-  } else if (terrain === 'ore') {
-    const oreRemaining = Array.isArray(node?.deposits)
-      ? node.deposits.reduce((sum, dep) => sum + (dep.quantity || 0), 0)
-      : 0;
-    const stoneRemaining = node?.stone || 0;
-    actions.push({
-      id: 'survey-ore',
-      label: 'Survey ore deposit',
-      description: 'Mark promising veins and note the surrounding stone.'
-    });
-    if (canMineOre && (oreRemaining > 0 || stoneRemaining > 0)) {
-      actions.push({
-        id: 'chip-ore',
-        label: 'Chip ore sample',
-        description: `Break loose a sample (${summarizeOreNode(node)}).${caution}`
-      });
-    }
-    if (canMineOre && (oreRemaining > 0 || stoneRemaining > 0)) {
-      actions.push({
-        id: 'mine-ore',
-        label: 'Mine exposed ore',
-        description: `Work the deposit (${summarizeOreNode(node)}).${caution}`
-      });
-    }
-  }
-
-  const unique = new Map();
-  actions.forEach(action => {
-    if (!unique.has(action.id)) {
-      unique.set(action.id, action);
-    }
-  });
-
-  return [...unique.values()];
-}
-
 function ensurePlayerPanel(parent) {
   if (!parent) return null;
   if (!playerPanel) {
@@ -558,18 +474,100 @@ function ensurePlayerPanel(parent) {
     playerPanel.appendChild(playerTerrainLabel);
 
     const actionHeader = document.createElement('h5');
-    actionHeader.textContent = 'Available actions';
+    actionHeader.textContent = 'Daily focus';
     actionHeader.style.margin = '12px 0 4px';
     actionHeader.style.fontSize = '1rem';
     actionHeader.style.fontWeight = '600';
     playerPanel.appendChild(actionHeader);
 
     playerActionList = document.createElement('div');
-    playerActionList.style.display = 'flex';
-    playerActionList.style.flexWrap = 'wrap';
-    playerActionList.style.gap = '8px';
-    playerActionList.style.margin = '0';
+    Object.assign(playerActionList.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      margin: '0'
+    });
     playerPanel.appendChild(playerActionList);
+
+    const jobControl = document.createElement('div');
+    Object.assign(jobControl.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '4px'
+    });
+
+    const jobLabel = document.createElement('label');
+    jobLabel.textContent = 'Assign explorer job';
+    jobLabel.style.fontWeight = '500';
+    jobLabel.style.fontSize = '0.95rem';
+
+    playerJobSelect = document.createElement('select');
+    Object.assign(playerJobSelect.style, {
+      borderRadius: '6px',
+      border: '1px solid var(--map-border, #999)',
+      padding: '6px 8px',
+      fontSize: '0.95rem',
+      background: 'var(--menu-bg)',
+      color: 'var(--text-color)'
+    });
+    playerJobSelect.addEventListener('change', event => {
+      handlePlayerJobSelect(event.target.value);
+    });
+    jobLabel.appendChild(playerJobSelect);
+    jobControl.appendChild(jobLabel);
+    playerActionList.appendChild(jobControl);
+
+    playerJobDescription = document.createElement('p');
+    playerJobDescription.style.margin = '0';
+    playerJobDescription.style.fontSize = '0.85rem';
+    playerJobDescription.style.opacity = '0.82';
+    playerActionList.appendChild(playerJobDescription);
+
+    const timeHeader = document.createElement('h6');
+    timeHeader.textContent = 'Time lapse';
+    timeHeader.style.margin = '8px 0 0';
+    timeHeader.style.fontSize = '0.9rem';
+    timeHeader.style.fontWeight = '600';
+    playerActionList.appendChild(timeHeader);
+
+    timeLapseButtonsContainer = document.createElement('div');
+    Object.assign(timeLapseButtonsContainer.style, {
+      display: 'flex',
+      flexWrap: 'wrap',
+      gap: '6px'
+    });
+    playerActionList.appendChild(timeLapseButtonsContainer);
+
+    timeLapseButtons.clear();
+    TIME_LAPSE_OPTIONS.forEach(option => {
+      const btn = document.createElement('button');
+      btn.type = 'button';
+      btn.textContent = option.label;
+      btn.dataset.timeOptionId = option.id;
+      Object.assign(btn.style, {
+        borderRadius: '6px',
+        border: '1px solid var(--map-border, #999)',
+        padding: '6px 10px',
+        background: 'var(--action-button-bg)',
+        color: 'var(--action-button-text)',
+        cursor: 'pointer',
+        boxShadow: 'var(--action-button-shadow)',
+        fontSize: '0.9rem',
+        minWidth: '72px'
+      });
+      btn.addEventListener('click', () => {
+        handleTimeLapse(option.id);
+      });
+      timeLapseButtonsContainer.appendChild(btn);
+      timeLapseButtons.set(option.id, btn);
+    });
+
+    playerTimeHint = document.createElement('p');
+    playerTimeHint.style.margin = '0';
+    playerTimeHint.style.fontSize = '0.8rem';
+    playerTimeHint.style.opacity = '0.75';
+    playerActionList.appendChild(playerTimeHint);
+    populatePlayerJobOptions();
   }
 
   if (playerPanel.parentElement !== parent) {
@@ -614,10 +612,16 @@ function renderPlayerPanel() {
   if (!playerPanel) return;
   const loc = getActiveLocation();
   const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
+  const time = timeInfo();
+
   if (!loc) {
     if (playerLocationLabel) playerLocationLabel.textContent = 'No active expedition.';
     if (playerTerrainLabel) playerTerrainLabel.textContent = '';
-    if (playerActionList) playerActionList.replaceChildren();
+    renderPlayerJobControls(player, {
+      enabled: false,
+      disabledMessage: 'Assign a destination to direct the explorer.'
+    });
+    renderTimeLapseButtons(time, { hasLocation: false });
     return;
   }
 
@@ -631,40 +635,166 @@ function renderPlayerPanel() {
 
   const terrain = getPlayerTerrain();
   const terrainLabel = describeTerrainType(terrain);
-  const time = timeInfo();
   if (playerTerrainLabel) {
     playerTerrainLabel.textContent = `Terrain: ${terrainLabel} — ${time.season}, ${time.weather}`;
   }
 
-  if (playerActionList) {
-    playerActionList.replaceChildren();
-    const actions = determinePlayerActions({
-      terrain,
-      season: time.season,
-      weather: time.weather,
-      biome: loc.biome,
-      locationId: loc.id,
-      x: player.x,
-      y: player.y
+  ensurePlayerJob(player);
+  renderPlayerJobControls(player, { enabled: true });
+  renderTimeLapseButtons(time, { hasLocation: true });
+}
+
+function populatePlayerJobOptions() {
+  if (!playerJobSelect) return;
+  const options = getPlayerJobOptions();
+  const existingValues = Array.from(playerJobSelect.options).map(option => option.value);
+  const desiredValues = options.map(option => option.id);
+  const needsRebuild =
+    existingValues.length !== desiredValues.length ||
+    existingValues.some((value, index) => value !== desiredValues[index]);
+
+  if (needsRebuild) {
+    const optionNodes = options.map(option => {
+      const node = document.createElement('option');
+      node.value = option.id;
+      node.textContent = option.label;
+      return node;
     });
-    if (!actions.length) {
-      const empty = document.createElement('span');
-      empty.textContent = 'No obvious actions available here.';
-      playerActionList.appendChild(empty);
+    playerJobSelect.replaceChildren(...optionNodes);
+  } else {
+    options.forEach((option, index) => {
+      const node = playerJobSelect.options[index];
+      if (node && node.textContent !== option.label) {
+        node.textContent = option.label;
+      }
+    });
+  }
+}
+
+function renderPlayerJobControls(player, { enabled = true, disabledMessage = '' } = {}) {
+  populatePlayerJobOptions();
+  const selected = getPlayerJobOption(player?.jobId);
+  if (playerJobSelect) {
+    const value = selected?.id || DEFAULT_PLAYER_JOB_ID;
+    if (playerJobSelect.value !== value) {
+      playerJobSelect.value = value;
+    }
+    playerJobSelect.disabled = !enabled;
+  }
+  if (playerJobDescription) {
+    if (!enabled && disabledMessage) {
+      playerJobDescription.textContent = disabledMessage;
+    } else if (selected?.description) {
+      playerJobDescription.textContent = selected.description;
     } else {
-      actions.forEach(action => {
-        const btn = document.createElement('button');
-        btn.type = 'button';
-        btn.textContent = action.label;
-        btn.title = action.description;
-        btn.dataset.actionId = action.id;
-        btn.addEventListener('click', () => {
-          handlePlayerAction(action);
-        });
-        playerActionList.appendChild(btn);
-      });
+      playerJobDescription.textContent = 'Choose a focus for the day.';
     }
   }
+}
+
+function renderTimeLapseButtons(time, { hasLocation = true } = {}) {
+  const hour = Number.isFinite(time?.hour) ? Number(time.hour) : 0;
+  const currentMinutes = Math.max(0, hour * 60);
+  const dayEndMinutes = DAY_END_HOUR * 60;
+  const timeRemaining = Math.max(0, dayEndMinutes - currentMinutes);
+  const variancePercent = Math.round(TIME_LAPSE_VARIANCE_RATIO * 100);
+
+  TIME_LAPSE_OPTIONS.forEach(option => {
+    const button = timeLapseButtons.get(option.id);
+    if (!button) return;
+    const baseMinutes = option.minutes ?? timeRemaining;
+    const requiredMinutes =
+      option.minutes != null
+        ? option.minutes * (1 - TIME_LAPSE_BUFFER_RATIO)
+        : timeRemaining * (1 - TIME_LAPSE_BUFFER_RATIO);
+    const available = hasLocation && timeRemaining >= requiredMinutes && baseMinutes > 0.5;
+    button.disabled = !available;
+    if (available) {
+      if (option.id === 'all-day') {
+        const approxEndHour = (currentMinutes + baseMinutes) / 60;
+        button.title = `Work until around ${formatHour(approxEndHour)} with ±${variancePercent}% variance.`;
+      } else {
+        button.title = `Advance roughly ${formatDuration(baseMinutes / 60)} (±${variancePercent}%).`;
+      }
+    } else if (!hasLocation) {
+      button.title = 'Time lapse unavailable without an active expedition.';
+    } else {
+      button.title = 'Not enough daylight remains.';
+    }
+  });
+
+  if (playerTimeHint) {
+    if (!hasLocation) {
+      playerTimeHint.textContent = 'Time controls are unavailable without an active expedition.';
+    } else if (timeRemaining <= 0) {
+      playerTimeHint.textContent = 'Daylight has faded; rest beckons.';
+    } else {
+      playerTimeHint.textContent = `Daylight remaining: ${formatDuration(timeRemaining / 60)} (until ${formatHour(DAY_END_HOUR)}).`;
+    }
+  }
+}
+
+function handlePlayerJobSelect(jobId) {
+  const loc = getActiveLocation();
+  const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
+  const selected = getPlayerJobOption(jobId);
+  const previous = getPlayerJobOption(player?.jobId);
+  if (!selected) return;
+  if (player.jobId === selected.id) return;
+  player.jobId = selected.id;
+  saveGame();
+  const previousLabel = previous?.label ? previous.label.toLowerCase() : 'general duties';
+  const nextLabel = selected.label ? selected.label.toLowerCase() : selected.id;
+  if (previous && previous.id !== selected.id) {
+    logEvent(`Shifted focus from ${previousLabel} to ${nextLabel}.`);
+  } else {
+    logEvent(`Set focus to ${nextLabel}.`);
+  }
+  renderPlayerPanel();
+}
+
+function handleTimeLapse(optionId) {
+  const option = TIME_LAPSE_OPTIONS.find(entry => entry.id === optionId);
+  if (!option) return;
+  const loc = getActiveLocation();
+  if (!loc) {
+    logEvent('An active expedition is required before committing time.');
+    return;
+  }
+  const player = ensurePlayerState(loc.id);
+  const job = getPlayerJobOption(player.jobId);
+  const time = timeInfo();
+  const hour = Number.isFinite(time?.hour) ? Number(time.hour) : 0;
+  const currentMinutes = Math.max(0, hour * 60);
+  const dayEndMinutes = DAY_END_HOUR * 60;
+  const timeRemaining = Math.max(0, dayEndMinutes - currentMinutes);
+  const baseMinutes = option.minutes ?? timeRemaining;
+  if (baseMinutes <= 0) {
+    logEvent('No daylight remains to act upon.');
+    return;
+  }
+  const requiredMinutes =
+    option.minutes != null
+      ? option.minutes * (1 - TIME_LAPSE_BUFFER_RATIO)
+      : timeRemaining * (1 - TIME_LAPSE_BUFFER_RATIO);
+  if (timeRemaining < requiredMinutes) {
+    logEvent('Not enough daylight remains for that plan.');
+    return;
+  }
+
+  const variance = 1 + (Math.random() * 2 - 1) * TIME_LAPSE_VARIANCE_RATIO;
+  const actualMinutes = Math.max(1, baseMinutes * variance);
+  const startHour = time.hour;
+  advanceHours(actualMinutes / 60);
+  const endTime = timeInfo();
+  saveGame();
+  const durationText = formatDuration(actualMinutes / 60);
+  const plannedText = formatDuration(baseMinutes / 60);
+  const startText = formatHour(startHour);
+  const endText = formatHour(endTime.hour);
+  const jobPhrase = job?.label ? `${job.label.toLowerCase()} duties` : 'daily tasks';
+  logEvent(`Worked on ${jobPhrase} from ${startText} for about ${durationText} (planned ${plannedText}). Wrapped near ${endText}.`);
+  render();
 }
 
 function centerOnPlayer(options = {}) {
@@ -672,80 +802,6 @@ function centerOnPlayer(options = {}) {
   const loc = getActiveLocation();
   const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
   mapView.setFocus({ x: player.x, y: player.y }, options);
-}
-
-function handlePlayerAction(action) {
-  const loc = getActiveLocation();
-  const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
-  const terrainLabel = describeTerrainType(getPlayerTerrain());
-  logEvent(`${action.label} selected at (${player.x}, ${player.y}) within the ${terrainLabel}. ${action.description}`);
-
-  if (!loc) return;
-
-  if (action.id === 'fell-trees') {
-    const availableTools = listAvailableToolNames();
-    const result = fellTreesAtTile({
-      locationId: loc.id,
-      x: player.x,
-      y: player.y,
-      tools: availableTools
-    });
-    if (!result?.success) {
-      if (result?.reason) logEvent(result.reason);
-      return;
-    }
-    Object.entries(result.yields || {}).forEach(([name, amount]) => {
-      if (!amount) return;
-      addItem(name, amount);
-    });
-    const yieldText = formatResourceList(result.yields || {});
-    const summary = formatFelledSummary(result.felled || {});
-    const messageParts = [`Felled ${summary}`];
-    if (yieldText) {
-      messageParts.push(`gaining ${yieldText}`);
-    }
-    logEvent(`${messageParts.join(' ')}.`);
-    if (result.cleared) {
-      logEvent('The last of the timber falls, opening the land.');
-    }
-    if (result.timeHours) {
-      advanceHours(result.timeHours);
-    }
-    render();
-    return;
-  }
-
-  if (action.id === 'mine-ore') {
-    const availableTools = listAvailableToolNames();
-    const result = mineOreAtTile({
-      locationId: loc.id,
-      x: player.x,
-      y: player.y,
-      tools: availableTools
-    });
-    if (!result?.success) {
-      if (result?.reason) logEvent(result.reason);
-      return;
-    }
-    Object.entries(result.yields || {}).forEach(([name, amount]) => {
-      if (!amount) return;
-      addItem(name, amount);
-    });
-    const yieldText = formatResourceList(result.yields || {});
-    if (yieldText) {
-      logEvent(`Recovered ${yieldText} from the exposed rock.`);
-    } else {
-      logEvent('Chipped away at the rockface.');
-    }
-    if (result.exhausted) {
-      logEvent('The vein runs dry, leaving only bare stone.');
-    }
-    if (result.timeHours) {
-      advanceHours(result.timeHours);
-    }
-    render();
-    return;
-  }
 }
 
 function handlePlayerNavigate({ dx = 0, dy = 0, recenter = false } = {}) {
@@ -791,6 +847,7 @@ function handlePlayerNavigate({ dx = 0, dy = 0, recenter = false } = {}) {
   advanceHours(durationHours);
   centerOnPlayer();
   updatePlayerMarker();
+  saveGame();
   render();
   logEvent(`Traveled ${distanceText} into the ${terrainLabel.toLowerCase()} in ${durationText}. ${detail}`.trim());
 }
@@ -1672,24 +1729,6 @@ function padNumber(value, digits = 2) {
   const numeric = Number.isFinite(value) ? Math.trunc(value) : 0;
   const safe = numeric < 0 ? 0 : numeric;
   return String(safe).padStart(digits, '0');
-}
-
-function formatResourceList(resources = {}) {
-  const entries = Object.entries(resources)
-    .filter(([, amount]) => Number.isFinite(amount) && Math.abs(amount) > 0.001)
-    .map(([name, amount]) => `${Math.round(amount * 100) / 100} ${name}`);
-  return joinWithAnd(entries);
-}
-
-function formatFelledSummary(felled = {}) {
-  const segments = [];
-  const total = (felled.small || 0) + (felled.medium || 0) + (felled.large || 0);
-  if (felled.large) segments.push(`${felled.large} large`);
-  if (felled.medium) segments.push(`${felled.medium} medium`);
-  if (felled.small) segments.push(`${felled.small} small`);
-  const summary = segments.length ? joinWithAnd(segments) : 'a few';
-  const plural = total === 1 ? 'tree' : 'trees';
-  return `${summary} ${plural}`;
 }
 
 function listAvailableToolNames() {

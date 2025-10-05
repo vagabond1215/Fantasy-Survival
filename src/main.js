@@ -60,7 +60,8 @@ function startGame(settings = {}) {
   store.player = {
     locationId: 'loc1',
     x: spawnX,
-    y: spawnY
+    y: spawnY,
+    jobId: 'survey'
   };
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
   refreshBuildingUnlocks();
