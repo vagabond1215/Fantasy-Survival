@@ -382,7 +382,7 @@ function nextBuildingId() {
   return `bld-${store.buildingSeq}`;
 }
 
-export function beginConstruction(typeId, { workers, locationId } = {}) {
+export function beginConstruction(typeId, { workers, locationId, x = null, y = null } = {}) {
   const type = buildingTypes.get(typeId);
   if (!type) throw new Error(`Unknown building type ${typeId}`);
   const evaluation = evaluateBuilding(typeId);
@@ -400,6 +400,8 @@ export function beginConstruction(typeId, { workers, locationId } = {}) {
   const normalizedSiteCategory = siteCategory ? String(siteCategory).toLowerCase() : null;
   const siteSurfaceArea = type.stats.site?.surfaceArea || 0;
   const coreComponentId = type.stats.coreComponent?.id || null;
+  const hasCoords = Number.isFinite(x) && Number.isFinite(y);
+  const tileCoords = hasCoords ? { x: Math.trunc(x), y: Math.trunc(y) } : null;
 
   const projectId = nextBuildingId();
   const project = {
@@ -416,7 +418,8 @@ export function beginConstruction(typeId, { workers, locationId } = {}) {
     coreResources,
     coreComponentId,
     siteCategory: normalizedSiteCategory,
-    siteSurfaceArea
+    siteSurfaceArea,
+    tile: tileCoords
   };
   store.addItem('buildings', project);
 
@@ -451,7 +454,8 @@ export function beginConstruction(typeId, { workers, locationId } = {}) {
         taskComplexity: baseComplexity,
         effortHours: totalLabor,
         proficiencyId: 'construction',
-        taskId: `construction:${typeId}`
+        taskId: `construction:${typeId}`,
+        tile: tileCoords
       }
     }
   };

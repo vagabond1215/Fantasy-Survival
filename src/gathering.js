@@ -232,6 +232,19 @@ const BASE_HABITAT_ITEMS = [
 
 const HABITAT_ITEMS = [...BASE_HABITAT_ITEMS, ...STURDY_TREE_STICK_ITEMS];
 
+export function getHabitatProspects(terrain) {
+  if (!terrain) return [];
+  const normalized = String(terrain).trim().toLowerCase();
+  if (!normalized) return [];
+  return HABITAT_ITEMS.filter(item => item.habitats.includes(normalized)).map(item => ({
+    id: item.id,
+    resource: item.resource,
+    encounterName: item.encounterName || item.resource,
+    type: item.type,
+    toolsRequired: Array.isArray(item.toolsRequired) ? [...item.toolsRequired] : []
+  }));
+}
+
 export const STURDY_STICK_RESOURCES = STURDY_TREE_STICK_ITEMS.map(item => item.resource);
 
 function ensureGatherStore() {
