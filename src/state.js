@@ -1,3 +1,5 @@
+const DEFAULT_PLAYER_JOB = 'survey';
+
 class DataStore {
   constructor() {
     this.buildings = new Map();
@@ -7,7 +9,7 @@ class DataStore {
     this.locations = new Map();
     this.technologies = new Map();
     this.proficiencies = new Map();
-    this.player = { locationId: null, x: 0, y: 0 };
+    this.player = { locationId: null, x: 0, y: 0, jobId: DEFAULT_PLAYER_JOB };
     this.time = { day: 1, month: 1, year: 410, hour: 6, season: 'Thawbound', weather: 'Clear' };
     this.difficulty = 'normal';
     this.jobs = {};
@@ -98,7 +100,8 @@ class DataStore {
     this.player = {
       locationId: savedPlayer.locationId ?? null,
       x: Number.isFinite(savedPlayer.x) ? Math.trunc(savedPlayer.x) : 0,
-      y: Number.isFinite(savedPlayer.y) ? Math.trunc(savedPlayer.y) : 0
+      y: Number.isFinite(savedPlayer.y) ? Math.trunc(savedPlayer.y) : 0,
+      jobId: typeof savedPlayer.jobId === 'string' && savedPlayer.jobId ? savedPlayer.jobId : DEFAULT_PLAYER_JOB
     };
     const savedTime = data.time || {};
     this.time = {
