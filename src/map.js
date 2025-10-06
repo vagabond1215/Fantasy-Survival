@@ -138,6 +138,9 @@ export function generateColorMap(
   const waterLevel = waterLevelOverride ?? biome?.elevation?.waterLevel ?? 0.3;
   // scale for vegetation pattern: more open land -> larger contiguous clearings
   const vegScale = 20 + openLand * 80;
+  const guaranteedWaterRadius = 18;
+  let nearestWaterDistance = Infinity;
+  let bestWaterCandidate = null;
 
   for (let y = 0; y < mapHeight; y++) {
     const row = [];
@@ -161,6 +164,26 @@ export function generateColorMap(
         type = 'open';
       }
 
+      if (type === 'water') {
+        const dx = gx;
+        const dy = gy;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (distance < nearestWaterDistance) {
+          nearestWaterDistance = distance;
+        }
+      } else {
+        const dx = gx;
+        const dy = gy;
+        const distance = Math.sqrt(dx * dx + dy * dy);
+        if (
+          distance > 0 &&
+          distance <= guaranteedWaterRadius &&
+          (bestWaterCandidate === null || elevation < bestWaterCandidate.elevation)
+        ) {
+          bestWaterCandidate = { localX: x, localY: y, elevation };
+        }
+      }
+
       const symbol = gx === 0 && gy === 0 ? '🚩' : TERRAIN_SYMBOLS[type] || '?';
       row.push(symbol);
       typeRow.push(type);
@@ -168,6 +191,12 @@ export function generateColorMap(
     tiles.push(row);
     terrainTypes.push(typeRow);
     elevations.push(eRow);
+  }
+
+  if (nearestWaterDistance > guaranteedWaterRadius && bestWaterCandidate) {
+    const { localX, localY } = bestWaterCandidate;
+    terrainTypes[localY][localX] = 'water';
+    tiles[localY][localX] = TERRAIN_SYMBOLS.water;
   }
 
   const viewportDetails = viewport
