@@ -342,8 +342,8 @@ export function createMapView(container, {
     const widthChanged = nextWidth !== prevWidth;
     const heightChanged = nextHeight !== prevHeight;
 
-    const centerX = Math.round(state.viewport.xStart + prevWidth / 2);
-    const centerY = Math.round(state.viewport.yStart + prevHeight / 2);
+    const centerX = state.viewport.xStart + Math.floor(prevWidth / 2);
+    const centerY = state.viewport.yStart + Math.floor(prevHeight / 2);
 
     state.viewport.width = nextWidth;
     state.viewport.height = nextHeight;
