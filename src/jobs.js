@@ -8,19 +8,19 @@ const JOB_DEFINITIONS = [
     id: 'gather',
     label: 'Gatherers',
     description: 'Collect forage, firewood, and loose materials from the surrounding area.',
-    preferredSkills: ['foraging', 'gathering', 'herbalism', 'agriculture']
+    preferredSkills: ['foraging', 'gathering', 'herbalism', 'agriculture', 'woodcutting', 'mining']
   },
   {
     id: 'hunt',
     label: 'Hunters',
     description: 'Track game to keep the settlement supplied with meat and hides.',
-    preferredSkills: ['hunting', 'tracking', 'fishing']
+    preferredSkills: ['hunting', 'tracking', 'fishing', 'swimming']
   },
   {
     id: 'craft',
     label: 'Crafters',
     description: 'Maintain tools, weave cordage, and assemble needed goods.',
-    preferredSkills: ['crafting', 'carpentry', 'smithing', 'weaving', 'pottery', 'leatherworking']
+    preferredSkills: ['crafting', 'carpentry', 'smithing', 'weaving', 'pottery', 'leatherworking', 'cooking', 'smelting']
   },
   {
     id: 'build',
