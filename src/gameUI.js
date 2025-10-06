@@ -116,10 +116,6 @@ let playerPanel = null;
 let playerPanelContainer = null;
 let playerLocationLabel = null;
 let playerTerrainLabel = null;
-let playerActionList = null;
-let playerJobSelect = null;
-let playerJobDescription = null;
-let playerTimeHint = null;
 let timeLapseButtonsContainer = null;
 let timeControlsSection = null;
 let sleepButton = null;
@@ -777,63 +773,6 @@ function ensurePlayerPanel(parent) {
     playerTerrainLabel = document.createElement('p');
     playerTerrainLabel.style.margin = '0';
     playerPanel.appendChild(playerTerrainLabel);
-
-    const actionHeader = document.createElement('h5');
-    actionHeader.textContent = 'Daily focus';
-    actionHeader.style.margin = '12px 0 4px';
-    actionHeader.style.fontSize = '1rem';
-    actionHeader.style.fontWeight = '600';
-    playerPanel.appendChild(actionHeader);
-
-    playerActionList = document.createElement('div');
-    Object.assign(playerActionList.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '8px',
-      margin: '0'
-    });
-    playerPanel.appendChild(playerActionList);
-
-    const jobControl = document.createElement('div');
-    Object.assign(jobControl.style, {
-      display: 'flex',
-      flexDirection: 'column',
-      gap: '4px'
-    });
-
-    const jobLabel = document.createElement('label');
-    jobLabel.textContent = 'Assign explorer job';
-    jobLabel.style.fontWeight = '500';
-    jobLabel.style.fontSize = '0.95rem';
-
-    playerJobSelect = document.createElement('select');
-    Object.assign(playerJobSelect.style, {
-      borderRadius: '6px',
-      border: '1px solid var(--map-border, #999)',
-      padding: '6px 8px',
-      fontSize: '0.95rem',
-      background: 'var(--menu-bg)',
-      color: 'var(--text-color)'
-    });
-    playerJobSelect.addEventListener('change', event => {
-      handlePlayerJobSelect(event.target.value);
-    });
-    jobLabel.appendChild(playerJobSelect);
-    jobControl.appendChild(jobLabel);
-    playerActionList.appendChild(jobControl);
-
-    playerJobDescription = document.createElement('p');
-    playerJobDescription.style.margin = '0';
-    playerJobDescription.style.fontSize = '0.85rem';
-    playerJobDescription.style.opacity = '0.82';
-    playerActionList.appendChild(playerJobDescription);
-
-    playerTimeHint = document.createElement('p');
-    playerTimeHint.style.margin = '8px 0 0';
-    playerTimeHint.style.fontSize = '0.8rem';
-    playerTimeHint.style.opacity = '0.75';
-    playerActionList.appendChild(playerTimeHint);
-    populatePlayerJobOptions();
   }
 
   if (playerPanel.parentElement !== parent) {
@@ -1026,10 +965,6 @@ function renderPlayerPanel() {
   if (!loc) {
     if (playerLocationLabel) playerLocationLabel.textContent = 'No active expedition.';
     if (playerTerrainLabel) playerTerrainLabel.textContent = '';
-    renderPlayerJobControls(player, {
-      enabled: false,
-      disabledMessage: 'Assign a destination to direct the explorer.'
-    });
     renderTimeLapseButtons(time, { hasLocation: false });
     return;
   }
@@ -1049,56 +984,7 @@ function renderPlayerPanel() {
   }
 
   ensurePlayerJob(player);
-  renderPlayerJobControls(player, { enabled: true });
   renderTimeLapseButtons(time, { hasLocation: true });
-}
-
-function populatePlayerJobOptions() {
-  if (!playerJobSelect) return;
-  const options = getPlayerJobOptions();
-  const existingValues = Array.from(playerJobSelect.options).map(option => option.value);
-  const desiredValues = options.map(option => option.id);
-  const needsRebuild =
-    existingValues.length !== desiredValues.length ||
-    existingValues.some((value, index) => value !== desiredValues[index]);
-
-  if (needsRebuild) {
-    const optionNodes = options.map(option => {
-      const node = document.createElement('option');
-      node.value = option.id;
-      node.textContent = option.label;
-      return node;
-    });
-    playerJobSelect.replaceChildren(...optionNodes);
-  } else {
-    options.forEach((option, index) => {
-      const node = playerJobSelect.options[index];
-      if (node && node.textContent !== option.label) {
-        node.textContent = option.label;
-      }
-    });
-  }
-}
-
-function renderPlayerJobControls(player, { enabled = true, disabledMessage = '' } = {}) {
-  populatePlayerJobOptions();
-  const selected = getPlayerJobOption(player?.jobId);
-  if (playerJobSelect) {
-    const value = selected?.id || DEFAULT_PLAYER_JOB_ID;
-    if (playerJobSelect.value !== value) {
-      playerJobSelect.value = value;
-    }
-    playerJobSelect.disabled = !enabled;
-  }
-  if (playerJobDescription) {
-    if (!enabled && disabledMessage) {
-      playerJobDescription.textContent = disabledMessage;
-    } else if (selected?.description) {
-      playerJobDescription.textContent = selected.description;
-    } else {
-      playerJobDescription.textContent = 'Choose a focus for the day.';
-    }
-  }
 }
 
 function renderTimeLapseButtons(time, { hasLocation = true } = {}) {
@@ -1147,36 +1033,6 @@ function renderTimeLapseButtons(time, { hasLocation = true } = {}) {
     }
   }
 
-  if (playerTimeHint) {
-    if (!hasLocation) {
-      playerTimeHint.textContent = 'Time controls are unavailable without an active expedition.';
-    } else if (timeRemaining <= 0) {
-      playerTimeHint.textContent = 'Daylight has faded; rest beckons.';
-    } else if (isAfterNightfall) {
-      playerTimeHint.textContent = 'Night has fallen; wrap up or slip into sleep when ready.';
-    } else {
-      playerTimeHint.textContent = `Daylight remaining: ${formatDuration(timeRemaining / 60)} (until ${formatHour(DAY_END_HOUR)}).`;
-    }
-  }
-}
-
-function handlePlayerJobSelect(jobId) {
-  const loc = getActiveLocation();
-  const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
-  const selected = getPlayerJobOption(jobId);
-  const previous = getPlayerJobOption(player?.jobId);
-  if (!selected) return;
-  if (player.jobId === selected.id) return;
-  player.jobId = selected.id;
-  saveGame();
-  const previousLabel = previous?.label ? previous.label.toLowerCase() : 'general duties';
-  const nextLabel = selected.label ? selected.label.toLowerCase() : selected.id;
-  if (previous && previous.id !== selected.id) {
-    logEvent(`Shifted focus from ${previousLabel} to ${nextLabel}.`);
-  } else {
-    logEvent(`Set focus to ${nextLabel}.`);
-  }
-  renderPlayerPanel();
 }
 
 function handleTimeLapse(optionId) {
