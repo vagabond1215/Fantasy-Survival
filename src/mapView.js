@@ -1,4 +1,4 @@
-import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS } from './map.js';
+import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS, TERRAIN_COLORS } from './map.js';
 
 const LEGEND_DEFAULTS = {
   water: 'Water',
@@ -111,9 +111,16 @@ export function createMapView(container, {
   navMode = 'viewport',
   onNavigate = null,
   actions = {},
-  jobSelector = null
+  jobSelector = null,
+  useTerrainColors = false,
+  terrainColors = null
 } = {}) {
   if (!container) throw new Error('Container is required for map view');
+
+  const normalizedTerrainColors =
+    terrainColors && typeof terrainColors === 'object'
+      ? { ...TERRAIN_COLORS, ...terrainColors }
+      : { ...TERRAIN_COLORS };
 
   const applyControlButtonStyle = (
     button,
@@ -161,10 +168,15 @@ export function createMapView(container, {
     zoom: 1,
     minZoom: 0.5,
     maxZoom: 3,
+    zoomBase: { width: 0, height: 0 },
+    zoomDisplayFactor: 1,
     sizeRetryCount: 0,
     markerLayer: null,
     markerElements: new Map(),
-    markerDefs: []
+    markerDefs: [],
+    useTerrainColors: Boolean(useTerrainColors),
+    terrainColors: normalizedTerrainColors,
+    pendingZoomSync: false
   };
 
   const getVisibleDimensions = () => {
@@ -283,6 +295,108 @@ export function createMapView(container, {
     return payload;
   }
 
+  function computeDesiredViewportSize() {
+    const baseWidth = Math.max(
+      1,
+      Math.trunc(state.zoomBase.width || state.viewport.width || state.map?.width || DEFAULT_VIEWPORT_SIZE)
+    );
+    const baseHeight = Math.max(
+      1,
+      Math.trunc(state.zoomBase.height || state.viewport.height || state.map?.height || DEFAULT_VIEWPORT_SIZE)
+    );
+    const width = Math.max(1, Math.round(baseWidth / state.zoom));
+    const height = Math.max(1, Math.round(baseHeight / state.zoom));
+    return { width, height };
+  }
+
+  function updateZoomDisplayFactor() {
+    if (!state.map) {
+      state.zoomDisplayFactor = 1;
+      return;
+    }
+
+    if (Math.abs(state.zoom - 1) < 0.001) {
+      state.zoomDisplayFactor = 1;
+      return;
+    }
+
+    const desired = computeDesiredViewportSize();
+    const actualCols = state.map.tiles?.[0]?.length || state.map.width || desired.width;
+    const actualRows = state.map.tiles?.length || state.map.height || desired.height;
+    const widthMatch = Math.abs(actualCols - desired.width) <= 1;
+    const heightMatch = Math.abs(actualRows - desired.height) <= 1;
+    state.zoomDisplayFactor = widthMatch && heightMatch ? 1 : state.zoom;
+  }
+
+  function adjustViewportForZoom({ forceFetch = false } = {}) {
+    if (!state.map) {
+      state.zoomDisplayFactor = Math.abs(state.zoom - 1) < 0.001 ? 1 : state.zoom;
+      return;
+    }
+
+    const desired = computeDesiredViewportSize();
+    const prevWidth = Math.max(1, state.viewport.width || state.map.width || desired.width);
+    const prevHeight = Math.max(1, state.viewport.height || state.map.height || desired.height);
+    const nextWidth = Math.max(1, desired.width);
+    const nextHeight = Math.max(1, desired.height);
+    const widthChanged = nextWidth !== prevWidth;
+    const heightChanged = nextHeight !== prevHeight;
+
+    const centerX = Math.round(state.viewport.xStart + prevWidth / 2);
+    const centerY = Math.round(state.viewport.yStart + prevHeight / 2);
+
+    state.viewport.width = nextWidth;
+    state.viewport.height = nextHeight;
+
+    if (!widthChanged && !heightChanged) {
+      if (forceFetch) {
+        updateViewportStart(state.viewport.xStart, state.viewport.yStart, { forceFetch: true });
+      } else {
+        updateZoomDisplayFactor();
+        requestFrame(updateTileSizing);
+        requestFrame(syncMarkers);
+      }
+      return;
+    }
+
+    const nextXStart = centerX - Math.floor(nextWidth / 2);
+    const nextYStart = centerY - Math.floor(nextHeight / 2);
+    updateViewportStart(nextXStart, nextYStart);
+  }
+
+  function getTerrainColor(type) {
+    if (!state.useTerrainColors || !type) return null;
+    return state.terrainColors?.[type] || null;
+  }
+
+  function applyTileAppearance(tile, type, symbol) {
+    if (!tile) return;
+    const symbolEl = tile.firstElementChild;
+    if (!symbolEl) {
+      tile.textContent = symbol ?? '';
+      return;
+    }
+
+    const fillColor = getTerrainColor(type);
+    const defaultSymbol = type ? TERRAIN_SYMBOLS?.[type] : null;
+    if (fillColor) {
+      tile.classList.add('map-tile--fill');
+      symbolEl.style.backgroundColor = fillColor;
+      symbolEl.style.borderRadius = '6px';
+      symbolEl.style.boxSizing = 'border-box';
+      symbolEl.style.width = '100%';
+      symbolEl.style.height = '100%';
+      symbolEl.style.boxShadow = 'inset 0 0 0 1px rgba(0, 0, 0, 0.18)';
+      symbolEl.textContent = symbol && symbol !== defaultSymbol ? symbol : '';
+    } else {
+      tile.classList.remove('map-tile--fill');
+      symbolEl.style.backgroundColor = 'transparent';
+      symbolEl.style.borderRadius = '0';
+      symbolEl.style.boxShadow = 'none';
+      symbolEl.textContent = symbol ?? '';
+    }
+  }
+
   function commitMapUpdate() {
     if (!state.map) return;
     state.context = {
@@ -298,7 +412,24 @@ export function createMapView(container, {
       }
     }
 
+    const actualCols = state.map.tiles?.[0]?.length || state.viewport.width || state.map.width || 0;
+    const actualRows = state.map.tiles?.length || state.viewport.height || state.map.height || 0;
+    if (!state.zoomBase.width || !state.zoomBase.height || Math.abs(state.zoom - 1) < 0.001) {
+      state.zoomBase.width = Math.max(1, actualCols);
+      state.zoomBase.height = Math.max(1, actualRows);
+    }
+
+    updateZoomDisplayFactor();
     render();
+    applyZoomTransform();
+
+    if (state.pendingZoomSync) {
+      const needsSync = Math.abs(state.zoomDisplayFactor - 1) >= 0.001;
+      state.pendingZoomSync = false;
+      if (needsSync) {
+        requestFrame(() => setZoom(state.zoom, { force: true }));
+      }
+    }
   }
 
   function needsBufferRefresh() {
@@ -2201,20 +2332,24 @@ export function createMapView(container, {
   }
 
   function applyZoomTransform() {
-    mapDisplay.style.transform = `scale(${state.zoom})`;
+    const scale = Number.isFinite(state.zoomDisplayFactor) ? state.zoomDisplayFactor : 1;
+    mapDisplay.style.transform = `scale(${scale})`;
     if (state.markerLayer) {
-      state.markerLayer.style.transform = `scale(${state.zoom})`;
+      state.markerLayer.style.transform = `scale(${scale})`;
     }
     updateZoomControls();
   }
 
-  function setZoom(nextZoom) {
+  function setZoom(nextZoom, options = {}) {
     const clamped = Math.min(state.maxZoom, Math.max(state.minZoom, nextZoom));
-    if (Math.abs(clamped - state.zoom) < 0.001) {
-      updateZoomControls();
+    if (!options.force && Math.abs(clamped - state.zoom) < 0.001) {
+      updateZoomDisplayFactor();
+      applyZoomTransform();
       return;
     }
     state.zoom = clamped;
+    adjustViewportForZoom({ forceFetch: Boolean(options.force) });
+    updateZoomDisplayFactor();
     applyZoomTransform();
     requestFrame(updateTileSizing);
   }
@@ -2257,6 +2392,7 @@ export function createMapView(container, {
         terrainSymbol.style.width = '100%';
         terrainSymbol.style.height = '100%';
         terrainSymbol.style.pointerEvents = 'none';
+        terrainSymbol.style.boxSizing = 'border-box';
         tile.appendChild(terrainSymbol);
         fragment.appendChild(tile);
       }
@@ -2372,12 +2508,7 @@ export function createMapView(container, {
         } else {
           delete tile.dataset.terrain;
         }
-        const symbolEl = tile.firstElementChild;
-        if (symbolEl) {
-          symbolEl.textContent = symbol;
-        } else {
-          tile.textContent = symbol;
-        }
+        applyTileAppearance(tile, type, symbol);
       });
     });
     updateWrapperSize();
@@ -2550,7 +2681,12 @@ export function createMapView(container, {
         state.map = null;
         state.buffer = null;
         state.context = { ...state.context, focus: { ...state.focus } };
+        state.zoomBase = { width: 0, height: 0 };
+        state.zoomDisplayFactor = 1;
+        state.zoom = 1;
+        state.pendingZoomSync = false;
         render();
+        applyZoomTransform();
         return;
       }
 
@@ -2586,6 +2722,13 @@ export function createMapView(container, {
         width: state.viewport.width,
         height: state.viewport.height
       };
+
+      if (!state.zoomBase.width || !state.zoomBase.height) {
+        state.zoomBase.width = Math.max(1, state.viewport.width || state.map?.width || DEFAULT_VIEWPORT_SIZE);
+        state.zoomBase.height = Math.max(1, state.viewport.height || state.map?.height || DEFAULT_VIEWPORT_SIZE);
+      }
+
+      state.pendingZoomSync = Math.abs(state.zoom - 1) > 0.001;
 
       state.context = {
         ...state.context,

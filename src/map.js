@@ -15,6 +15,14 @@ export const TERRAIN_SYMBOLS = {
   stone: '🪨'
 };
 
+export const TERRAIN_COLORS = {
+  water: '#2d7ff9',
+  open: '#facc15',
+  forest: '#16a34a',
+  ore: '#f97316',
+  stone: '#94a3b8'
+};
+
 export function computeCenteredStart(width = DEFAULT_MAP_WIDTH, height = DEFAULT_MAP_HEIGHT, focusX = 0, focusY = 0) {
   const normalizedWidth = Math.max(1, Math.trunc(width));
   const normalizedHeight = Math.max(1, Math.trunc(height));
