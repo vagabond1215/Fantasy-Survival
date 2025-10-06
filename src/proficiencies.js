@@ -335,12 +335,33 @@ export function rewardOrderProficiency(order, options = {}) {
   const duration = Number.isFinite(order.durationHours) ? Math.max(1, order.durationHours) : 1;
   const effortHours = options.effortHours ?? order.metadata?.effortHours ?? workers * duration;
   const success = options.success !== false;
-  return recordTaskCompletion({
+  const extraProficiencies = Array.isArray(order.metadata?.additionalProficiencies)
+    ? order.metadata.additionalProficiencies
+    : [];
+  const result = recordTaskCompletion({
     proficiencyId,
     complexity,
     effortHours,
     success
   });
+  extraProficiencies.forEach(entry => {
+    const extraId = typeof entry === 'string' ? entry : entry?.id;
+    if (!extraId || extraId === proficiencyId) return;
+    const scale = typeof entry?.effortScale === 'number' && Number.isFinite(entry.effortScale)
+      ? Math.max(0, entry.effortScale)
+      : 0.5;
+    if (scale <= 0) return;
+    const extraComplexity = Number.isFinite(entry?.complexity)
+      ? entry.complexity
+      : complexity;
+    recordTaskCompletion({
+      proficiencyId: extraId,
+      complexity: extraComplexity,
+      effortHours: effortHours * scale,
+      success
+    });
+  });
+  return result;
 }
 
 export function inferOrderProficiency(type) {

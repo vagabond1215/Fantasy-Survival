@@ -820,6 +820,11 @@ export function createMapView(container, {
   let jobMetaLine = null;
   let jobDescriptionLine = null;
   let jobEmptyNotice = null;
+  let jobInfoButton = null;
+  let jobInfoTooltip = null;
+  let jobTooltipHideTimer = null;
+  let jobTooltipPressTimer = null;
+  let jobTooltipVisible = false;
 
   const jobSelectorState = {
     options: [],
@@ -840,11 +845,69 @@ export function createMapView(container, {
     return { id: idValue, label, assigned, capacity, description, workdayHours };
   }
 
+  function hasJobTooltipContent() {
+    if (!jobSummaryContainer) return false;
+    return jobSummaryContainer.dataset.hasContent === 'true';
+  }
+
+  function updateJobTooltipVisibility(visible) {
+    if (!jobInfoTooltip) return;
+    jobTooltipVisible = Boolean(visible && hasJobTooltipContent());
+    if (jobTooltipVisible) {
+      jobInfoTooltip.style.opacity = '1';
+      jobInfoTooltip.style.visibility = 'visible';
+      jobInfoTooltip.style.transform = 'translateY(0)';
+      jobInfoTooltip.style.pointerEvents = 'auto';
+      if (jobInfoButton) {
+        jobInfoButton.setAttribute('aria-expanded', 'true');
+      }
+    } else {
+      jobInfoTooltip.style.opacity = '0';
+      jobInfoTooltip.style.visibility = 'hidden';
+      jobInfoTooltip.style.transform = 'translateY(-4px)';
+      jobInfoTooltip.style.pointerEvents = 'none';
+      if (jobInfoButton) {
+        jobInfoButton.setAttribute('aria-expanded', 'false');
+      }
+    }
+  }
+
+  function scheduleJobTooltipHide(delay = 140) {
+    clearTimeout(jobTooltipHideTimer);
+    if (!hasJobTooltipContent()) {
+      updateJobTooltipVisibility(false);
+      return;
+    }
+    jobTooltipHideTimer = setTimeout(() => {
+      updateJobTooltipVisibility(false);
+    }, Math.max(0, delay));
+  }
+
+  function cancelJobTooltipTimers() {
+    clearTimeout(jobTooltipHideTimer);
+    clearTimeout(jobTooltipPressTimer);
+    jobTooltipHideTimer = null;
+    jobTooltipPressTimer = null;
+  }
+
   function renderJobSummary() {
     if (!jobSummaryContainer) return;
+    jobSummaryContainer.dataset.hasContent = 'false';
+    updateJobTooltipVisibility(false);
     const selected = jobSelectorState.options.find(option => option.id === jobSelectorState.selectedId);
     if (!selected) {
-      jobSummaryContainer.style.display = 'none';
+      if (jobInfoButton) {
+        jobInfoButton.style.display = 'none';
+        jobInfoButton.disabled = true;
+      }
+      if (jobMetaLine) {
+        jobMetaLine.textContent = '';
+        jobMetaLine.style.display = 'none';
+      }
+      if (jobDescriptionLine) {
+        jobDescriptionLine.textContent = '';
+        jobDescriptionLine.style.display = 'none';
+      }
       if (jobEmptyNotice) {
         jobEmptyNotice.textContent = jobSelectorConfig.emptyMessage || 'No jobs are available right now.';
         jobEmptyNotice.style.display = jobSelectorState.options.length ? 'none' : 'block';
@@ -852,7 +915,9 @@ export function createMapView(container, {
       return;
     }
 
-    jobSummaryContainer.style.display = 'flex';
+    if (jobInfoButton) {
+      jobInfoButton.style.display = 'inline-flex';
+    }
     if (jobEmptyNotice) {
       jobEmptyNotice.style.display = 'none';
     }
@@ -869,6 +934,7 @@ export function createMapView(container, {
         metaParts.push(`${jobSelectorState.laborers} laborers free`);
       }
       jobMetaLine.textContent = metaParts.join(' · ');
+      jobMetaLine.style.display = metaParts.length ? 'block' : 'none';
     }
 
     if (jobDescriptionLine) {
@@ -881,6 +947,16 @@ export function createMapView(container, {
       } else {
         jobDescriptionLine.textContent = '';
         jobDescriptionLine.style.display = 'none';
+      }
+    }
+
+    const hasContent = Boolean(jobMetaLine?.textContent || jobDescriptionLine?.textContent);
+    jobSummaryContainer.dataset.hasContent = hasContent ? 'true' : 'false';
+    if (jobInfoButton) {
+      jobInfoButton.disabled = !hasContent;
+      jobInfoButton.style.display = hasContent ? 'inline-flex' : 'none';
+      if (!hasContent) {
+        updateJobTooltipVisibility(false);
       }
     }
   }
@@ -921,9 +997,6 @@ export function createMapView(container, {
       placeholder.value = '';
       placeholder.textContent = jobSelectorConfig.emptyOptionLabel || 'No jobs available';
       jobSelect.appendChild(placeholder);
-      if (jobSummaryContainer) {
-        jobSummaryContainer.style.display = 'none';
-      }
       if (jobEmptyNotice) {
         jobEmptyNotice.textContent = jobSelectorConfig.emptyMessage || 'No jobs are available right now.';
         jobEmptyNotice.style.display = 'block';
@@ -1357,6 +1430,16 @@ export function createMapView(container, {
     });
     jobHost.appendChild(jobSection);
 
+    const jobLabelRow = document.createElement('div');
+    Object.assign(jobLabelRow.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '8px',
+      position: 'relative'
+    });
+    jobSection.appendChild(jobLabelRow);
+
     const jobLabel = document.createElement('label');
     jobLabel.textContent = jobSelectorConfig.label || 'Jobs';
     jobLabel.htmlFor = `${idPrefix}-job-select`;
@@ -1365,7 +1448,57 @@ export function createMapView(container, {
     jobLabel.style.letterSpacing = '0.04em';
     jobLabel.style.textTransform = 'uppercase';
     jobLabel.style.color = 'inherit';
-    jobSection.appendChild(jobLabel);
+    jobLabelRow.appendChild(jobLabel);
+
+    jobInfoButton = document.createElement('button');
+    jobInfoButton.type = 'button';
+    jobInfoButton.textContent = 'i';
+    jobInfoButton.setAttribute('aria-label', `${jobSelectorConfig.label || 'Job'} details`);
+    jobInfoButton.setAttribute('aria-haspopup', 'true');
+    jobInfoButton.setAttribute('aria-expanded', 'false');
+    Object.assign(jobInfoButton.style, {
+      width: '22px',
+      height: '22px',
+      display: 'none',
+      alignItems: 'center',
+      justifyContent: 'center',
+      borderRadius: '50%',
+      border: '1px solid var(--map-border, rgba(126, 152, 212, 0.75))',
+      background: 'transparent',
+      color: 'inherit',
+      fontWeight: '700',
+      fontSize: '13px',
+      cursor: 'pointer',
+      lineHeight: '1',
+      padding: '0'
+    });
+    jobLabelRow.appendChild(jobInfoButton);
+
+    jobInfoTooltip = document.createElement('div');
+    jobInfoTooltip.id = `${idPrefix}-job-tooltip`;
+    jobInfoTooltip.setAttribute('role', 'tooltip');
+    Object.assign(jobInfoTooltip.style, {
+      position: 'absolute',
+      right: '0',
+      top: 'calc(100% + 8px)',
+      maxWidth: '260px',
+      minWidth: '220px',
+      padding: '12px 14px',
+      borderRadius: '12px',
+      border: '1px solid var(--map-border, rgba(126, 152, 212, 0.85))',
+      background: 'var(--map-tooltip-bg, rgba(10, 18, 38, 0.96))',
+      boxShadow: '0 12px 28px rgba(0, 0, 0, 0.45)',
+      color: 'inherit',
+      opacity: '0',
+      visibility: 'hidden',
+      transform: 'translateY(-4px)',
+      transition: 'opacity 0.12s ease, transform 0.12s ease',
+      pointerEvents: 'none',
+      zIndex: '30'
+    });
+    jobLabelRow.appendChild(jobInfoTooltip);
+
+    jobInfoButton.setAttribute('aria-controls', jobInfoTooltip.id);
 
     const selectWrapper = document.createElement('div');
     selectWrapper.style.position = 'relative';
@@ -1416,17 +1549,19 @@ export function createMapView(container, {
     selectWrapper.appendChild(caret);
 
     jobSummaryContainer = document.createElement('div');
+    jobSummaryContainer.dataset.hasContent = 'false';
     Object.assign(jobSummaryContainer.style, {
-      display: 'none',
+      display: 'flex',
       flexDirection: 'column',
-      gap: '4px',
+      gap: '6px',
       fontSize: '13px',
-      opacity: '0.9'
+      opacity: '0.92'
     });
-    jobSection.appendChild(jobSummaryContainer);
+    jobInfoTooltip.appendChild(jobSummaryContainer);
 
     jobMetaLine = document.createElement('span');
     jobMetaLine.style.color = 'inherit';
+    jobMetaLine.style.display = 'none';
     jobSummaryContainer.appendChild(jobMetaLine);
 
     jobDescriptionLine = document.createElement('span');
@@ -1440,6 +1575,66 @@ export function createMapView(container, {
     jobEmptyNotice.style.opacity = '0.8';
     jobEmptyNotice.style.display = 'none';
     jobSection.appendChild(jobEmptyNotice);
+
+    const showJobTooltip = () => {
+      cancelJobTooltipTimers();
+      updateJobTooltipVisibility(true);
+    };
+
+    const hideJobTooltip = delay => {
+      scheduleJobTooltipHide(typeof delay === 'number' ? delay : undefined);
+    };
+
+    jobInfoButton.addEventListener('mouseenter', () => {
+      if (!hasJobTooltipContent()) return;
+      showJobTooltip();
+    });
+
+    jobInfoButton.addEventListener('mouseleave', () => {
+      hideJobTooltip(120);
+    });
+
+    jobInfoButton.addEventListener('focus', () => {
+      if (!hasJobTooltipContent()) return;
+      showJobTooltip();
+    });
+
+    jobInfoButton.addEventListener('blur', () => {
+      hideJobTooltip(100);
+    });
+
+    jobInfoButton.addEventListener('keydown', event => {
+      if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        if (!hasJobTooltipContent()) return;
+        updateJobTooltipVisibility(!jobTooltipVisible);
+      }
+    });
+
+    jobInfoButton.addEventListener('pointerdown', event => {
+      if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+        cancelJobTooltipTimers();
+        jobTooltipPressTimer = setTimeout(() => {
+          if (hasJobTooltipContent()) {
+            updateJobTooltipVisibility(true);
+          }
+        }, 420);
+      }
+    });
+
+    jobInfoButton.addEventListener('pointerup', event => {
+      if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+        cancelJobTooltipTimers();
+        hideJobTooltip(200);
+      }
+    });
+
+    jobInfoButton.addEventListener('pointerleave', event => {
+      if (event.pointerType === 'touch' || event.pointerType === 'pen') {
+        cancelJobTooltipTimers();
+        hideJobTooltip(200);
+      }
+    });
 
     if (jobSelectorState.options.length) {
       refreshJobSelectorUI();

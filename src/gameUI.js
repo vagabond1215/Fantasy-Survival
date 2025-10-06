@@ -3529,21 +3529,61 @@ function createOrderMetadata(type, workers, hours, notes = '') {
   let proficiencyId = preset.proficiencyId || inferOrderProficiency(type) || 'gathering';
   let activity = preset.activity || type;
   const detail = (notes || '').toLowerCase();
+  const additionalProficiencies = [];
   if (type === 'gathering') {
-    if (/(forag|herb|mushroom|berry|root)/.test(detail)) {
-      proficiencyId = 'foraging';
-      activity = 'foraging';
-      baseComplexity += 4;
-    } else if (/(tree|sapling|log|timber|wood|lumber)/.test(detail)) {
+    const isAgriculture = /(farm|field|crop|sow|plant|tend|plow|till|seed|irrigat|harvest)/.test(detail);
+    const isHerbalism = /(herb|poultice|salve|tonic|medic|remedy|mushroom|fungi|apothec|spice)/.test(detail);
+    const isWoodcutting = /(tree|sapling|log|timber|wood|lumber)/.test(detail);
+    const isMining = /(mine|ore|quarry|vein|shaft|tunnel|excavat|prospect)/.test(detail);
+    const isForaging = /(forag|berry|nut|root|mushroom|wild food)/.test(detail);
+    if (isAgriculture) {
+      proficiencyId = 'agriculture';
+      activity = 'agriculture';
+      baseComplexity += 6;
+    } else if (isHerbalism) {
+      proficiencyId = 'herbalism';
+      activity = 'herbalism';
+      baseComplexity += 5;
+    } else if (isWoodcutting) {
       proficiencyId = 'woodcutting';
       activity = 'woodcutting';
       baseComplexity += 8;
+    } else if (isMining) {
+      proficiencyId = 'mining';
+      activity = 'mining';
+      baseComplexity += 10;
+    } else if (isForaging) {
+      proficiencyId = 'foraging';
+      activity = 'foraging';
+      baseComplexity += 4;
     }
   }
-  if (type === 'hunting' && /(fish|river|lake)/.test(detail)) {
-    proficiencyId = 'swimming';
-    activity = 'fishing';
-    baseComplexity += 6;
+  if (type === 'hunting') {
+    const isFishing = /(fish|river|lake|shore|stream|pond|net|hook)/.test(detail);
+    const isTracking = /(track|trail|spoor|print|scat|hoof|paw)/.test(detail);
+    if (isFishing) {
+      proficiencyId = 'fishing';
+      activity = 'fishing';
+      baseComplexity += 6;
+      additionalProficiencies.push({ id: 'swimming', effortScale: 0.35 });
+    }
+    if (isTracking) {
+      additionalProficiencies.push({ id: 'tracking', effortScale: isFishing ? 0.4 : 0.75 });
+    }
+  }
+  if (type === 'crafting') {
+    const isCooking = /(cook|meal|stew|roast|bake|kitchen|brew|smokehouse|prepare food)/.test(detail);
+    const isSmelting = /(smelt|furnace|kiln|bloom|ingot|slag|ore|charcoal)/.test(detail);
+    if (isCooking) {
+      proficiencyId = 'cooking';
+      activity = 'cooking';
+      baseComplexity += 5;
+    } else if (isSmelting) {
+      proficiencyId = 'smelting';
+      activity = 'smelting';
+      baseComplexity += 7;
+      additionalProficiencies.push({ id: 'smithing', effortScale: 0.45 });
+    }
   }
   const complexity = Math.min(100, baseComplexity + Math.log2(effortHours + 1) * 8);
   return {
@@ -3553,6 +3593,7 @@ function createOrderMetadata(type, workers, hours, notes = '') {
     effortHours,
     proficiencyId,
     activity,
+    additionalProficiencies: additionalProficiencies.length ? additionalProficiencies : undefined,
     notes
   };
 }

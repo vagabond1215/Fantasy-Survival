@@ -333,6 +333,60 @@ function computeResourceStatus(resources = {}) {
   return { missing, totals };
 }
 
+function characterizeConstructionResources(resources = {}) {
+  const weights = { wood: 0, stone: 0, metal: 0 };
+  Object.entries(resources).forEach(([name, amount]) => {
+    const weight = Math.max(0, Number(amount) || 0);
+    if (!weight) return;
+    const token = String(name).toLowerCase();
+    if (/(wood|log|timber|lumber|beam|board|plank|sapling|pole|stave|branch)/.test(token)) {
+      weights.wood += weight;
+    }
+    if (/(stone|rock|clay|brick|adobe|mortar|slate|granite|cobbl|marble)/.test(token)) {
+      weights.stone += weight;
+    }
+    if (/(metal|ingot|iron|copper|bronze|steel|nail|spike|ore)/.test(token)) {
+      weights.metal += weight;
+    }
+  });
+  return weights;
+}
+
+function resolveConstructionProficiencies(resources = {}) {
+  const weights = characterizeConstructionResources(resources);
+  const entries = Object.entries(weights).filter(([, value]) => value > 0);
+  if (!entries.length) {
+    return { primary: 'construction', extras: [] };
+  }
+  const [dominantType] = entries.reduce((best, entry) => (entry[1] > best[1] ? entry : best), entries[0]);
+  const extras = [];
+  const addExtra = (id, effortScale) => {
+    if (!id || effortScale <= 0) return;
+    if (extras.some(extra => extra.id === id)) return;
+    extras.push({ id, effortScale });
+  };
+  switch (dominantType) {
+    case 'stone':
+      addExtra('masonry', 0.7);
+      break;
+    case 'wood':
+      addExtra('carpentry', 0.7);
+      break;
+    case 'metal':
+      addExtra('smelting', 0.55);
+      break;
+    default:
+      break;
+  }
+  entries.forEach(([type]) => {
+    if (type === dominantType) return;
+    if (type === 'stone') addExtra('masonry', 0.45);
+    if (type === 'wood') addExtra('carpentry', 0.45);
+    if (type === 'metal') addExtra('smelting', 0.35);
+  });
+  return { primary: 'construction', extras };
+}
+
 export function evaluateBuilding(typeId) {
   const type = buildingTypes.get(typeId);
   if (!type) return null;
@@ -396,6 +450,7 @@ export function beginConstruction(typeId, { workers, locationId, x = null, y = n
   const totalLabor = Math.max(1, type.stats.totalLaborHours);
   const totalResources = cloneResourceMap(type.stats.totalResources);
   const coreResources = cloneResourceMap(type.stats.coreResources);
+  const proficiencyProfile = resolveConstructionProficiencies(totalResources);
   const siteCategory = (evaluation?.siteStatus?.selected?.category || type.stats.site?.primaryCategory || null);
   const normalizedSiteCategory = siteCategory ? String(siteCategory).toLowerCase() : null;
   const siteSurfaceArea = type.stats.site?.surfaceArea || 0;
@@ -453,7 +508,8 @@ export function beginConstruction(typeId, { workers, locationId, x = null, y = n
         baseComplexity,
         taskComplexity: baseComplexity,
         effortHours: totalLabor,
-        proficiencyId: 'construction',
+        proficiencyId: proficiencyProfile.primary,
+        additionalProficiencies: proficiencyProfile.extras.length ? proficiencyProfile.extras : undefined,
         taskId: `construction:${typeId}`,
         tile: tileCoords
       }
