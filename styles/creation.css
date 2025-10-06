@@ -1,0 +1,79 @@
+:root{
+  --bg:#0f0f14; --bg-2:#13131a;
+  --card:#161822cc; --stroke:#2a2c39;
+  --text:#e8e9ef; --muted:#b9bdd3;
+  --accent:#c46df3; --accent-2:#6de3f3;
+  --radius:16px; --blur:12px;
+  --shadow:0 10px 30px rgba(0,0,0,.35);
+}
+
+/* Page backdrop */
+html,body{height:100%}
+body{
+  margin:0; color:var(--text);
+  font:15px/1.45 ui-sans-serif, system-ui, -apple-system, Segoe UI, Roboto, Helvetica, Arial, "Apple Color Emoji","Segoe UI Emoji";
+  background:
+    radial-gradient(1200px 800px at 10% -20%, #1b1630 0%, transparent 60%),
+    radial-gradient(900px 700px at 120% 120%, #0e2b33 0%, transparent 55%),
+    linear-gradient(180deg, var(--bg), var(--bg-2));
+}
+
+/* Hide toolbar while creating */
+body.is-creating .top-toolbar{ display:none; }
+
+/* Layout */
+.creation-shell{ --aside:280px; display:grid; grid-template-columns:var(--aside) 1fr; gap:24px; min-height:100vh; padding:28px; padding-top:40px; }
+.creation-aside{ position:sticky; top:24px; height:max-content; display:flex; flex-direction:column; gap:24px; }
+.aside__top{ display:flex; justify-content:flex-end; }
+
+/* Settings icon (monochrome, no gaudy borders) */
+.icon-btn{ display:inline-grid; place-items:center; width:40px; height:40px; border-radius:50%; border:1px solid var(--stroke); background:linear-gradient(180deg,#1a1c26,#12131a); box-shadow: inset 0 0 0 1px rgba(255,255,255,.03); }
+.icon-btn:hover{ outline:2px solid #ffffff14 }
+.icon{ width:22px; height:22px; fill:#fff; }
+
+/* Stepper */
+.steps{ margin:0; padding:12px; list-style:none; background:rgba(22,24,34,.55); border:1px solid var(--stroke); border-radius:var(--radius); backdrop-filter: blur(var(--blur)); box-shadow:var(--shadow); }
+.step{ padding:10px 12px; border-radius:10px; color:var(--muted); }
+.step.is-active{ background:#1b1e2b; color:var(--text); border:1px solid #2e3142 }
+.step + .step{ margin-top:6px }
+
+.aside__progress{ display:grid; gap:10px }
+.progress-bar{ height:8px; background:#1a1b24; border:1px solid var(--stroke); border-radius:999px; overflow:hidden }
+.progress-fill{ display:block; height:100%; background:linear-gradient(90deg,var(--accent),var(--accent-2)) }
+
+.creation-main{ display:grid; align-content:start; gap:20px }
+.card{ background:var(--card); border:1px solid var(--stroke); border-radius:var(--radius); backdrop-filter: blur(var(--blur)); box-shadow:var(--shadow); padding:20px; }
+.card__title{ margin:0 0 10px; font-size:22px; letter-spacing:.3px }
+
+.grid{ display:grid; gap:16px; grid-template-columns: repeat(12, 1fr); }
+.field{ grid-column: span 6; display:grid; gap:8px }
+.field__label{ font-weight:600; color:var(--muted); letter-spacing:.2px }
+.field__hint{ margin:0; color:#9aa1bd; font-size:12px }
+.field__control{ width:100%; padding:10px 12px; color:var(--text); background:#0f1117; border:1px solid #2a2c39; border-radius:12px; outline:none; transition:border .15s ease, box-shadow .15s ease; }
+.field__control:focus{ border-color:#4752ff; box-shadow:0 0 0 3px #4752ff33 }
+
+/* Buttons */
+.btn{ border:1px solid #313548; background:linear-gradient(180deg,#2a2f42,#1c2034); color:#e9ebff; padding:10px 14px; border-radius:12px; font-weight:600; cursor:pointer; }
+.btn:hover{ filter:brightness(1.05) }
+.btn--ghost{ background:transparent }
+.btn--primary{ background:linear-gradient(180deg, var(--accent), #8442c8); border-color:#7c3fc0 }
+.creation-cta{ display:flex; align-items:center; gap:10px }
+.spacer{ flex:1 }
+
+/* Settings drawer */
+.drawer[hidden]{ display:none }
+.drawer__scrim{ position:fixed; inset:0; background:#0007; backdrop-filter: blur(2px); }
+.drawer__sheet{ position:fixed; right:0; top:0; bottom:0; width:360px; background:#131522; border-left:1px solid var(--stroke); box-shadow:var(--shadow); display:grid; grid-template-rows:auto 1fr; }
+.drawer__head{ display:flex; align-items:center; justify-content:space-between; padding:14px 16px; border-bottom:1px solid var(--stroke) }
+.drawer__body{ padding:16px; overflow:auto }
+
+/* Responsive */
+@media (max-width: 960px){
+  .creation-shell{ --aside:220px }
+  .grid{ grid-template-columns: repeat(6, 1fr) }
+  .field{ grid-column: span 6 }
+}
+@media (max-width: 680px){
+  .creation-shell{ grid-template-columns: 1fr }
+  .creation-aside{ position:static }
+}
