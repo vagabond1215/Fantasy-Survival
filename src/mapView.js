@@ -347,6 +347,7 @@ export function createMapView(container, {
 
     state.viewport.width = nextWidth;
     state.viewport.height = nextHeight;
+    state.home = computeHomeStart(state.focus);
 
     if (!widthChanged && !heightChanged) {
       if (forceFetch) {
@@ -905,10 +906,10 @@ export function createMapView(container, {
     zoomControls.appendChild(zoomInButton);
 
     zoomOutButton.addEventListener('click', () => {
-      zoomBy(-0.2);
+      zoomBy(-0.1);
     });
     zoomInButton.addEventListener('click', () => {
-      zoomBy(0.2);
+      zoomBy(0.1);
     });
     zoomResetButton.addEventListener('click', () => {
       resetZoom();
@@ -2468,6 +2469,7 @@ export function createMapView(container, {
   }
 
   function centerMap(options = {}) {
+    state.home = computeHomeStart(state.focus);
     updateViewportStart(state.home.xStart, state.home.yStart, options);
   }
 
