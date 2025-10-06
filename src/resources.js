@@ -4,6 +4,9 @@
 
 import { hasTechnology } from './technology.js';
 import { getBiome } from './biomes.js';
+import { getJobAssignmentsSummary } from './population.js';
+import { getJobWorkday } from './jobs.js';
+import { getProficiencyLevel, inferOrderProficiency } from './proficiencies.js';
 
 // Base wood yield per lumberjack per day in pounds depending on tool tech.
 // The values roughly correspond to the weight of a tree that could be felled
@@ -117,6 +120,90 @@ function multiplyResources(map, factor) {
   return result;
 }
 
+function ensureFlowEntry(flows, name) {
+  if (!flows[name]) {
+    flows[name] = { supply: 0, demand: 0 };
+  }
+  return flows[name];
+}
+
+function recordFlowContribution(flows, name, amount) {
+  if (!Number.isFinite(amount) || amount === 0) return;
+  const entry = ensureFlowEntry(flows, name);
+  if (amount > 0) {
+    entry.supply += amount;
+  } else {
+    entry.demand += Math.abs(amount);
+  }
+}
+
+const JOB_TO_ORDER_TYPE = {
+  gather: 'gathering',
+  hunt: 'hunting',
+  craft: 'crafting'
+};
+
+const JOB_DEFAULT_SKILL = {
+  gather: 'gathering',
+  hunt: 'hunting',
+  craft: 'crafting'
+};
+
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  return Math.max(min, Math.min(max, value));
+}
+
+function scoreMultiplier(score) {
+  const baseline = 50;
+  const value = Number.isFinite(score) ? Math.max(0, score) : baseline;
+  if (value >= baseline) {
+    const above = (value - baseline) / 50;
+    return 1 + clamp(above, 0, 1.6) * 0.6;
+  }
+  const below = (baseline - value) / baseline;
+  return clamp(1 - below * 0.6, 0.4, 1);
+}
+
+function proficiencyMultiplier(skillId) {
+  if (!skillId) return 1;
+  const level = getProficiencyLevel(skillId);
+  if (!Number.isFinite(level)) return 1;
+  const clamped = clamp(level, 1, 100);
+  return 0.55 + clamped / 90;
+}
+
+function resolveWorkerSkill(jobId, worker, orderType) {
+  if (worker?.focusSkill) return worker.focusSkill;
+  if (orderType) {
+    const inferred = inferOrderProficiency(orderType);
+    if (inferred) return inferred;
+  }
+  return JOB_DEFAULT_SKILL[jobId] || orderType || null;
+}
+
+function applyJobRosterFlows(flows) {
+  const summary = getJobAssignmentsSummary();
+  Object.entries(summary).forEach(([jobId, roster]) => {
+    if (!Array.isArray(roster) || roster.length === 0) return;
+    const orderType = JOB_TO_ORDER_TYPE[jobId];
+    if (!orderType) return;
+    const workday = getJobWorkday(jobId);
+    if (!Number.isFinite(workday) || workday <= 0) return;
+    const basePerHour = getOrderHourlyEffect({ type: orderType, workers: 1 });
+    const resourceEntries = Object.entries(basePerHour || {}).filter(([, amount]) => Number.isFinite(amount) && amount !== 0);
+    if (!resourceEntries.length) return;
+    roster.forEach(worker => {
+      const skillId = resolveWorkerSkill(jobId, worker, orderType);
+      const productivity = scoreMultiplier(worker?.score) * proficiencyMultiplier(skillId);
+      resourceEntries.forEach(([name, amount]) => {
+        const total = amount * productivity * workday;
+        recordFlowContribution(flows, name, total);
+      });
+    });
+  });
+}
+
 function expectedScavengePerHour(workers = 0) {
   const perWorkerLoadPerHour = (EFFECTIVE_CAPACITY * AVERAGE_LOAD_FACTOR) / 8;
   const totals = {};
@@ -210,17 +297,10 @@ export function calculateExpectedInventoryFlows(orders = []) {
       const hours = order.status === 'pending' ? order.durationHours : order.remainingHours;
       const delta = calculateOrderDelta(order, hours);
       Object.entries(delta).forEach(([name, amount]) => {
-        if (!Number.isFinite(amount) || amount === 0) return;
-        if (!flows[name]) {
-          flows[name] = { supply: 0, demand: 0 };
-        }
-        if (amount > 0) {
-          flows[name].supply += amount;
-        } else {
-          flows[name].demand += Math.abs(amount);
-        }
+        recordFlowContribution(flows, name, amount);
       });
     });
+  applyJobRosterFlows(flows);
   return flows;
 }
 
