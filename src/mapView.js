@@ -923,12 +923,14 @@ export function createMapView(container, {
     }
 
     if (jobMetaLine) {
-      const metaParts = [`Assigned ${selected.assigned}`];
+      const metaParts = [];
       if (Number.isFinite(selected.capacity)) {
-        metaParts.push(`Capacity ${selected.capacity}`);
+        metaParts.push(`Assigned ${selected.assigned}/${selected.capacity}`);
+      } else {
+        metaParts.push(`Assigned ${selected.assigned}`);
       }
       if (Number.isFinite(selected.workdayHours)) {
-        metaParts.push(`${selected.workdayHours}h day`);
+        metaParts.push(`${selected.workdayHours}h`);
       }
       if (Number.isFinite(jobSelectorState.laborers)) {
         metaParts.push(`${jobSelectorState.laborers} laborers free`);
