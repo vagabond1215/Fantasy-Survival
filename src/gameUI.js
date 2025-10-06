@@ -855,8 +855,13 @@ function resetTimeControlElements() {
 }
 
 function ensureMapTimeControls() {
-  const actionPanel = mapView?.elements?.actionPanel;
-  if (!actionPanel) {
+  const controlHost =
+    mapView?.elements?.controlDetails ||
+    mapView?.elements?.actionPanel ||
+    mapView?.elements?.controls ||
+    null;
+
+  if (!controlHost) {
     if (timeControlsSection) {
       resetTimeControlElements();
     }
@@ -873,16 +878,24 @@ function ensureMapTimeControls() {
       display: 'flex',
       flexDirection: 'column',
       gap: '10px',
-      paddingTop: '12px',
-      borderTop: '1px solid var(--map-border, #ccc)',
-      alignItems: 'stretch'
+      padding: '12px 14px',
+      borderRadius: '14px',
+      border: '1px solid var(--map-border, rgba(104, 132, 194, 0.75))',
+      background: 'var(--map-control-surface, linear-gradient(135deg, rgba(16, 28, 62, 0.95), rgba(12, 22, 46, 0.92)))',
+      boxShadow: '0 10px 24px rgba(0, 0, 0, 0.35)',
+      alignItems: 'stretch',
+      width: '100%',
+      boxSizing: 'border-box'
     });
 
     const timeHeader = document.createElement('h5');
     timeHeader.textContent = 'Time lapse';
-    timeHeader.style.margin = '4px 0 0';
+    timeHeader.style.margin = '0';
     timeHeader.style.fontSize = '0.95rem';
     timeHeader.style.fontWeight = '600';
+    timeHeader.style.letterSpacing = '0.08em';
+    timeHeader.style.textTransform = 'uppercase';
+    timeHeader.style.color = 'var(--map-control-text, #f4f7ff)';
     timeControlsSection.appendChild(timeHeader);
 
     timeLapseButtonsContainer = document.createElement('div');
@@ -901,12 +914,12 @@ function ensureMapTimeControls() {
       btn.dataset.timeOptionId = option.id;
       Object.assign(btn.style, {
         borderRadius: '12px',
-        border: '1px solid var(--map-border, #999)',
+        border: '1px solid var(--map-border, rgba(126, 152, 212, 0.8))',
         padding: '10px 14px',
-        background: 'var(--action-button-bg)',
-        color: 'var(--action-button-text)',
+        background: 'var(--map-select-bg, linear-gradient(135deg, rgba(22, 40, 82, 0.98), rgba(17, 31, 60, 0.95)))',
+        color: 'var(--map-select-text, #f5f8ff)',
         cursor: 'pointer',
-        boxShadow: 'var(--action-button-shadow)',
+        boxShadow: '0 6px 16px rgba(0, 0, 0, 0.35)',
         fontSize: '0.95rem',
         fontWeight: '600',
         letterSpacing: '0.04em',
@@ -925,15 +938,15 @@ function ensureMapTimeControls() {
     sleepButton.textContent = 'Sleep';
     Object.assign(sleepButton.style, {
       borderRadius: '12px',
-      border: '1px solid var(--map-border, #999)',
+      border: '1px solid var(--map-border, rgba(126, 152, 212, 0.8))',
       padding: '10px 14px',
-      background: 'var(--action-button-bg)',
-      color: 'var(--action-button-text)',
+      background: 'var(--map-select-bg, linear-gradient(135deg, rgba(22, 40, 82, 0.98), rgba(17, 31, 60, 0.95)))',
+      color: 'var(--map-select-text, #f5f8ff)',
       cursor: 'pointer',
       fontWeight: '600',
       letterSpacing: '0.04em',
       textTransform: 'uppercase',
-      boxShadow: 'var(--action-button-shadow)',
+      boxShadow: '0 6px 16px rgba(0, 0, 0, 0.35)',
       fontSize: '0.95rem',
       alignSelf: 'stretch',
       width: '100%'
@@ -942,8 +955,8 @@ function ensureMapTimeControls() {
     timeControlsSection.appendChild(sleepButton);
   }
 
-  if (timeControlsSection.parentElement !== actionPanel) {
-    actionPanel.appendChild(timeControlsSection);
+  if (timeControlsSection.parentElement !== controlHost) {
+    controlHost.appendChild(timeControlsSection);
   }
 }
 
@@ -3826,9 +3839,7 @@ export function initGameUI() {
       navMode: 'player',
       onNavigate: handlePlayerNavigate,
       jobSelector: {
-        title: 'Village',
-        label: 'Jobs',
-        helper: 'Select a role to review its assignment details in the Jobs panel.',
+        label: 'Role',
         emptyMessage: 'No jobs are available yet.',
         defaultDescription: 'Open the Jobs panel to adjust staffing and work schedules.',
         onSelect: handleMapJobSelect

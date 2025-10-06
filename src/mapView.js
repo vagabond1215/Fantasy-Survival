@@ -699,6 +699,8 @@ export function createMapView(container, {
 
   const controls = document.createElement('div');
   let navGrid = null;
+  let controlColumn = null;
+  let controlDetailsSection = null;
   let zoomControls = null;
   let zoomOutButton = null;
   let zoomInButton = null;
@@ -712,13 +714,33 @@ export function createMapView(container, {
     controls.style.justifyContent = 'center';
     controls.style.alignSelf = 'flex-start';
 
+    controlColumn = document.createElement('div');
+    controlColumn.style.display = 'flex';
+    controlColumn.style.flexDirection = 'column';
+    controlColumn.style.alignItems = 'stretch';
+    controlColumn.style.gap = '10px';
+    controls.appendChild(controlColumn);
+
+    const navGridWidth = 'calc(3 * 48px + 2 * 6px)';
+
     navGrid = document.createElement('div');
     navGrid.className = `${idPrefix}-nav map-nav-grid`;
     navGrid.style.display = 'grid';
     navGrid.style.gridTemplateColumns = 'repeat(3, 48px)';
     navGrid.style.gridAutoRows = '48px';
     navGrid.style.gap = '6px';
-    controls.appendChild(navGrid);
+    navGrid.style.width = navGridWidth;
+    controlColumn.appendChild(navGrid);
+
+    controlDetailsSection = document.createElement('div');
+    controlDetailsSection.className = `${idPrefix}-control-details map-control-details`;
+    controlDetailsSection.style.display = 'flex';
+    controlDetailsSection.style.flexDirection = 'column';
+    controlDetailsSection.style.gap = '12px';
+    controlDetailsSection.style.width = navGridWidth;
+    controlDetailsSection.style.alignSelf = 'center';
+    controlDetailsSection.style.boxSizing = 'border-box';
+    controlColumn.appendChild(controlDetailsSection);
 
     zoomControls = document.createElement('div');
     zoomControls.className = `${idPrefix}-zoom map-zoom-controls`;
@@ -730,6 +752,7 @@ export function createMapView(container, {
     zoomControls.style.alignItems = 'center';
     zoomControls.style.justifyItems = 'center';
     zoomControls.style.alignContent = 'center';
+    controlColumn.appendChild(zoomControls);
 
     const createZoomButton = (label, aria, fontSize) => {
       const button = document.createElement('button');
@@ -749,7 +772,6 @@ export function createMapView(container, {
     zoomControls.appendChild(zoomOutButton);
     zoomControls.appendChild(zoomResetButton);
     zoomControls.appendChild(zoomInButton);
-    controls.appendChild(zoomControls);
 
     zoomOutButton.addEventListener('click', () => {
       zoomBy(-0.2);
@@ -1308,18 +1330,32 @@ export function createMapView(container, {
     actionPanel.style.boxShadow = '0 12px 28px rgba(0, 0, 0, 0.18)';
     actionPanel.style.alignSelf = 'flex-start';
 
-    const panelTitle = document.createElement('h4');
-    panelTitle.textContent = jobSelectorConfig.title || 'Actions';
-    panelTitle.style.margin = '0';
-    panelTitle.style.fontSize = '18px';
-    panelTitle.style.letterSpacing = '0.04em';
-    actionPanel.appendChild(panelTitle);
+    if (jobSelectorConfig.title) {
+      const panelTitle = document.createElement('h4');
+      panelTitle.textContent = jobSelectorConfig.title;
+      panelTitle.style.margin = '0';
+      panelTitle.style.fontSize = '18px';
+      panelTitle.style.letterSpacing = '0.04em';
+      actionPanel.appendChild(panelTitle);
+    }
 
+    const jobHost = controlDetailsSection || actionPanel;
     const jobSection = document.createElement('div');
-    jobSection.style.display = 'flex';
-    jobSection.style.flexDirection = 'column';
-    jobSection.style.gap = '8px';
-    actionPanel.appendChild(jobSection);
+    jobSection.className = `${idPrefix}-job-selector map-job-selector`;
+    Object.assign(jobSection.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '8px',
+      padding: '12px 14px',
+      borderRadius: '14px',
+      border: '1px solid var(--map-border, rgba(104, 132, 194, 0.75))',
+      background: 'var(--map-control-surface, linear-gradient(135deg, rgba(16, 28, 62, 0.95), rgba(12, 22, 46, 0.92)))',
+      boxShadow: '0 10px 24px rgba(0, 0, 0, 0.35)',
+      color: 'var(--map-control-text, #f4f7ff)',
+      width: '100%',
+      boxSizing: 'border-box'
+    });
+    jobHost.appendChild(jobSection);
 
     const jobLabel = document.createElement('label');
     jobLabel.textContent = jobSelectorConfig.label || 'Jobs';
@@ -1328,28 +1364,30 @@ export function createMapView(container, {
     jobLabel.style.fontWeight = '600';
     jobLabel.style.letterSpacing = '0.04em';
     jobLabel.style.textTransform = 'uppercase';
+    jobLabel.style.color = 'inherit';
     jobSection.appendChild(jobLabel);
 
     const selectWrapper = document.createElement('div');
     selectWrapper.style.position = 'relative';
     selectWrapper.style.display = 'flex';
     selectWrapper.style.alignItems = 'center';
+    selectWrapper.style.width = '100%';
     jobSection.appendChild(selectWrapper);
 
     jobSelect = document.createElement('select');
     jobSelect.id = `${idPrefix}-job-select`;
     Object.assign(jobSelect.style, {
       width: '100%',
-      borderRadius: '14px',
-      border: '1px solid var(--map-border, #ccc)',
-      padding: '12px 42px 12px 18px',
+      borderRadius: '12px',
+      border: '1px solid var(--map-border, rgba(126, 152, 212, 0.8))',
+      padding: '12px 42px 12px 16px',
       fontWeight: '600',
       fontSize: '15px',
       letterSpacing: '0.03em',
       textTransform: 'uppercase',
-      background: 'var(--action-button-bg, linear-gradient(135deg, rgba(255, 255, 255, 0.96), rgba(235, 235, 235, 0.92)))',
-      color: 'var(--action-button-text, inherit)',
-      boxShadow: 'var(--action-button-shadow, 0 2px 6px rgba(0, 0, 0, 0.08))',
+      background: 'var(--map-select-bg, linear-gradient(135deg, rgba(20, 38, 78, 0.98), rgba(16, 28, 56, 0.95)))',
+      color: 'var(--map-select-text, #f5f8ff)',
+      boxShadow: '0 6px 16px rgba(0, 0, 0, 0.35)',
       cursor: 'pointer',
       appearance: 'none',
       WebkitAppearance: 'none',
@@ -1372,7 +1410,8 @@ export function createMapView(container, {
       transform: 'translateY(-50%)',
       pointerEvents: 'none',
       fontSize: '14px',
-      opacity: '0.6'
+      color: 'var(--map-select-caret, #d8e2ff)',
+      opacity: '0.85'
     });
     selectWrapper.appendChild(caret);
 
@@ -1382,11 +1421,12 @@ export function createMapView(container, {
       flexDirection: 'column',
       gap: '4px',
       fontSize: '13px',
-      opacity: '0.85'
+      opacity: '0.9'
     });
     jobSection.appendChild(jobSummaryContainer);
 
     jobMetaLine = document.createElement('span');
+    jobMetaLine.style.color = 'inherit';
     jobSummaryContainer.appendChild(jobMetaLine);
 
     jobDescriptionLine = document.createElement('span');
@@ -1397,17 +1437,9 @@ export function createMapView(container, {
 
     jobEmptyNotice = document.createElement('span');
     jobEmptyNotice.style.fontSize = '13px';
-    jobEmptyNotice.style.opacity = '0.75';
+    jobEmptyNotice.style.opacity = '0.8';
     jobEmptyNotice.style.display = 'none';
     jobSection.appendChild(jobEmptyNotice);
-
-    if (jobSelectorConfig.helper) {
-      const helper = document.createElement('span');
-      helper.textContent = jobSelectorConfig.helper;
-      helper.style.fontSize = '12px';
-      helper.style.opacity = '0.72';
-      jobSection.appendChild(helper);
-    }
 
     if (jobSelectorState.options.length) {
       refreshJobSelectorUI();
@@ -2113,6 +2145,7 @@ export function createMapView(container, {
       display: mapDisplay,
       markers: markerLayer,
       controls,
+      controlDetails: controlDetailsSection,
       actionPanel,
       actionButtons,
       jobSelect
