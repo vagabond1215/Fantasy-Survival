@@ -815,7 +815,14 @@ export function createMapView(container, {
   };
 
   const jobSelectorConfig = jobSelector && typeof jobSelector === 'object' ? jobSelector : {};
-  let jobSelect = null;
+  let jobSelectButton = null;
+  let jobSelectWrapper = null;
+  let jobOptionsPopup = null;
+  let jobOptionsList = null;
+  let jobOptionsOpen = false;
+  const jobOptionButtons = new Map();
+  let jobOptionsPointerDownHandler = null;
+  let jobOptionsDocumentKeydownHandler = null;
   let jobSummaryContainer = null;
   let jobMetaLine = null;
   let jobDescriptionLine = null;
@@ -888,6 +895,150 @@ export function createMapView(container, {
     clearTimeout(jobTooltipPressTimer);
     jobTooltipHideTimer = null;
     jobTooltipPressTimer = null;
+  }
+
+  function formatJobOptionLabel(option) {
+    if (!option) return '';
+    return option.label;
+  }
+
+  function updateJobSelectButtonLabel() {
+    if (!jobSelectButton) return;
+    const selected = jobSelectorState.options.find(option => option.id === jobSelectorState.selectedId) || null;
+    if (selected) {
+      jobSelectButton.textContent = formatJobOptionLabel(selected);
+      jobSelectButton.dataset.placeholder = 'false';
+    } else if (!jobSelectorState.options.length) {
+      jobSelectButton.textContent = jobSelectorConfig.emptyOptionLabel || 'No jobs available';
+      jobSelectButton.dataset.placeholder = 'true';
+    } else {
+      const first = jobSelectorState.options[0];
+      jobSelectButton.textContent = formatJobOptionLabel(first);
+      jobSelectButton.dataset.placeholder = 'false';
+    }
+  }
+
+  function updateJobOptionSelection() {
+    const currentId = jobSelectorState.selectedId;
+    jobOptionButtons.forEach((button, id) => {
+      const isSelected = id === currentId;
+      button.dataset.selected = isSelected ? 'true' : 'false';
+      button.setAttribute('aria-selected', isSelected ? 'true' : 'false');
+      button.setAttribute('tabindex', isSelected ? '0' : '-1');
+      if (isSelected) {
+        button.style.background = 'var(--map-select-selected, linear-gradient(135deg, rgba(40, 72, 140, 0.92), rgba(28, 52, 108, 0.88)))';
+        button.style.boxShadow = 'inset 0 0 0 1px rgba(150, 182, 246, 0.35)';
+        button.style.opacity = '1';
+      } else {
+        button.style.background = 'transparent';
+        button.style.boxShadow = 'none';
+        button.style.opacity = '0.9';
+      }
+    });
+  }
+
+  function ensureJobOptionsHandlers() {
+    if (!jobOptionsPointerDownHandler) {
+      jobOptionsPointerDownHandler = event => {
+        if (!jobOptionsOpen) return;
+        if (!jobOptionsPopup || !jobSelectWrapper) return;
+        if (jobOptionsPopup.contains(event.target) || jobSelectWrapper.contains(event.target)) {
+          return;
+        }
+        setJobOptionsOpen(false);
+      };
+    }
+    if (!jobOptionsDocumentKeydownHandler) {
+      jobOptionsDocumentKeydownHandler = event => {
+        if (!jobOptionsOpen) return;
+        if (event.key === 'Escape') {
+          event.preventDefault();
+          setJobOptionsOpen(false, { focusButton: true });
+        }
+      };
+    }
+  }
+
+  function setJobOptionsOpen(open, { focusButton = false } = {}) {
+    if (!jobSelectButton || !jobOptionsPopup) return;
+    if (!jobSelectorState.options.length) {
+      open = false;
+    }
+    const nextState = Boolean(open);
+    if (jobOptionsOpen === nextState) {
+      if (!nextState && focusButton) {
+        requestAnimationFrame(() => {
+          jobSelectButton.focus({ preventScroll: true });
+        });
+      }
+      return;
+    }
+    jobOptionsOpen = nextState;
+    jobSelectButton.setAttribute('aria-expanded', jobOptionsOpen ? 'true' : 'false');
+    jobOptionsPopup.setAttribute('aria-hidden', jobOptionsOpen ? 'false' : 'true');
+    if (jobOptionsOpen) {
+      ensureJobOptionsHandlers();
+      jobSelectButton.dataset.open = 'true';
+      jobSelectButton.style.boxShadow = '0 0 0 2px rgba(154, 196, 255, 0.55), 0 8px 18px rgba(0, 0, 0, 0.4)';
+      jobOptionsPopup.style.display = 'flex';
+      jobOptionsPopup.style.opacity = '1';
+      jobOptionsPopup.style.pointerEvents = 'auto';
+      document.addEventListener('pointerdown', jobOptionsPointerDownHandler, true);
+      document.addEventListener('keydown', jobOptionsDocumentKeydownHandler, true);
+      const selectedButton = jobOptionButtons.get(jobSelectorState.selectedId);
+      const fallbackButton = selectedButton || jobOptionsList?.querySelector('button[data-option-id]');
+      if (fallbackButton) {
+        requestAnimationFrame(() => {
+          fallbackButton.focus({ preventScroll: true });
+        });
+      }
+    } else {
+      jobSelectButton.dataset.open = 'false';
+      jobSelectButton.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.35)';
+      jobOptionsPopup.style.display = 'none';
+      jobOptionsPopup.style.opacity = '0';
+      jobOptionsPopup.style.pointerEvents = 'none';
+      document.removeEventListener('pointerdown', jobOptionsPointerDownHandler, true);
+      document.removeEventListener('keydown', jobOptionsDocumentKeydownHandler, true);
+      if (focusButton) {
+        requestAnimationFrame(() => {
+          jobSelectButton.focus({ preventScroll: true });
+        });
+      }
+    }
+  }
+
+  function getJobOptionButtons() {
+    if (!jobOptionsList) return [];
+    return Array.from(jobOptionsList.querySelectorAll('button[data-option-id]'));
+  }
+
+  function focusJobOptionByIndex(index) {
+    const buttons = getJobOptionButtons();
+    if (!buttons.length) return;
+    const clampedIndex = Math.min(Math.max(index, 0), buttons.length - 1);
+    const target = buttons[clampedIndex];
+    if (target) {
+      target.focus({ preventScroll: true });
+    }
+  }
+
+  function focusAdjacentJobOption(offset) {
+    const buttons = getJobOptionButtons();
+    if (!buttons.length) return;
+    const activeElement = typeof document !== 'undefined' ? document.activeElement : null;
+    let index = buttons.indexOf(activeElement);
+    if (index === -1) {
+      const selectedButton = jobOptionButtons.get(jobSelectorState.selectedId);
+      if (selectedButton) {
+        index = buttons.indexOf(selectedButton);
+      }
+    }
+    if (index === -1) {
+      index = 0;
+    }
+    const nextIndex = (index + offset + buttons.length) % buttons.length;
+    focusJobOptionByIndex(nextIndex);
   }
 
   function renderJobSummary() {
@@ -966,6 +1117,8 @@ export function createMapView(container, {
   function applyJobSelection(jobId, { fromUser = false } = {}) {
     if (!jobSelectorState.options.length) {
       jobSelectorState.selectedId = null;
+      updateJobSelectButtonLabel();
+      updateJobOptionSelection();
       renderJobSummary();
       return;
     }
@@ -974,8 +1127,10 @@ export function createMapView(container, {
       || jobSelectorState.options[0]
       || null;
     jobSelectorState.selectedId = selected ? selected.id : null;
-    if (jobSelect) {
-      jobSelect.value = jobSelectorState.selectedId || '';
+    updateJobSelectButtonLabel();
+    updateJobOptionSelection();
+    if (fromUser) {
+      setJobOptionsOpen(false, { focusButton: true });
     }
     renderJobSummary();
     if (fromUser && typeof jobSelectorConfig.onSelect === 'function') {
@@ -990,15 +1145,15 @@ export function createMapView(container, {
   }
 
   function refreshJobSelectorUI() {
-    if (!jobSelect) return;
-    jobSelect.innerHTML = '';
+    if (!jobSelectButton || !jobOptionsList || !jobOptionsPopup) return;
+    setJobOptionsOpen(false);
+    jobOptionButtons.clear();
+    jobOptionsList.innerHTML = '';
 
     if (!jobSelectorState.options.length) {
-      jobSelect.disabled = true;
-      const placeholder = document.createElement('option');
-      placeholder.value = '';
-      placeholder.textContent = jobSelectorConfig.emptyOptionLabel || 'No jobs available';
-      jobSelect.appendChild(placeholder);
+      jobSelectButton.disabled = true;
+      jobSelectButton.textContent = jobSelectorConfig.emptyOptionLabel || 'No jobs available';
+      jobSelectButton.dataset.placeholder = 'true';
       if (jobEmptyNotice) {
         jobEmptyNotice.textContent = jobSelectorConfig.emptyMessage || 'No jobs are available right now.';
         jobEmptyNotice.style.display = 'block';
@@ -1006,23 +1161,104 @@ export function createMapView(container, {
       return;
     }
 
-    jobSelect.disabled = false;
+    jobSelectButton.disabled = false;
+
     jobSelectorState.options.forEach(option => {
-      const optionElement = document.createElement('option');
-      optionElement.value = option.id;
-      const assignedSuffix = Number.isFinite(option.assigned) ? ` (${option.assigned})` : '';
-      optionElement.textContent = `${option.label}${assignedSuffix}`;
-      if (option.description) {
-        optionElement.title = option.description;
-      }
-      jobSelect.appendChild(optionElement);
+      const optionItem = document.createElement('li');
+      optionItem.style.listStyle = 'none';
+      optionItem.style.margin = '0';
+      optionItem.style.padding = '0';
+
+      const optionButton = document.createElement('button');
+      optionButton.type = 'button';
+      optionButton.dataset.optionId = option.id;
+      optionButton.textContent = formatJobOptionLabel(option);
+      optionButton.setAttribute('role', 'option');
+      optionButton.setAttribute('aria-selected', 'false');
+      optionButton.style.width = '100%';
+      optionButton.style.border = 'none';
+      optionButton.style.background = 'transparent';
+      optionButton.style.color = 'inherit';
+      optionButton.style.padding = '10px 16px';
+      optionButton.style.fontWeight = '600';
+      optionButton.style.fontSize = '15px';
+      optionButton.style.letterSpacing = '0.03em';
+      optionButton.style.textTransform = 'uppercase';
+      optionButton.style.textAlign = 'left';
+      optionButton.style.cursor = 'pointer';
+      optionButton.style.transition = 'background 0.12s ease, box-shadow 0.12s ease, opacity 0.12s ease';
+      optionButton.style.opacity = '0.9';
+      optionButton.style.borderRadius = '0';
+
+      optionButton.addEventListener('click', () => {
+        applyJobSelection(option.id, { fromUser: true });
+      });
+
+      optionButton.addEventListener('keydown', event => {
+        if (event.key === 'ArrowDown') {
+          event.preventDefault();
+          focusAdjacentJobOption(1);
+        } else if (event.key === 'ArrowUp') {
+          event.preventDefault();
+          focusAdjacentJobOption(-1);
+        } else if (event.key === 'Home') {
+          event.preventDefault();
+          focusJobOptionByIndex(0);
+        } else if (event.key === 'End') {
+          event.preventDefault();
+          const buttons = getJobOptionButtons();
+          focusJobOptionByIndex(Math.max(0, buttons.length - 1));
+        } else if (event.key === 'Enter' || event.key === ' ') {
+          event.preventDefault();
+          applyJobSelection(option.id, { fromUser: true });
+        } else if (event.key === 'Tab') {
+          setJobOptionsOpen(false);
+        }
+      });
+
+      optionButton.addEventListener('mouseenter', () => {
+        if (optionButton.dataset.selected !== 'true') {
+          optionButton.style.background = 'var(--map-select-hover, rgba(42, 70, 128, 0.82))';
+          optionButton.style.boxShadow = 'inset 0 0 0 1px rgba(146, 176, 238, 0.18)';
+          optionButton.style.opacity = '1';
+        }
+      });
+
+      optionButton.addEventListener('mouseleave', () => {
+        if (optionButton.dataset.selected !== 'true') {
+          optionButton.style.background = 'transparent';
+          optionButton.style.boxShadow = 'none';
+          optionButton.style.opacity = '0.9';
+        }
+      });
+
+      optionButton.addEventListener('focus', () => {
+        if (optionButton.dataset.selected !== 'true') {
+          optionButton.style.background = 'var(--map-select-hover, rgba(42, 70, 128, 0.82))';
+          optionButton.style.boxShadow = 'inset 0 0 0 1px rgba(146, 176, 238, 0.22)';
+          optionButton.style.opacity = '1';
+        }
+      });
+
+      optionButton.addEventListener('blur', () => {
+        if (optionButton.dataset.selected !== 'true') {
+          optionButton.style.background = 'transparent';
+          optionButton.style.boxShadow = 'none';
+          optionButton.style.opacity = '0.9';
+        }
+      });
+
+      optionItem.appendChild(optionButton);
+      jobOptionsList.appendChild(optionItem);
+      jobOptionButtons.set(option.id, optionButton);
     });
 
     if (!jobSelectorState.options.some(option => option.id === jobSelectorState.selectedId)) {
       jobSelectorState.selectedId = jobSelectorState.options[0]?.id || null;
     }
 
-    jobSelect.value = jobSelectorState.selectedId || '';
+    updateJobSelectButtonLabel();
+    updateJobOptionSelection();
 
     if (jobEmptyNotice) {
       jobEmptyNotice.style.display = 'none';
@@ -1444,6 +1680,7 @@ export function createMapView(container, {
 
     const jobLabel = document.createElement('label');
     jobLabel.textContent = jobSelectorConfig.label || 'Jobs';
+    jobLabel.id = `${idPrefix}-job-label`;
     jobLabel.htmlFor = `${idPrefix}-job-select`;
     jobLabel.style.fontSize = '15px';
     jobLabel.style.fontWeight = '600';
@@ -1502,16 +1739,25 @@ export function createMapView(container, {
 
     jobInfoButton.setAttribute('aria-controls', jobInfoTooltip.id);
 
-    const selectWrapper = document.createElement('div');
-    selectWrapper.style.position = 'relative';
-    selectWrapper.style.display = 'flex';
-    selectWrapper.style.alignItems = 'center';
-    selectWrapper.style.width = '100%';
-    jobSection.appendChild(selectWrapper);
+    jobSelectWrapper = document.createElement('div');
+    jobSelectWrapper.style.position = 'relative';
+    jobSelectWrapper.style.display = 'flex';
+    jobSelectWrapper.style.alignItems = 'center';
+    jobSelectWrapper.style.width = '100%';
+    jobSection.appendChild(jobSelectWrapper);
 
-    jobSelect = document.createElement('select');
-    jobSelect.id = `${idPrefix}-job-select`;
-    Object.assign(jobSelect.style, {
+    jobSelectButton = document.createElement('button');
+    jobSelectButton.type = 'button';
+    jobSelectButton.id = `${idPrefix}-job-select`;
+    jobSelectButton.textContent = jobSelectorConfig.placeholderLabel || jobSelectorConfig.label || 'Select';
+    jobSelectButton.dataset.placeholder = 'true';
+    jobSelectButton.dataset.open = 'false';
+    jobSelectButton.disabled = true;
+    jobSelectButton.setAttribute('aria-haspopup', 'listbox');
+    jobSelectButton.setAttribute('aria-expanded', 'false');
+    jobSelectButton.setAttribute('aria-labelledby', `${jobLabel.id} ${jobSelectButton.id}`);
+    jobSelectButton.setAttribute('aria-label', jobSelectorConfig.ariaLabel || jobSelectorConfig.label || 'Jobs');
+    Object.assign(jobSelectButton.style, {
       width: '100%',
       borderRadius: '12px',
       border: '1px solid var(--map-border, rgba(126, 152, 212, 0.8))',
@@ -1524,16 +1770,12 @@ export function createMapView(container, {
       color: 'var(--map-select-text, #f5f8ff)',
       boxShadow: '0 6px 16px rgba(0, 0, 0, 0.35)',
       cursor: 'pointer',
-      appearance: 'none',
-      WebkitAppearance: 'none',
-      MozAppearance: 'none',
-      lineHeight: '1.2'
+      textAlign: 'left',
+      lineHeight: '1.2',
+      transition: 'box-shadow 0.12s ease, transform 0.12s ease',
+      outline: 'none'
     });
-    jobSelect.setAttribute('aria-label', jobSelectorConfig.ariaLabel || jobSelectorConfig.label || 'Jobs');
-    jobSelect.addEventListener('change', () => {
-      applyJobSelection(jobSelect.value, { fromUser: true });
-    });
-    selectWrapper.appendChild(jobSelect);
+    jobSelectWrapper.appendChild(jobSelectButton);
 
     const caret = document.createElement('span');
     caret.textContent = '▾';
@@ -1548,7 +1790,83 @@ export function createMapView(container, {
       color: 'var(--map-select-caret, #d8e2ff)',
       opacity: '0.85'
     });
-    selectWrapper.appendChild(caret);
+    jobSelectWrapper.appendChild(caret);
+
+    jobOptionsPopup = document.createElement('div');
+    jobOptionsPopup.setAttribute('aria-hidden', 'true');
+    Object.assign(jobOptionsPopup.style, {
+      position: 'absolute',
+      left: '0',
+      right: '0',
+      top: 'calc(100% + 8px)',
+      borderRadius: '14px',
+      border: '1px solid var(--map-border, rgba(126, 152, 212, 0.9))',
+      background: 'var(--map-select-popup-bg, linear-gradient(135deg, rgba(16, 30, 64, 0.98), rgba(10, 22, 46, 0.94)))',
+      boxShadow: '0 18px 36px rgba(0, 0, 0, 0.48)',
+      padding: '8px 0',
+      display: 'none',
+      flexDirection: 'column',
+      gap: '0',
+      zIndex: '40',
+      maxHeight: '280px',
+      overflowY: 'auto',
+      backdropFilter: 'blur(6px)',
+      WebkitBackdropFilter: 'blur(6px)'
+    });
+    jobSelectWrapper.appendChild(jobOptionsPopup);
+
+    jobOptionsList = document.createElement('ul');
+    jobOptionsList.id = `${idPrefix}-job-options`;
+    jobOptionsList.setAttribute('role', 'listbox');
+    jobOptionsList.setAttribute('aria-labelledby', jobLabel.id);
+    Object.assign(jobOptionsList.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      margin: '0',
+      padding: '0',
+      gap: '0',
+      listStyle: 'none'
+    });
+    jobOptionsPopup.appendChild(jobOptionsList);
+    jobSelectButton.setAttribute('aria-controls', jobOptionsList.id);
+
+    jobSelectButton.addEventListener('click', () => {
+      setJobOptionsOpen(!jobOptionsOpen);
+    });
+
+    jobSelectButton.addEventListener('keydown', event => {
+      if (event.key === 'ArrowDown') {
+        event.preventDefault();
+        if (!jobOptionsOpen) {
+          setJobOptionsOpen(true);
+        } else {
+          focusAdjacentJobOption(1);
+        }
+      } else if (event.key === 'ArrowUp') {
+        event.preventDefault();
+        if (!jobOptionsOpen) {
+          setJobOptionsOpen(true);
+        } else {
+          focusAdjacentJobOption(-1);
+        }
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        event.preventDefault();
+        setJobOptionsOpen(!jobOptionsOpen);
+      } else if (event.key === 'Escape' && jobOptionsOpen) {
+        event.preventDefault();
+        setJobOptionsOpen(false, { focusButton: true });
+      }
+    });
+
+    jobSelectButton.addEventListener('focus', () => {
+      jobSelectButton.style.boxShadow = '0 0 0 2px rgba(154, 196, 255, 0.55), 0 6px 16px rgba(0, 0, 0, 0.35)';
+    });
+
+    jobSelectButton.addEventListener('blur', () => {
+      if (!jobOptionsOpen) {
+        jobSelectButton.style.boxShadow = '0 6px 16px rgba(0, 0, 0, 0.35)';
+      }
+    });
 
     jobSummaryContainer = document.createElement('div');
     jobSummaryContainer.dataset.hasContent = 'false';
@@ -2321,6 +2639,8 @@ export function createMapView(container, {
       if (layoutRoot.parentElement) {
         layoutRoot.parentElement.removeChild(layoutRoot);
       }
+      setJobOptionsOpen(false);
+      jobOptionButtons.clear();
       closeActionModal();
       if (actionModal?.parentElement) {
         actionModal.parentElement.removeChild(actionModal);
@@ -2331,6 +2651,10 @@ export function createMapView(container, {
       actionModalDescription = null;
       actionModalList = null;
       actionModalEmpty = null;
+      jobSelectButton = null;
+      jobOptionsPopup = null;
+      jobOptionsList = null;
+      jobSelectWrapper = null;
       if (typeof document !== 'undefined') {
         document.documentElement.style.removeProperty('--map-layout-width');
       }
@@ -2345,7 +2669,7 @@ export function createMapView(container, {
       controlDetails: controlDetailsSection,
       actionPanel,
       actionButtons,
-      jobSelect
+      jobSelect: jobSelectButton
     }
   };
 }
