@@ -983,7 +983,6 @@ function updateMapJobSelector() {
 function handleMapJobSelect(jobId) {
   if (!jobId) return;
   pendingJobHighlightId = jobId;
-  showJobs();
 }
 
 function updatePlayerMarker() {

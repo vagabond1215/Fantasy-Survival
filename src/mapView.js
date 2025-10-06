@@ -839,17 +839,28 @@ export function createMapView(container, {
     laborers: null
   };
 
+  function singularizeJobLabel(label) {
+    if (typeof label !== 'string') return '';
+    const trimmed = label.trim();
+    if (!trimmed) return '';
+    if (trimmed.length > 1 && /s$/i.test(trimmed) && !/ss$/i.test(trimmed)) {
+      return trimmed.replace(/s$/i, '');
+    }
+    return trimmed;
+  }
+
   function normalizeJobOption(option = {}) {
     const idValue = typeof option.id === 'string' && option.id.trim() ? option.id.trim() : null;
     if (!idValue) return null;
-    const label = option.label || idValue;
+    const rawLabel = typeof option.label === 'string' && option.label.trim() ? option.label.trim() : idValue;
+    const displayLabel = singularizeJobLabel(rawLabel);
     const assigned = Number.isFinite(option.assigned) ? Math.max(0, Math.trunc(option.assigned)) : 0;
     const capacity = Number.isFinite(option.capacity) ? Math.max(0, Math.trunc(option.capacity)) : null;
     const description = option.description || '';
     const workdayHours = Number.isFinite(option.workdayHours)
       ? Math.max(1, Math.trunc(option.workdayHours))
       : null;
-    return { id: idValue, label, assigned, capacity, description, workdayHours };
+    return { id: idValue, label: rawLabel, displayLabel, assigned, capacity, description, workdayHours };
   }
 
   function hasJobTooltipContent() {
@@ -899,6 +910,9 @@ export function createMapView(container, {
 
   function formatJobOptionLabel(option) {
     if (!option) return '';
+    if (typeof option.displayLabel === 'string' && option.displayLabel) {
+      return option.displayLabel;
+    }
     return option.label;
   }
 
