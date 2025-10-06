@@ -314,6 +314,7 @@ export function initSetupUI(onStart) {
     showControls: true,
     showLegend: false,
     idPrefix: 'setup-map',
+    useTerrainColors: true,
     fetchMap: ({ xStart, yStart, width, height, seed, season, viewport, context }) => {
       const biomeId = context?.biomeId || biomeSelect.select.value;
       const nextSeed = seed ?? mapSeed;
