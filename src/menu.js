@@ -1,5 +1,6 @@
+import { getTheme, initTheme, onThemeChange, setTheme } from './theme.js';
+
 let zoomLevel = 1;
-let theme = localStorage.getItem('theme') || 'light';
 
 let actionBar = null;
 let settingsWrapper = null;
@@ -13,6 +14,7 @@ let zoomDisplayButton = null;
 let backMenuButton = null;
 let constructionMenuButton = null;
 let listenersBound = false;
+let removeThemeListener = null;
 
 function applyZoom() {
   const content = document.getElementById('content');
@@ -24,6 +26,7 @@ function applyZoom() {
 }
 
 function updateThemeButtonVisuals() {
+  const theme = getTheme();
   const isLight = theme === 'light';
   if (themeToggleButtons.light) {
     themeToggleButtons.light.classList.toggle('active', isLight);
@@ -36,8 +39,7 @@ function updateThemeButtonVisuals() {
 }
 
 function applyTheme() {
-  document.body.className = theme;
-  localStorage.setItem('theme', theme);
+  initTheme();
   updateThemeButtonVisuals();
 }
 
@@ -192,13 +194,17 @@ function buildSettingsPanel() {
 
   themeToggleButtons = { light: null, dark: null };
 
+  if (removeThemeListener) {
+    removeThemeListener();
+    removeThemeListener = null;
+  }
+
   const themeRow = document.createElement('div');
   themeRow.className = 'theme-toggle-row';
 
   const createThemeButton = (icon, mode, label) => {
     const button = createIconControl(icon, label, () => {
-      theme = mode;
-      applyTheme();
+      setTheme(mode);
       closePanels();
     });
     button.classList.add('theme-toggle-button');
@@ -212,7 +218,7 @@ function buildSettingsPanel() {
 
   themeRow.append(themeToggleButtons.light, themeToggleButtons.dark);
   settingsPanel.appendChild(themeRow);
-  updateThemeButtonVisuals();
+  removeThemeListener = onThemeChange(updateThemeButtonVisuals, { immediate: true });
 
   const zoomRow = document.createElement('div');
   zoomRow.className = 'icon-row';

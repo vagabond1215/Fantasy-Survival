@@ -8,6 +8,7 @@ import {
   TERRAIN_COLORS
 } from './map.js';
 import { createMapView } from './mapView.js';
+import { getTheme, onThemeChange, setTheme } from './theme.js';
 
 const seasons = [
   { id: 'Thawbound', label: 'Thawbound', hint: 'emergent thaw' },
@@ -65,7 +66,54 @@ export function initSetupUI(onStart) {
             <div class="brand">Fantasy Survival</div>
             <div class="sub">Settle a harsh land. Thrive through seasons. Adapt or vanish.</div>
           </div>
-          <div class="badge badge--ok">Alpha</div>
+          <div class="hero-settings">
+            <button
+              id="landing-settings-btn"
+              type="button"
+              class="hero-settings__trigger"
+              aria-haspopup="true"
+              aria-expanded="false"
+              aria-label="Settings"
+              title="Settings"
+            >
+              ⚙️
+            </button>
+            <div
+              id="landing-settings-panel"
+              class="hero-settings__panel"
+              role="dialog"
+              aria-hidden="true"
+              aria-labelledby="landing-settings-title"
+            >
+              <div class="hero-settings__header">
+                <div class="badge badge--ok">Alpha</div>
+                <div class="hero-settings__title" id="landing-settings-title">Settings</div>
+              </div>
+              <div class="hero-settings__section">
+                <div class="hero-settings__section-title">Theme</div>
+                <div class="hero-settings__theme-row">
+                  <button
+                    type="button"
+                    class="hero-settings__theme-btn"
+                    data-theme-mode="light"
+                    aria-pressed="false"
+                  >
+                    <span aria-hidden="true">☀️</span>
+                    <span>Light</span>
+                  </button>
+                  <button
+                    type="button"
+                    class="hero-settings__theme-btn"
+                    data-theme-mode="dark"
+                    aria-pressed="false"
+                  >
+                    <span aria-hidden="true">🌙</span>
+                    <span>Dark</span>
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
         </div>
 
         <div class="card section" id="biome-card">
@@ -128,6 +176,78 @@ export function initSetupUI(onStart) {
   const spawnInfo = wrap.querySelector('#spawn-info');
   const randomizeAllBtn = wrap.querySelector('#randomize-all');
   const startBtn = wrap.querySelector('#start-btn');
+  const landingSettingsTrigger = wrap.querySelector('#landing-settings-btn');
+  const landingSettingsPanel = wrap.querySelector('#landing-settings-panel');
+  const heroSettings = wrap.querySelector('.hero-settings');
+
+  const landingThemeButtons = new Map();
+  if (landingSettingsPanel) {
+    landingSettingsPanel
+      .querySelectorAll('.hero-settings__theme-btn[data-theme-mode]')
+      .forEach(button => {
+        const mode = button.dataset.themeMode;
+        if (!mode) return;
+        landingThemeButtons.set(mode, button);
+        button.addEventListener('click', () => {
+          setTheme(mode);
+          closeLandingSettings();
+        });
+      });
+  }
+
+  function updateLandingThemeButtons() {
+    const theme = getTheme();
+    landingThemeButtons.forEach((button, mode) => {
+      const isActive = mode === theme;
+      button.classList.toggle('is-active', isActive);
+      button.setAttribute('aria-pressed', String(isActive));
+    });
+  }
+
+  function openLandingSettings() {
+    if (!landingSettingsPanel || !landingSettingsTrigger) return;
+    landingSettingsPanel.classList.add('is-open');
+    landingSettingsPanel.setAttribute('aria-hidden', 'false');
+    landingSettingsTrigger.setAttribute('aria-expanded', 'true');
+  }
+
+  function closeLandingSettings() {
+    if (!landingSettingsPanel || !landingSettingsTrigger) return;
+    landingSettingsPanel.classList.remove('is-open');
+    landingSettingsPanel.setAttribute('aria-hidden', 'true');
+    landingSettingsTrigger.setAttribute('aria-expanded', 'false');
+  }
+
+  if (landingSettingsTrigger && landingSettingsPanel && heroSettings) {
+    landingSettingsTrigger.addEventListener('click', event => {
+      event.stopPropagation();
+      if (landingSettingsPanel.classList.contains('is-open')) {
+        closeLandingSettings();
+      } else {
+        openLandingSettings();
+      }
+    });
+
+    landingSettingsPanel.addEventListener('click', event => {
+      event.stopPropagation();
+    });
+
+    document.addEventListener('click', event => {
+      if (!heroSettings.contains(event.target)) {
+        closeLandingSettings();
+      }
+    });
+
+    document.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        closeLandingSettings();
+      }
+    });
+  }
+
+  onThemeChange(updateLandingThemeButtons, {
+    immediate: true
+  });
 
   const biomeTiles = [];
   const seasonButtons = [];
