@@ -186,16 +186,18 @@ export function initSetupUI(onStart) {
     });
   }
 
-  function resolveBackgroundColor(element, depth = 0) {
-    if (!element || depth > 20) return null;
+  function resolveBackgroundColor(element, depth = 0, maxDepth = 20) {
+    if (!element || depth > maxDepth) return null;
     const styles = getComputedStyle(element);
     const directColor = parseColor(styles.backgroundColor);
     if (directColor && directColor.a > 0) return directColor;
     const imageColor = extractColorFromBackgroundImage(styles.backgroundImage);
     if (imageColor && imageColor.a > 0) return imageColor;
     const parent = element.parentElement;
-    if (!parent) return directColor || imageColor;
-    return resolveBackgroundColor(parent, depth + 1);
+    if (!parent || depth >= maxDepth) {
+      return directColor && directColor.a > 0 ? directColor : imageColor;
+    }
+    return resolveBackgroundColor(parent, depth + 1, maxDepth);
   }
 
   function extractColorFromBackgroundImage(backgroundImage) {
@@ -266,10 +268,53 @@ export function initSetupUI(onStart) {
     return `rgba(${r}, ${g}, ${b}, ${Number(a.toFixed(3))})`;
   }
 
+  function mixColors(color, mixWith, amount) {
+    if (!color) return null;
+    const weight = Math.max(0, Math.min(1, amount ?? 0));
+    const inverse = 1 - weight;
+    const baseAlpha = typeof color.a === 'number' ? color.a : 1;
+    const mixAlpha = typeof mixWith?.a === 'number' ? mixWith.a : baseAlpha;
+    return {
+      r: color.r * inverse + (mixWith?.r ?? color.r) * weight,
+      g: color.g * inverse + (mixWith?.g ?? color.g) * weight,
+      b: color.b * inverse + (mixWith?.b ?? color.b) * weight,
+      a: baseAlpha * inverse + mixAlpha * weight
+    };
+  }
+
+  function lightenColor(color, amount = 0.08) {
+    const white = { r: 255, g: 255, b: 255, a: typeof color?.a === 'number' ? color.a : 1 };
+    return mixColors(color, white, amount);
+  }
+
+  function darkenColor(color, amount = 0.1) {
+    const black = { r: 0, g: 0, b: 0, a: typeof color?.a === 'number' ? color.a : 1 };
+    return mixColors(color, black, amount);
+  }
+
   function setActive(list, node) {
     list.forEach(item => {
       item.classList.toggle('is-active', item === node);
     });
+  }
+
+  function applyTileBackground(button) {
+    if (!button) return;
+    const grandparent = button.parentElement?.parentElement;
+    let baseColor = grandparent ? resolveBackgroundColor(grandparent, 0, 0) : null;
+    if (!baseColor || baseColor.a === 0) {
+      baseColor = resolveBackgroundColor(document.body) || parseColor(getComputedStyle(document.body).backgroundColor);
+    }
+    if (!baseColor) return;
+    const hoverColor = lightenColor(baseColor, 0.06);
+    const activeColor = darkenColor(baseColor, 0.12);
+    button.style.setProperty('--tile-base-bg', formatColor(baseColor));
+    if (hoverColor) {
+      button.style.setProperty('--tile-hover-bg', formatColor(hoverColor));
+    }
+    if (activeColor) {
+      button.style.setProperty('--tile-active-bg', formatColor(activeColor));
+    }
   }
 
   function updateBiomeDetails() {
@@ -717,6 +762,7 @@ export function initSetupUI(onStart) {
     }
     biomeTiles.push(button);
     biomeGrid.appendChild(button);
+    applyTileBackground(button);
   });
 
   seasons.forEach((season, index) => {

@@ -246,19 +246,29 @@ body.landing-active .tile {
   padding: 12px;
   border-radius: 14px;
   cursor: pointer;
-  background: rgba(17, 39, 74, 0.48);
+  background: var(
+    --tile-base-bg,
+    rgba(17, 39, 74, 0.48)
+  );
   border: 1px solid rgba(74, 108, 168, 0.38);
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   backdrop-filter: blur(calc(var(--blur) * 0.35));
 }
 
 body.landing-active .tile:hover {
+  background: var(
+    --tile-hover-bg,
+    var(--tile-base-bg, rgba(17, 39, 74, 0.48))
+  );
   border-color: var(--accent);
   box-shadow: 0 0 0 2px rgba(241, 212, 138, 0.25);
 }
 
 body.landing-active .tile.is-active {
-  background: rgba(23, 54, 110, 0.7);
+  background: var(
+    --tile-active-bg,
+    var(--tile-hover-bg, rgba(23, 54, 110, 0.7))
+  );
   border-color: var(--accent);
   box-shadow: 0 0 0 3px rgba(241, 212, 138, 0.28);
 }
