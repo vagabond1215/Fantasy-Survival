@@ -4,7 +4,8 @@ import {
   computeCenteredStart,
   DEFAULT_MAP_HEIGHT,
   DEFAULT_MAP_WIDTH,
-  generateColorMap
+  generateColorMap,
+  TERRAIN_COLORS
 } from './map.js';
 import { createMapView } from './mapView.js';
 
@@ -145,6 +146,18 @@ export function initSetupUI(onStart) {
   let pendingSpawn = null;
   const spawnMarkerId = 'setup-spawn-marker';
 
+  const legendEntries = [
+    { type: 'open', label: 'Open Land' },
+    { type: 'forest', label: 'Forest' },
+    { type: 'stone', label: 'Stone Outcrop' },
+    { type: 'ore', label: 'Ore Deposits' },
+    { type: 'water', label: 'Water' }
+  ];
+  const legendLabelMap = legendEntries.reduce((acc, entry) => {
+    acc[entry.type] = entry.label;
+    return acc;
+  }, {});
+
   seedInput.value = mapSeed;
 
   function setActive(list, node) {
@@ -255,16 +268,29 @@ export function initSetupUI(onStart) {
   function showSpawnPrompt(detail) {
     const prompt = ensureSpawnPrompt();
     if (!prompt) return;
-    pendingSpawn = detail;
+    const safe = sanitizeSpawnCoords(detail || {});
+    if (!safe) return;
+    pendingSpawn = { x: safe.x, y: safe.y };
     const question = prompt.querySelector('[data-role="spawn-question"]');
     if (question) {
-      question.textContent = `Spawn here at (${detail.x}, ${detail.y})?`;
+      question.textContent = safe.relocated
+        ? `Water tile unavailable. Spawn at nearest land (${safe.x}, ${safe.y})?`
+        : `Spawn here at (${safe.x}, ${safe.y})?`;
     }
 
     const wrapper = mapView?.elements?.wrapper;
-    if (wrapper && detail?.element?.getBoundingClientRect) {
+    let anchor = detail?.element || null;
+    if (safe.relocated && wrapper) {
+      const selector = `[data-world-x="${safe.x}"][data-world-y="${safe.y}"]`;
+      const fallbackEl = wrapper.querySelector(selector);
+      if (fallbackEl) {
+        anchor = fallbackEl;
+      }
+    }
+
+    if (wrapper && anchor?.getBoundingClientRect) {
       const wrapperRect = wrapper.getBoundingClientRect();
-      const tileRect = detail.element.getBoundingClientRect();
+      const tileRect = anchor.getBoundingClientRect();
       const left = tileRect.left - wrapperRect.left + tileRect.width / 2;
       const top = tileRect.top - wrapperRect.top + tileRect.height / 2;
       prompt.style.left = `${left}px`;
@@ -321,16 +347,108 @@ export function initSetupUI(onStart) {
     return rowData[col];
   }
 
-  function describeTerrain(type) {
-    if (!type) return '';
-    const labels = {
-      water: 'Water',
-      open: 'Open Land',
-      forest: 'Forest',
-      ore: 'Ore Deposits',
-      stone: 'Stone Outcrop'
-    };
-    return labels[type] || type;
+  function findNearestNonWater(map, coords = {}) {
+    if (!map?.types?.length) return null;
+    const xStart = Number.isFinite(map.xStart) ? Math.trunc(map.xStart) : 0;
+    const yStart = Number.isFinite(map.yStart) ? Math.trunc(map.yStart) : 0;
+    const height = map.types.length;
+    if (!height) return null;
+    const targetX = Number.isFinite(coords?.x) ? Math.trunc(coords.x) : null;
+    const targetY = Number.isFinite(coords?.y) ? Math.trunc(coords.y) : null;
+    let best = null;
+
+    for (let row = 0; row < height; row += 1) {
+      const rowData = map.types[row];
+      if (!rowData) continue;
+      for (let col = 0; col < rowData.length; col += 1) {
+        const type = rowData[col];
+        if (type === 'water') continue;
+        const worldX = xStart + col;
+        const worldY = yStart + row;
+        const dx = targetX !== null ? worldX - targetX : worldX;
+        const dy = targetY !== null ? worldY - targetY : worldY;
+        const distance = Math.hypot(dx, dy);
+        if (
+          !best ||
+          distance < best.distance ||
+          (distance === best.distance &&
+            (Math.abs(worldY) < Math.abs(best.y) ||
+              (Math.abs(worldY) === Math.abs(best.y) && Math.abs(worldX) < Math.abs(best.x))))
+        ) {
+          best = { x: worldX, y: worldY, type, distance };
+        }
+      }
+    }
+
+    return best;
+  }
+
+  function sanitizeSpawnCoords(coords = {}) {
+    const x = Number.isFinite(coords.x) ? Math.trunc(coords.x) : null;
+    const y = Number.isFinite(coords.y) ? Math.trunc(coords.y) : null;
+    if (x === null || y === null) return null;
+    if (!mapData?.types?.length) {
+      return { x, y, terrain: null, relocated: false };
+    }
+    const terrain = getTerrainAt(mapData, { x, y });
+    if (terrain && terrain !== 'water') {
+      return { x, y, terrain, relocated: false };
+    }
+    const nearest = findNearestNonWater(mapData, { x, y });
+    if (!nearest) return null;
+    const fallbackTerrain = nearest.type || getTerrainAt(mapData, nearest);
+    return { x: nearest.x, y: nearest.y, terrain: fallbackTerrain || null, relocated: true };
+  }
+
+  function attachSetupLegend() {
+    if (!mapView?.elements?.controls) return;
+    const controlsRoot = mapView.elements.controls;
+    const navGrid = controlsRoot.querySelector('.map-nav-grid');
+    if (!navGrid) return;
+    const host = navGrid.parentElement || controlsRoot;
+    const existing = host.querySelector('.map-legend');
+    if (existing?.parentElement) {
+      existing.parentElement.removeChild(existing);
+    }
+
+    const legend = document.createElement('div');
+    legend.className = 'map-legend';
+    legend.setAttribute('aria-label', 'Terrain legend');
+    legend.dataset.role = 'map-legend';
+    if (navGrid.style.width) {
+      legend.style.width = navGrid.style.width;
+      legend.style.maxWidth = navGrid.style.width;
+    } else {
+      legend.style.width = '100%';
+    }
+
+    const title = document.createElement('div');
+    title.className = 'map-legend__title';
+    title.textContent = 'Terrain Legend';
+    legend.appendChild(title);
+
+    const list = document.createElement('div');
+    list.className = 'map-legend__list';
+    legendEntries.forEach(entry => {
+      const item = document.createElement('div');
+      item.className = 'map-legend__item';
+
+      const swatch = document.createElement('span');
+      swatch.className = 'map-legend__swatch';
+      const color = TERRAIN_COLORS[entry.type] || '#ffffff';
+      swatch.style.background = color;
+      item.appendChild(swatch);
+
+      const label = document.createElement('span');
+      label.className = 'map-legend__label';
+      label.textContent = entry.label;
+      item.appendChild(label);
+
+      list.appendChild(item);
+    });
+    legend.appendChild(list);
+
+    navGrid.insertAdjacentElement('afterend', legend);
   }
 
   function updateSpawnMarker() {
@@ -354,22 +472,19 @@ export function initSetupUI(onStart) {
   function updateSpawnInfo() {
     if (!spawnInfo) return;
     if (!spawnCoords) {
+      spawnInfo.hidden = false;
       spawnInfo.textContent = 'Click the map to choose your starting position.';
       return;
     }
-    const terrain = describeTerrain(getTerrainAt(mapData, spawnCoords));
-    const coordsText = `(${spawnCoords.x}, ${spawnCoords.y})`;
-    spawnInfo.textContent = terrain
-      ? `Chosen spawn point ${coordsText} – ${terrain}.`
-      : `Chosen spawn point ${coordsText}.`;
+    spawnInfo.textContent = '';
+    spawnInfo.hidden = true;
   }
 
   function setSpawnCoords(coords = {}, options = {}) {
     if (!coords) return;
-    const x = Number.isFinite(coords.x) ? Math.trunc(coords.x) : null;
-    const y = Number.isFinite(coords.y) ? Math.trunc(coords.y) : null;
-    if (x === null || y === null) return;
-    spawnCoords = { x, y };
+    const safe = sanitizeSpawnCoords(coords);
+    if (!safe) return;
+    spawnCoords = { x: safe.x, y: safe.y };
     if (!options.silent) {
       hideSpawnPrompt();
     }
@@ -445,13 +560,7 @@ export function initSetupUI(onStart) {
   }
 
   mapView = createMapView(mapPreview, {
-    legendLabels: {
-      water: 'Water',
-      open: 'Open Land',
-      forest: 'Forest',
-      ore: 'Ore Deposits',
-      stone: 'Stone Outcrop'
-    },
+    legendLabels: legendLabelMap,
     showControls: true,
     showLegend: false,
     idPrefix: 'setup-map',
@@ -481,6 +590,8 @@ export function initSetupUI(onStart) {
       showSpawnPrompt(detail);
     }
   });
+
+  attachSetupLegend();
 
   biomes.forEach((biome, index) => {
     const button = document.createElement('button');

@@ -127,8 +127,8 @@ export function generateColorMap(
   const mapWidth = Math.max(1, Math.trunc(width));
   const mapHeight = Math.max(1, Math.trunc(height ?? width ?? DEFAULT_MAP_WIDTH));
   const { xStart: defaultX, yStart: defaultY } = computeCenteredStart(mapWidth, mapHeight);
-  const effectiveXStart = Number.isFinite(xStart) ? Math.trunc(xStart) : defaultX;
-  const effectiveYStart = Number.isFinite(yStart) ? Math.trunc(yStart) : defaultY;
+  let effectiveXStart = Number.isFinite(xStart) ? Math.trunc(xStart) : defaultX;
+  let effectiveYStart = Number.isFinite(yStart) ? Math.trunc(yStart) : defaultY;
   const biome = getBiome(biomeId);
   const openLand = biome?.openLand ?? 0.5;
   const waterFeature = biome && hasWaterFeature(biome.features);
@@ -139,8 +139,6 @@ export function generateColorMap(
   // scale for vegetation pattern: more open land -> larger contiguous clearings
   const vegScale = 20 + openLand * 80;
   const guaranteedWaterRadius = 18;
-  let nearestWaterDistance = Infinity;
-  let bestWaterCandidate = null;
 
   for (let y = 0; y < mapHeight; y++) {
     const row = [];
@@ -160,31 +158,7 @@ export function generateColorMap(
         if (oreVal > 0.85 && elevation >= waterLevel) type = 'ore';
       }
 
-      if (gx === 0 && gy === 0) {
-        type = 'open';
-      }
-
-      if (type === 'water') {
-        const dx = gx;
-        const dy = gy;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (distance < nearestWaterDistance) {
-          nearestWaterDistance = distance;
-        }
-      } else {
-        const dx = gx;
-        const dy = gy;
-        const distance = Math.sqrt(dx * dx + dy * dy);
-        if (
-          distance > 0 &&
-          distance <= guaranteedWaterRadius &&
-          (bestWaterCandidate === null || elevation < bestWaterCandidate.elevation)
-        ) {
-          bestWaterCandidate = { localX: x, localY: y, elevation };
-        }
-      }
-
-      const symbol = gx === 0 && gy === 0 ? '🚩' : TERRAIN_SYMBOLS[type] || '?';
+      const symbol = TERRAIN_SYMBOLS[type] || '?';
       row.push(symbol);
       typeRow.push(type);
     }
@@ -193,16 +167,105 @@ export function generateColorMap(
     elevations.push(eRow);
   }
 
+  const originColIndex = -effectiveXStart;
+  const originRowIndex = -effectiveYStart;
+  const originInBounds =
+    originColIndex >= 0 &&
+    originColIndex < mapWidth &&
+    originRowIndex >= 0 &&
+    originRowIndex < mapHeight;
+
+  let originShiftX = 0;
+  let originShiftY = 0;
+
+  if (originInBounds) {
+    const originType = terrainTypes[originRowIndex]?.[originColIndex];
+    if (originType === 'water') {
+      let closestLand = null;
+      for (let row = 0; row < mapHeight; row++) {
+        const rowData = terrainTypes[row];
+        if (!rowData) continue;
+        for (let col = 0; col < mapWidth; col++) {
+          const type = rowData[col];
+          if (type === 'water') continue;
+          const worldX = effectiveXStart + col;
+          const worldY = effectiveYStart + row;
+          const distance = Math.hypot(worldX, worldY);
+          if (
+            !closestLand ||
+            distance < closestLand.distance ||
+            (distance === closestLand.distance &&
+              (Math.abs(worldY) < Math.abs(closestLand.worldY) ||
+                (Math.abs(worldY) === Math.abs(closestLand.worldY) && Math.abs(worldX) < Math.abs(closestLand.worldX))))
+          ) {
+            closestLand = { localX: col, localY: row, worldX, worldY, distance };
+          }
+        }
+      }
+      if (closestLand) {
+        originShiftX = closestLand.worldX;
+        originShiftY = closestLand.worldY;
+        effectiveXStart -= originShiftX;
+        effectiveYStart -= originShiftY;
+      }
+    }
+  }
+
+  let nearestWaterDistance = Infinity;
+  let bestWaterCandidate = null;
+
+  for (let row = 0; row < mapHeight; row++) {
+    for (let col = 0; col < mapWidth; col++) {
+      const type = terrainTypes[row]?.[col];
+      if (!type) continue;
+      const worldX = effectiveXStart + col;
+      const worldY = effectiveYStart + row;
+      const distance = Math.hypot(worldX, worldY);
+      if (type === 'water') {
+        if (distance < nearestWaterDistance) {
+          nearestWaterDistance = distance;
+        }
+        continue;
+      }
+      if (distance > 0 && distance <= guaranteedWaterRadius) {
+        const elevation = elevations[row]?.[col] ?? 0;
+        if (
+          !bestWaterCandidate ||
+          elevation < bestWaterCandidate.elevation ||
+          (elevation === bestWaterCandidate.elevation && distance < bestWaterCandidate.distance)
+        ) {
+          bestWaterCandidate = { localX: col, localY: row, elevation, distance };
+        }
+      }
+    }
+  }
+
   if (nearestWaterDistance > guaranteedWaterRadius && bestWaterCandidate) {
     const { localX, localY } = bestWaterCandidate;
     terrainTypes[localY][localX] = 'water';
     tiles[localY][localX] = TERRAIN_SYMBOLS.water;
   }
 
+  const flagColIndex = -effectiveXStart;
+  const flagRowIndex = -effectiveYStart;
+  if (
+    flagColIndex >= 0 &&
+    flagColIndex < mapWidth &&
+    flagRowIndex >= 0 &&
+    flagRowIndex < mapHeight &&
+    tiles[flagRowIndex]?.[flagColIndex]
+  ) {
+    tiles[flagRowIndex][flagColIndex] = '🚩';
+  }
+
   const viewportDetails = viewport
     ? {
-        xStart: Number.isFinite(viewport.xStart) ? Math.trunc(viewport.xStart) : effectiveXStart,
-        yStart: Number.isFinite(viewport.yStart) ? Math.trunc(viewport.yStart) : effectiveYStart,
+        xStart: Number.isFinite(viewport.xStart)
+          ? Math.trunc(viewport.xStart - originShiftX)
+          : effectiveXStart,
+        yStart: Number.isFinite(viewport.yStart)
+          ? Math.trunc(viewport.yStart - originShiftY)
+          : effectiveYStart,
         width: Math.max(1, Math.trunc(viewport.width ?? mapWidth)),
         height: Math.max(1, Math.trunc(viewport.height ?? mapHeight))
       }
