@@ -59,7 +59,7 @@ export function initSetupUI(onStart) {
   template.innerHTML = `
     <div class="wrap">
       <div class="setup">
-        <div class="hero">
+        <div class="card hero">
           <div>
             <div class="brand">Fantasy Survival</div>
             <div class="sub">Settle a harsh land. Thrive through seasons. Adapt or vanish.</div>
@@ -94,17 +94,10 @@ export function initSetupUI(onStart) {
           </div>
         </div>
 
-        <div class="card section">
-          <div class="section__title">Advanced</div>
-          <div class="cta-row">
-            <button id="toggle-adv" type="button" class="btn btn--ghost">Show Options</button>
-          </div>
-          <div id="adv" class="adv" hidden>
-            <div class="section__title">Map Preview</div>
-            <p class="sub" id="map-tip">Explore the terrain and click to choose a spawn point.</p>
-            <div id="map-preview" class="map-preview"></div>
-            <p class="sub" id="spawn-info"></p>
-          </div>
+        <div class="card section map-section">
+          <p class="map-tip" id="map-tip">Explore the terrain and click to choose a spawn point.</p>
+          <div id="map-preview" class="map-preview" aria-label="World map preview"></div>
+          <p class="sub" id="spawn-info"></p>
         </div>
 
         <div class="card cta-row">
@@ -128,8 +121,6 @@ export function initSetupUI(onStart) {
   const seedInput = wrap.querySelector('#seed-input');
   const seedApplyBtn = wrap.querySelector('#seed-apply');
   const seedRandomBtn = wrap.querySelector('#seed-rand');
-  const toggleAdvBtn = wrap.querySelector('#toggle-adv');
-  const advPanel = wrap.querySelector('#adv');
   const mapPreview = wrap.querySelector('#map-preview');
   const spawnInfo = wrap.querySelector('#spawn-info');
   const randomizeAllBtn = wrap.querySelector('#randomize-all');
@@ -597,17 +588,6 @@ export function initSetupUI(onStart) {
     if (event.key === 'Enter') {
       event.preventDefault();
       seedApplyBtn.click();
-    }
-  });
-
-  toggleAdvBtn.addEventListener('click', () => {
-    const isHidden = advPanel.hasAttribute('hidden');
-    if (isHidden) {
-      advPanel.removeAttribute('hidden');
-      toggleAdvBtn.textContent = 'Hide Options';
-    } else {
-      advPanel.setAttribute('hidden', '');
-      toggleAdvBtn.textContent = 'Show Options';
     }
   });
 
