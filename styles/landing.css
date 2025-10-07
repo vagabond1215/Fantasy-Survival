@@ -1,27 +1,64 @@
 :root {
-  --navy-950: #010814;
-  --navy-900: #04142f;
-  --navy-850: #0a2144;
-  --charcoal-900: #111722;
-  --charcoal-850: #18202e;
-  --charcoal-800: #1f2737;
-  --accent: #f1d48a;
-  --accent-bright: #f7df9f;
+  --color-background: #040914;
+  --color-background-light: #101a2b;
+  --color-background-dark: #02040a;
+
+  --color-primary: #1b3f73;
+  --color-primary-light: #28548f;
+  --color-primary-dark: #132a4f;
+
+  --color-secondary: #1f3247;
+  --color-secondary-light: #2f4966;
+  --color-secondary-dark: #152130;
+
+  --color-primary-accent: #f1d48a;
+  --color-primary-accent-light: #f8e1a5;
+  --color-primary-accent-dark: #d7b36a;
+
+  --color-secondary-accent: #86f3c4;
+  --color-secondary-accent-light: #a6ffd8;
+  --color-secondary-accent-dark: #4fb98f;
+
   --text-strong: #f7f9ff;
   --text-muted: #bbc6de;
-  --glass-blue: rgba(11, 29, 64, 0.78);
-  --glass-blue-strong: rgba(18, 41, 82, 0.82);
-  --glass-charcoal: rgba(21, 28, 40, 0.8);
-  --glass-charcoal-strong: rgba(26, 34, 48, 0.85);
+
+  --background-glass-light: rgba(16, 26, 43, 0.68);
+  --background-glass-strong: rgba(2, 4, 10, 0.82);
+
+  --glass-primary: rgba(27, 63, 115, 0.6);
+  --glass-primary-strong: rgba(19, 44, 80, 0.72);
+  --glass-secondary: rgba(31, 50, 71, 0.58);
+  --glass-secondary-strong: rgba(21, 33, 48, 0.68);
   --glass-highlight: rgba(255, 255, 255, 0.09);
-  --border-blue: rgba(90, 134, 206, 0.42);
-  --border-charcoal: rgba(38, 48, 68, 0.6);
-  --border-bright: rgba(241, 212, 138, 0.45);
-  --ok: #86f3c4;
+
+  --border-primary: rgba(53, 82, 132, 0.42);
+  --border-secondary: rgba(38, 56, 80, 0.6);
+  --border-accent: rgba(241, 212, 138, 0.45);
+  --accent-glow-soft: rgba(241, 212, 138, 0.12);
+
+  --ok: var(--color-secondary-accent);
   --warn: #ffd77e;
+
   --radius: 20px;
   --blur: 18px;
   --shadow: 0 24px 60px rgba(2, 8, 22, 0.55);
+
+  /* Legacy aliases */
+  --navy-950: var(--color-background-dark);
+  --navy-900: var(--color-background);
+  --navy-850: var(--color-background-light);
+  --charcoal-900: var(--color-secondary-dark);
+  --charcoal-850: var(--color-secondary);
+  --charcoal-800: var(--color-secondary-light);
+  --accent: var(--color-primary-accent);
+  --accent-bright: var(--color-primary-accent-light);
+  --glass-blue: var(--glass-primary);
+  --glass-blue-strong: var(--glass-primary-strong);
+  --glass-charcoal: var(--glass-secondary);
+  --glass-charcoal-strong: var(--glass-secondary-strong);
+  --border-blue: var(--border-primary);
+  --border-charcoal: var(--border-secondary);
+  --border-bright: var(--border-accent);
 }
 
 body.landing-active {
@@ -32,7 +69,7 @@ body.landing-active {
   background:
     radial-gradient(1100px 700px at 15% -10%, rgba(20, 57, 128, 0.55) 0%, transparent 60%),
     radial-gradient(900px 600px at 120% 110%, rgba(24, 33, 52, 0.6) 0%, transparent 55%),
-    linear-gradient(200deg, var(--navy-950), var(--navy-900));
+    linear-gradient(200deg, var(--color-background-dark), var(--color-background));
 }
 
 body.landing-active .wrap {
@@ -47,8 +84,8 @@ body.landing-active .setup {
   width: min(960px, 100%);
   display: grid;
   gap: 20px;
-  background: rgba(160, 168, 182, 0.36);
-  border: 1px solid var(--border-charcoal);
+  background: linear-gradient(145deg, var(--background-glass-light), var(--background-glass-strong));
+  border: 1px solid var(--border-secondary);
   border-radius: 32px;
   padding: clamp(20px, 4vw, 36px);
   box-shadow: var(--shadow);
@@ -62,7 +99,7 @@ body.landing-active .setup::before {
   position: absolute;
   inset: 1px;
   border-radius: inherit;
-  border: 1px solid rgba(241, 212, 138, 0.08);
+  border: 1px solid var(--accent-glow-soft);
   pointer-events: none;
 }
 
