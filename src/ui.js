@@ -113,6 +113,8 @@ export function initSetupUI(onStart) {
   const wrap = template.content.firstElementChild;
   container.appendChild(wrap);
 
+  applyInverseCardBackgrounds(wrap);
+
   const biomeGrid = wrap.querySelector('#biome-grid');
   const biomeDetails = wrap.querySelector('#biome-details');
   const biomeMiniMap = wrap.querySelector('#biome-mini-map');
@@ -159,6 +161,110 @@ export function initSetupUI(onStart) {
   }, {});
 
   seedInput.value = mapSeed;
+
+  function applyInverseCardBackgrounds(rootNode) {
+    if (!rootNode) return;
+    const parentColorCache = new WeakMap();
+    rootNode.querySelectorAll('.card').forEach(card => {
+      const parent = card.parentElement;
+      if (!parent) return;
+      let colors = parentColorCache.get(parent);
+      if (!colors) {
+        const baseColor = resolveBackgroundColor(parent);
+        if (!baseColor) return;
+        const background = invertColor(baseColor);
+        const text = background ? invertColor(background) : null;
+        colors = { background, text };
+        parentColorCache.set(parent, colors);
+      }
+      if (colors.background) {
+        card.style.background = formatColor(colors.background);
+      }
+      if (colors.text) {
+        card.style.color = formatColor(colors.text);
+      }
+    });
+  }
+
+  function resolveBackgroundColor(element, depth = 0) {
+    if (!element || depth > 20) return null;
+    const styles = getComputedStyle(element);
+    const directColor = parseColor(styles.backgroundColor);
+    if (directColor && directColor.a > 0) return directColor;
+    const imageColor = extractColorFromBackgroundImage(styles.backgroundImage);
+    if (imageColor && imageColor.a > 0) return imageColor;
+    const parent = element.parentElement;
+    if (!parent) return directColor || imageColor;
+    return resolveBackgroundColor(parent, depth + 1);
+  }
+
+  function extractColorFromBackgroundImage(backgroundImage) {
+    if (!backgroundImage || backgroundImage === 'none') return null;
+    const match = backgroundImage.match(/rgba?\([^\)]+\)|#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})/);
+    if (!match) return null;
+    return parseColor(match[0]);
+  }
+
+  function invertColor(color) {
+    if (!color) return null;
+    return {
+      r: 255 - color.r,
+      g: 255 - color.g,
+      b: 255 - color.b,
+      a: typeof color.a === 'number' ? color.a : 1
+    };
+  }
+
+  function parseColor(colorString) {
+    if (!colorString) return null;
+    const trimmed = colorString.trim().toLowerCase();
+    if (!trimmed || trimmed === 'transparent') {
+      return { r: 0, g: 0, b: 0, a: 0 };
+    }
+    const rgbaMatch = trimmed.match(/^rgba?\(\s*([\d.]+)\s*,\s*([\d.]+)\s*,\s*([\d.]+)(?:\s*,\s*([\d.]+))?\s*\)$/);
+    if (rgbaMatch) {
+      const [, r, g, b, a] = rgbaMatch;
+      return {
+        r: Number(r),
+        g: Number(g),
+        b: Number(b),
+        a: a !== undefined ? Number(a) : 1
+      };
+    }
+    const hexMatch = trimmed.match(/^#([0-9a-f]{3,4}|[0-9a-f]{6}|[0-9a-f]{8})$/);
+    if (hexMatch) {
+      const value = hexMatch[1];
+      if (value.length === 3 || value.length === 4) {
+        const [r, g, b, a] = value.split('').map(char => parseInt(char + char, 16));
+        return {
+          r,
+          g,
+          b,
+          a: value.length === 4 ? a / 255 : 1
+        };
+      }
+      if (value.length === 6 || value.length === 8) {
+        const r = parseInt(value.slice(0, 2), 16);
+        const g = parseInt(value.slice(2, 4), 16);
+        const b = parseInt(value.slice(4, 6), 16);
+        const a = value.length === 8 ? parseInt(value.slice(6, 8), 16) / 255 : 1;
+        return { r, g, b, a };
+      }
+    }
+    return null;
+  }
+
+  function formatColor(color) {
+    if (!color) return '';
+    const r = Math.round(Math.max(0, Math.min(255, color.r)));
+    const g = Math.round(Math.max(0, Math.min(255, color.g)));
+    const b = Math.round(Math.max(0, Math.min(255, color.b)));
+    const a = typeof color.a === 'number' ? Math.max(0, Math.min(1, color.a)) : 1;
+    if (a >= 1) {
+      return `rgb(${r}, ${g}, ${b})`;
+    }
+    return `rgba(${r}, ${g}, ${b}, ${Number(a.toFixed(3))})`;
+  }
 
   function setActive(list, node) {
     list.forEach(item => {
