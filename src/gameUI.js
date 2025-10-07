@@ -2706,8 +2706,8 @@ function createBuildCard(type, info) {
   card.style.border = '1px solid var(--map-border)';
   card.style.padding = '8px';
   card.style.borderRadius = '6px';
-  card.style.background = 'var(--map-bg)';
-  card.style.color = 'var(--text-color)';
+  card.style.background = 'var(--card-bg, var(--map-bg))';
+  card.style.color = 'var(--card-text, var(--text-color))';
 
   const title = document.createElement('h4');
   title.textContent = `${type.icon ? `${type.icon} ` : ''}${type.name}`;

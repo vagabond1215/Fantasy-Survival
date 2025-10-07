@@ -20,6 +20,8 @@
       --action-button-bg-active: linear-gradient(135deg, rgba(45, 108, 223, 0.95), rgba(88, 173, 255, 0.95));
       --action-button-text-active: #fff;
       --action-button-shadow-active: 0 6px 16px rgba(45, 108, 223, 0.35);
+      --card-bg: #2a3439;
+      --card-text: #000000;
     }
     body.dark {
       --bg-color: #0c1324;
@@ -36,6 +38,8 @@
       --action-button-bg-active: linear-gradient(135deg, rgba(68, 119, 255, 0.95), rgba(33, 77, 180, 0.96));
       --action-button-text-active: #f6f8ff;
       --action-button-shadow-active: 0 12px 26px rgba(24, 54, 138, 0.7);
+      --card-bg: rgba(24, 38, 70, 0.9);
+      --card-text: var(--text-color);
     }
     * {
       box-sizing: border-box;
@@ -153,7 +157,7 @@
       display: none;
       flex-direction: column;
       gap: 8px;
-      z-index: 1200;
+      z-index: 3200;
     }
     .menu-panel.open {
       display: flex;
