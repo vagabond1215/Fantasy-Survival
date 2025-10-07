@@ -245,7 +245,10 @@ export function initSetupUI(onStart) {
     });
   }
 
-  onThemeChange(updateLandingThemeButtons, {
+  onThemeChange(() => {
+    updateLandingThemeButtons();
+    applyInverseCardBackgrounds(wrap);
+  }, {
     immediate: true
   });
 
@@ -284,8 +287,20 @@ export function initSetupUI(onStart) {
 
   function applyInverseCardBackgrounds(rootNode) {
     if (!rootNode) return;
+    const cards = rootNode.querySelectorAll('.card');
+    if (!cards.length) return;
+
+    const theme = getTheme();
+    if (theme === 'light') {
+      cards.forEach(card => {
+        card.style.background = 'var(--card-bg)';
+        card.style.color = 'var(--card-text)';
+      });
+      return;
+    }
+
     const parentColorCache = new WeakMap();
-    rootNode.querySelectorAll('.card').forEach(card => {
+    cards.forEach(card => {
       const parent = card.parentElement;
       if (!parent) return;
       let colors = parentColorCache.get(parent);
