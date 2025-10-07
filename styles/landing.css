@@ -94,6 +94,12 @@ body.landing-active .setup {
   overflow: hidden;
 }
 
+body.landing-active .setup > * {
+  color: inherit;
+  background-color: rgba(16, 26, 43, 0.55);
+  background-color: color-mix(in srgb, currentColor 18%, transparent);
+}
+
 body.landing-active .setup::before {
   content: '';
   position: absolute;
