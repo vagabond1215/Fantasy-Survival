@@ -24,6 +24,14 @@ import { initTopMenu, initBottomMenu } from './menu.js';
 import { resetToDawn, getSeasonDetails, getSeasonForMonth, randomDarkAgeYear } from './time.js';
 import { resetOrders } from './orders.js';
 
+function removeLandingTheme() {
+  document.body.classList.remove('landing-active');
+  const landingLink = document.getElementById('landing-theme');
+  if (landingLink && landingLink.parentElement) {
+    landingLink.parentElement.removeChild(landingLink);
+  }
+}
+
 function startGame(settings = {}) {
   const diff = settings.difficulty || 'normal';
   const cfg = difficultySettings[diff];
@@ -79,6 +87,7 @@ function startGame(settings = {}) {
   saveGame();
   const setupDiv = document.getElementById('setup');
   if (setupDiv) setupDiv.style.display = 'none';
+  removeLandingTheme();
   initGameUI();
 }
 
@@ -94,6 +103,7 @@ function init() {
   } else {
     const setupDiv = document.getElementById('setup');
     if (setupDiv) setupDiv.style.display = 'none';
+    removeLandingTheme();
     initGameUI();
   }
 }
