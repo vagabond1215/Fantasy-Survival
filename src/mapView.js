@@ -841,9 +841,9 @@ export function createMapView(container, {
     controls.className = `${idPrefix}-controls map-controls`;
     controls.style.display = 'flex';
     controls.style.flexDirection = 'column';
-    controls.style.alignItems = 'center';
+    controls.style.alignItems = 'flex-start';
     controls.style.gap = '8px';
-    controls.style.justifyContent = 'center';
+    controls.style.justifyContent = 'flex-start';
     controls.style.alignSelf = 'flex-start';
 
     controlColumn = document.createElement('div');
@@ -2140,8 +2140,8 @@ export function createMapView(container, {
       if (!sideStack.parentElement) {
         mapContainer.appendChild(sideStack);
       }
-      sideStack.style.alignItems = 'center';
-      sideStack.style.justifyContent = 'center';
+      sideStack.style.alignItems = 'flex-start';
+      sideStack.style.justifyContent = 'flex-start';
       if (controls.parentElement !== sideStack) {
         if (controls.parentElement) {
           controls.parentElement.removeChild(controls);
@@ -2149,9 +2149,9 @@ export function createMapView(container, {
         sideStack.appendChild(controls);
       }
       controls.style.margin = '0';
-      controls.style.alignItems = 'center';
+      controls.style.alignItems = 'flex-start';
       controls.style.alignSelf = 'flex-start';
-      controls.style.justifyContent = 'center';
+      controls.style.justifyContent = 'flex-start';
     } else {
       mapContainer.style.flexDirection = 'column';
       mapContainer.style.flexWrap = 'nowrap';
@@ -2825,6 +2825,7 @@ export function createMapView(container, {
       display: mapDisplay,
       markers: markerLayer,
       controls,
+      nav: navGrid,
       controlDetails: controlDetailsSection,
       actionPanel,
       actionButtons,
