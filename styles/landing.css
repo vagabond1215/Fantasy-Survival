@@ -381,6 +381,13 @@ body.landing-active .tile {
   backdrop-filter: blur(calc(var(--blur) * 0.35));
 }
 
+body.dark.landing-active .tile {
+  background: var(--tile-base-bg, #7d7f81);
+  border-color: rgba(255, 255, 255, 0.2);
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+}
+
 body.landing-active .tile:hover {
   background: var(
     --tile-hover-bg,
@@ -388,6 +395,12 @@ body.landing-active .tile:hover {
   );
   border-color: rgba(224, 224, 224, 0.75);
   box-shadow: 0 0 0 2px rgba(208, 215, 227, 0.35);
+}
+
+body.dark.landing-active .tile:hover {
+  background: var(--tile-hover-bg, #8b8d8f);
+  border-color: rgba(255, 255, 255, 0.32);
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
 }
 
 body.landing-active .tile.is-active {
@@ -399,14 +412,28 @@ body.landing-active .tile.is-active {
   box-shadow: 0 0 0 3px rgba(214, 221, 235, 0.4);
 }
 
+body.dark.landing-active .tile.is-active {
+  background: var(--tile-active-bg, #646668);
+  border-color: rgba(255, 255, 255, 0.36);
+  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22);
+}
+
 body.landing-active .tile__name {
   font-weight: 700;
   color: #e1e5f0;
 }
 
+body.dark.landing-active .tile__name {
+  color: #ffffff;
+}
+
 body.landing-active .tile__desc {
   color: rgba(201, 210, 224, 0.85);
   font-size: 12px;
+}
+
+body.dark.landing-active .tile__desc {
+  color: rgba(255, 255, 255, 0.82);
 }
 
 body.landing-active .seed-row {
