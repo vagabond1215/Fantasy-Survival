@@ -6,6 +6,24 @@
   <link rel="stylesheet" href="styles/landing.css" id="landing-theme">
   <style>
     :root {
+      --bg-color: #0c1324;
+      --text-color: #f1f4ff;
+      --menu-bg: rgba(16, 24, 44, 0.94);
+      --map-bg: #101b33;
+      --map-border: rgba(82, 114, 204, 0.55);
+      --action-panel-bg: rgba(16, 27, 53, 0.95);
+      --action-option-bg: rgba(24, 38, 70, 0.9);
+      --action-button-bg: linear-gradient(135deg, rgba(26, 43, 86, 0.96), rgba(44, 74, 146, 0.92));
+      --action-button-text: var(--text-color);
+      --action-button-shadow: 0 3px 12px rgba(6, 12, 32, 0.55);
+      --action-button-shadow-hover: 0 10px 24px rgba(8, 20, 48, 0.65);
+      --action-button-bg-active: linear-gradient(135deg, rgba(68, 119, 255, 0.95), rgba(33, 77, 180, 0.96));
+      --action-button-text-active: #f6f8ff;
+      --action-button-shadow-active: 0 12px 26px rgba(24, 54, 138, 0.7);
+      --card-bg: rgba(24, 38, 70, 0.9);
+      --card-text: var(--text-color);
+    }
+    body.light {
       --bg-color: #fff;
       --text-color: #000;
       --menu-bg: #eee;
@@ -267,7 +285,39 @@
     }
   </style>
 </head>
-<body class="light">
+<body>
+  <script>
+    (function () {
+      const THEME_STORAGE_KEY = 'theme';
+      const VALID_THEMES = new Set(['light', 'dark']);
+      let preferredTheme = null;
+      try {
+        const stored = localStorage.getItem(THEME_STORAGE_KEY);
+        if (stored && VALID_THEMES.has(stored)) {
+          preferredTheme = stored;
+        }
+      } catch (error) {
+        console.warn('Unable to access theme preference storage during initial load.', error);
+      }
+      if (!preferredTheme) {
+        try {
+          const query = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
+            ? window.matchMedia('(prefers-color-scheme: dark)')
+            : null;
+          if (query && typeof query.matches === 'boolean') {
+            preferredTheme = query.matches ? 'dark' : 'light';
+          }
+        } catch (error) {
+          console.warn('Unable to detect system color scheme during initial load.', error);
+        }
+      }
+      if (!preferredTheme) {
+        preferredTheme = 'dark';
+      }
+      document.body.classList.remove('light', 'dark');
+      document.body.classList.add(preferredTheme);
+    })();
+  </script>
   <div id="top-menu"></div>
   <div id="content">
     <div id="setup"></div>
