@@ -23,6 +23,10 @@ const difficultyFlavors = {
   hard: 'brutal'
 };
 
+const DARK_TILE_BASE_COLOR = '#7d7f81';
+const DARK_TILE_HOVER_LIFT = 0.08;
+const DARK_TILE_ACTIVE_SHADE = 0.16;
+
 const BIOME_SWATCHES = [
   'linear-gradient(135deg, rgba(96, 115, 255, 0.45), rgba(136, 69, 255, 0.18))',
   'linear-gradient(135deg, rgba(92, 214, 255, 0.45), rgba(73, 116, 255, 0.2))',
@@ -435,6 +439,21 @@ export function initSetupUI(onStart) {
 
   function applyTileBackground(button) {
     if (!button) return;
+    if (document.body?.classList?.contains('dark')) {
+      const baseColor = parseColor(DARK_TILE_BASE_COLOR);
+      if (baseColor) {
+        const hoverColor = lightenColor(baseColor, DARK_TILE_HOVER_LIFT);
+        const activeColor = darkenColor(baseColor, DARK_TILE_ACTIVE_SHADE);
+        button.style.setProperty('--tile-base-bg', formatColor(baseColor));
+        if (hoverColor) {
+          button.style.setProperty('--tile-hover-bg', formatColor(hoverColor));
+        }
+        if (activeColor) {
+          button.style.setProperty('--tile-active-bg', formatColor(activeColor));
+        }
+      }
+      return;
+    }
     const grandparent = button.parentElement?.parentElement;
     let baseColor = grandparent ? resolveBackgroundColor(grandparent, 0, 0) : null;
     if (!baseColor || baseColor.a === 0) {
@@ -937,6 +956,10 @@ export function initSetupUI(onStart) {
     }
     difficultyButtons.push(button);
     difficultySeg.appendChild(button);
+  });
+
+  onThemeChange(() => {
+    biomeTiles.forEach(applyTileBackground);
   });
 
   function selectBiome(id) {
