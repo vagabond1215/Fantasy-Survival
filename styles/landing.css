@@ -372,9 +372,10 @@ body.landing-active .tile {
   cursor: pointer;
   background: var(
     --tile-base-bg,
-    rgba(17, 39, 74, 0.48)
+    linear-gradient(145deg, rgba(9, 27, 66, 0.92), rgba(11, 41, 94, 0.88))
   );
-  border: 1px solid rgba(74, 108, 168, 0.38);
+  border: 1px solid rgba(192, 192, 192, 0.45);
+  color: #d5dae6;
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   backdrop-filter: blur(calc(var(--blur) * 0.35));
 }
@@ -382,27 +383,28 @@ body.landing-active .tile {
 body.landing-active .tile:hover {
   background: var(
     --tile-hover-bg,
-    var(--tile-base-bg, rgba(17, 39, 74, 0.48))
+    linear-gradient(145deg, rgba(12, 38, 88, 0.95), rgba(15, 52, 120, 0.92))
   );
-  border-color: var(--accent);
-  box-shadow: 0 0 0 2px rgba(241, 212, 138, 0.25);
+  border-color: rgba(224, 224, 224, 0.75);
+  box-shadow: 0 0 0 2px rgba(208, 215, 227, 0.35);
 }
 
 body.landing-active .tile.is-active {
   background: var(
     --tile-active-bg,
-    var(--tile-hover-bg, rgba(23, 54, 110, 0.7))
+    linear-gradient(145deg, rgba(7, 23, 56, 0.98), rgba(13, 44, 104, 0.96))
   );
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px rgba(241, 212, 138, 0.28);
+  border-color: rgba(236, 236, 236, 0.85);
+  box-shadow: 0 0 0 3px rgba(214, 221, 235, 0.4);
 }
 
 body.landing-active .tile__name {
   font-weight: 700;
+  color: #e1e5f0;
 }
 
 body.landing-active .tile__desc {
-  color: var(--text-muted);
+  color: rgba(201, 210, 224, 0.85);
   font-size: 12px;
 }
 
