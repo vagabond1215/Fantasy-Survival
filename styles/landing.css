@@ -91,7 +91,7 @@ body.landing-active .setup {
   box-shadow: var(--shadow);
   backdrop-filter: blur(var(--blur));
   position: relative;
-  overflow: hidden;
+  overflow: visible;
 }
 
 body.landing-active .setup > * {
