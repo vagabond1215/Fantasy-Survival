@@ -135,6 +135,7 @@ body.landing-active .hero {
 body.landing-active .card.hero {
   background: #636363;
   color: #f5f5f5;
+  z-index: 2;
 }
 
 body.landing-active .hero-settings {
