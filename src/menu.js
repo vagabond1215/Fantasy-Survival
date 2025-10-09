@@ -22,6 +22,17 @@ let constructionMenuButton = null;
 let listenersBound = false;
 let removeThemeListener = null;
 
+function formatThemeLabel(id, fallback = '') {
+  if (!id || typeof id !== 'string') {
+    return fallback;
+  }
+  return id
+    .split('-')
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function applyZoom() {
   const content = document.getElementById('content');
   if (content) {
@@ -200,8 +211,39 @@ function buildSettingsPanel() {
     removeThemeListener = null;
   }
 
+  const themeSection = document.createElement('div');
+  themeSection.className = 'theme-settings-section';
+
+  const contrastToggle = document.createElement('div');
+  contrastToggle.className = 'theme-contrast-toggle';
+
+  const contrastLabel = document.createElement('span');
+  contrastLabel.className = 'theme-contrast-toggle__label';
+  contrastLabel.textContent = 'Preview contrast';
+
+  const contrastControls = document.createElement('div');
+  contrastControls.className = 'theme-contrast-toggle__controls';
+
+  const lightToggle = document.createElement('button');
+  lightToggle.type = 'button';
+  lightToggle.className = 'theme-contrast-toggle__btn';
+  lightToggle.textContent = 'Light';
+  lightToggle.setAttribute('aria-pressed', 'false');
+
+  const darkToggle = document.createElement('button');
+  darkToggle.type = 'button';
+  darkToggle.className = 'theme-contrast-toggle__btn';
+  darkToggle.textContent = 'Dark';
+  darkToggle.setAttribute('aria-pressed', 'false');
+
+  contrastControls.append(lightToggle, darkToggle);
+  contrastToggle.append(contrastLabel, contrastControls);
+
   const themeRow = document.createElement('div');
   themeRow.className = 'theme-toggle-grid';
+
+  themeSection.append(contrastToggle, themeRow);
+  settingsPanel.appendChild(themeSection);
 
   const availableThemes = getAvailableThemes();
 
@@ -212,29 +254,32 @@ function buildSettingsPanel() {
     button.dataset.themeId = theme.id;
     button.dataset.themeAppearance = theme.appearance;
     button.setAttribute('aria-pressed', 'false');
-    button.setAttribute('aria-label', `Switch to ${theme.name}`);
+    const displayName = formatThemeLabel(theme.id, theme.name);
+    button.setAttribute('aria-label', `Switch to ${displayName}`);
+    button.title = displayName;
 
-    const swatch = document.createElement('div');
-    swatch.className = 'theme-toggle-button__swatch';
-    const swatchColors = [
-      theme.colors.background.base,
-      theme.colors.primary.base,
-      theme.colors.secondary.base,
-      theme.colors.accent.base,
-      theme.colors.neutral.base
-    ];
-    swatchColors.forEach(color => {
-      const cell = document.createElement('span');
-      cell.className = 'theme-toggle-button__swatch-cell';
-      cell.style.setProperty('--swatch-color', color);
-      swatch.appendChild(cell);
-    });
+    const icon = document.createElement('span');
+    icon.className = 'theme-toggle-button__icon';
+    icon.textContent = theme.name;
+    icon.setAttribute('aria-hidden', 'true');
 
     const label = document.createElement('span');
     label.className = 'theme-toggle-button__label';
-    label.textContent = theme.name;
+    label.textContent = displayName;
 
-    button.append(swatch, label);
+    const lightGradient = `linear-gradient(145deg, ${theme.colors.primary.light}, ${theme.colors.secondary.light})`;
+    const darkGradient = `linear-gradient(145deg, ${theme.colors.primary.dark}, ${theme.colors.secondary.dark})`;
+
+    button.style.setProperty('--preview-bg-light', lightGradient);
+    button.style.setProperty('--preview-bg-dark', darkGradient);
+    button.style.setProperty('--preview-border-light', theme.colors.primary.light);
+    button.style.setProperty('--preview-border-dark', theme.colors.primary.dark);
+    button.style.setProperty('--preview-fg-light', '#18202b');
+    button.style.setProperty('--preview-fg-dark', '#f6f8ff');
+    button.style.setProperty('--preview-shadow-light', '0 1px 1px rgba(255, 255, 255, 0.55)');
+    button.style.setProperty('--preview-shadow-dark', '0 2px 8px rgba(0, 0, 0, 0.55)');
+
+    button.append(icon, label);
     button.addEventListener('click', () => {
       setTheme(theme.id);
       closePanels();
@@ -244,7 +289,25 @@ function buildSettingsPanel() {
     themeButtons.set(theme.id, button);
   });
 
-  settingsPanel.appendChild(themeRow);
+  function setPreviewContrast(nextContrast) {
+    if (nextContrast !== 'light' && nextContrast !== 'dark') {
+      return;
+    }
+    themeRow.dataset.contrast = nextContrast;
+    lightToggle.classList.toggle('is-active', nextContrast === 'light');
+    darkToggle.classList.toggle('is-active', nextContrast === 'dark');
+    lightToggle.setAttribute('aria-pressed', String(nextContrast === 'light'));
+    darkToggle.setAttribute('aria-pressed', String(nextContrast === 'dark'));
+  }
+
+  lightToggle.addEventListener('click', () => {
+    setPreviewContrast('light');
+  });
+  darkToggle.addEventListener('click', () => {
+    setPreviewContrast('dark');
+  });
+
+  setPreviewContrast('light');
   removeThemeListener = onThemeChange((themeId = getTheme()) => {
     updateThemeButtonVisuals(themeId);
   }, { immediate: true });
