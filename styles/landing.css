@@ -1,43 +1,49 @@
 :root {
-  --color-background: #040914;
-  --color-background-light: #101a2b;
-  --color-background-dark: #02040a;
+  --color-background: #111930;
+  --color-background-light: #1b2542;
+  --color-background-dark: #070b16;
 
-  --color-primary: #1b3f73;
-  --color-primary-light: #28548f;
-  --color-primary-dark: #132a4f;
+  --color-neutral: #bac4db;
+  --color-neutral-light: #e8efff;
+  --color-neutral-dark: #828ba1;
 
-  --color-secondary: #1f3247;
-  --color-secondary-light: #2f4966;
-  --color-secondary-dark: #152130;
+  --color-primary: #3dc2f0;
+  --color-primary-light: #6feaff;
+  --color-primary-dark: #2a94c2;
 
-  --color-primary-accent: #f1d48a;
-  --color-primary-accent-light: #f8e1a5;
-  --color-primary-accent-dark: #d7b36a;
+  --color-secondary: #7b2ff7;
+  --color-secondary-light: #b991ff;
+  --color-secondary-dark: #5520ad;
 
-  --color-secondary-accent: #86f3c4;
-  --color-secondary-accent-light: #a6ffd8;
-  --color-secondary-accent-dark: #4fb98f;
+  --color-accent: #ffd166;
+  --color-accent-light: #ffe39b;
+  --color-accent-dark: #c99c30;
 
-  --text-strong: #f7f9ff;
-  --text-muted: #bbc6de;
+  --layer-background-0: var(--color-background-dark);
+  --layer-background-1: var(--color-background);
+  --layer-background-2: var(--color-background-light);
+  --layer-background-3: var(--color-neutral-dark);
+  --layer-background-4: var(--color-neutral);
 
-  --background-glass-light: rgba(16, 26, 43, 0.68);
-  --background-glass-strong: rgba(2, 4, 10, 0.82);
+  --text-strong: var(--color-neutral-light);
+  --text-muted: color-mix(in srgb, var(--color-neutral-light) 55%, var(--color-neutral-dark));
 
-  --glass-primary: rgba(27, 63, 115, 0.6);
-  --glass-primary-strong: rgba(19, 44, 80, 0.72);
-  --glass-secondary: rgba(31, 50, 71, 0.58);
-  --glass-secondary-strong: rgba(21, 33, 48, 0.68);
-  --glass-highlight: rgba(255, 255, 255, 0.09);
+  --background-glass-light: color-mix(in srgb, var(--color-background-light) 68%, transparent);
+  --background-glass-strong: color-mix(in srgb, var(--color-background-dark) 82%, transparent);
 
-  --border-primary: rgba(53, 82, 132, 0.42);
-  --border-secondary: rgba(38, 56, 80, 0.6);
-  --border-accent: #7d7f81;
-  --accent-glow-soft: #7d7f81;
+  --glass-primary: color-mix(in srgb, var(--color-primary-dark) 60%, transparent);
+  --glass-primary-strong: color-mix(in srgb, var(--color-primary) 70%, transparent);
+  --glass-secondary: color-mix(in srgb, var(--color-secondary-dark) 58%, transparent);
+  --glass-secondary-strong: color-mix(in srgb, var(--color-secondary) 65%, transparent);
+  --glass-highlight: color-mix(in srgb, var(--color-neutral-light) 18%, transparent);
 
-  --ok: var(--color-secondary-accent);
-  --warn: #ffd77e;
+  --border-primary: color-mix(in srgb, var(--color-primary-dark) 42%, transparent);
+  --border-secondary: color-mix(in srgb, var(--color-background-light) 55%, transparent);
+  --border-accent: color-mix(in srgb, var(--color-accent-dark) 55%, transparent);
+  --accent-glow-soft: color-mix(in srgb, var(--color-accent-light) 40%, transparent);
+
+  --ok: color-mix(in srgb, var(--color-secondary-light) 75%, white 5%);
+  --warn: color-mix(in srgb, var(--color-accent) 80%, white 10%);
 
   --radius: 20px;
   --blur: 18px;
@@ -50,8 +56,8 @@
   --charcoal-900: var(--color-secondary-dark);
   --charcoal-850: var(--color-secondary);
   --charcoal-800: var(--color-secondary-light);
-  --accent: var(--color-primary-accent);
-  --accent-bright: var(--color-primary-accent-light);
+  --accent: var(--color-accent);
+  --accent-bright: var(--color-accent-light);
   --glass-blue: var(--glass-primary);
   --glass-blue-strong: var(--glass-primary-strong);
   --glass-charcoal: var(--glass-secondary);
@@ -133,8 +139,9 @@ body.landing-active .hero {
 }
 
 body.landing-active .card.hero {
-  background: #636363;
-  color: #f5f5f5;
+  background: color-mix(in srgb, var(--color-secondary) 55%, var(--color-background) 25%);
+  border: 1px solid color-mix(in srgb, var(--color-secondary-dark) 45%, transparent);
+  color: var(--text-strong);
   z-index: 2;
 }
 
@@ -145,9 +152,9 @@ body.landing-active .hero-settings {
 }
 
 body.landing-active .hero-settings__trigger {
-  border: 1px solid #7d7f81;
-  background: #7d7f81;
-  color: #ffffff;
+  border: 1px solid var(--border-secondary);
+  background: color-mix(in srgb, var(--color-secondary-dark) 75%, transparent);
+  color: var(--text-strong);
   display: inline-flex;
   align-items: center;
   justify-content: center;
@@ -162,12 +169,12 @@ body.landing-active .hero-settings__trigger {
 
 body.landing-active .hero-settings__trigger:hover {
   transform: translateY(-1px);
-  background: #6f7173;
-  border-color: #6f7173;
+  background: color-mix(in srgb, var(--color-secondary-dark) 65%, var(--color-secondary) 20%);
+  border-color: color-mix(in srgb, var(--color-secondary-dark) 55%, transparent);
 }
 
 body.landing-active .hero-settings__trigger:focus-visible {
-  outline: 2px solid rgba(134, 243, 196, 0.8);
+  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 75%, transparent);
   outline-offset: 2px;
 }
 
@@ -220,41 +227,63 @@ body.landing-active .hero-settings__section-title {
 }
 
 body.landing-active .hero-settings__theme-row {
-  display: flex;
-  gap: 8px;
+  display: grid;
+  gap: 10px;
 }
 
 body.landing-active .hero-settings__theme-btn {
-  flex: 1 1 0;
-  display: inline-flex;
+  display: grid;
+  grid-template-columns: auto 1fr;
   align-items: center;
-  justify-content: center;
-  gap: 6px;
-  padding: 8px 10px;
-  border-radius: 12px;
-  border: 1px solid #7d7f81;
-  background: #7d7f81;
-  color: #ffffff;
+  gap: 12px;
+  padding: 10px 12px;
+  border-radius: 14px;
+  border: 1px solid var(--border-secondary);
+  background: color-mix(in srgb, var(--color-background-light) 40%, transparent);
+  color: var(--text-strong);
   font-size: 13px;
   cursor: pointer;
-  transition: transform 0.1s ease, border-color 0.2s ease, background 0.2s ease;
+  transition: transform 0.1s ease, border-color 0.25s ease, background 0.25s ease, box-shadow 0.25s ease;
 }
 
 body.landing-active .hero-settings__theme-btn:hover {
   transform: translateY(-1px);
-  border-color: #6f7173;
-  background: #6f7173;
+  border-color: color-mix(in srgb, var(--color-primary-light) 55%, transparent);
+  background: color-mix(in srgb, var(--color-background-light) 65%, transparent);
 }
 
 body.landing-active .hero-settings__theme-btn.is-active {
-  border-color: #606264;
-  background: #606264;
-  color: #ffffff;
+  border-color: var(--color-primary);
+  background: color-mix(in srgb, var(--color-primary) 25%, var(--color-background-light) 50%);
+  box-shadow: 0 12px 28px color-mix(in srgb, var(--color-primary-dark) 35%, transparent);
 }
 
 body.landing-active .hero-settings__theme-btn:focus-visible {
-  outline: 2px solid rgba(134, 243, 196, 0.75);
+  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 65%, transparent);
   outline-offset: 2px;
+}
+
+body.landing-active .hero-settings__theme-swatch {
+  display: grid;
+  grid-auto-flow: column;
+  gap: 4px;
+  align-items: center;
+}
+
+body.landing-active .hero-settings__theme-swatch-cell {
+  display: block;
+  width: 14px;
+  height: 32px;
+  border-radius: 7px;
+  background: var(--swatch-color);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--swatch-color) 25%, rgba(0, 0, 0, 0.35));
+}
+
+body.landing-active .hero-settings__theme-label {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.2px;
+  text-align: left;
 }
 
 body.landing-active .brand {
@@ -284,23 +313,23 @@ body.landing-active .badge {
   padding: 5px 10px;
   border-radius: 999px;
   font-size: 11px;
-  border: 1px solid #7d7f81;
-  color: #ffffff;
-  background: #7d7f81;
+  border: 1px solid color-mix(in srgb, var(--color-neutral-dark) 55%, transparent);
+  color: var(--text-strong);
+  background: color-mix(in srgb, var(--color-neutral-dark) 65%, transparent);
   text-transform: uppercase;
   letter-spacing: 0.8px;
 }
 
 body.landing-active .badge--ok {
-  background: rgba(134, 243, 196, 0.15);
-  border-color: rgba(134, 243, 196, 0.38);
-  color: #c3ffe6;
+  background: color-mix(in srgb, var(--color-secondary-light) 30%, transparent);
+  border-color: color-mix(in srgb, var(--color-secondary) 45%, transparent);
+  color: color-mix(in srgb, var(--color-secondary-light) 85%, white 10%);
 }
 
 body.landing-active .badge--warn {
-  background: rgba(255, 215, 126, 0.15);
-  border-color: rgba(255, 215, 126, 0.32);
-  color: #ffe7af;
+  background: color-mix(in srgb, var(--color-accent) 28%, transparent);
+  border-color: color-mix(in srgb, var(--color-accent-dark) 45%, transparent);
+  color: color-mix(in srgb, var(--color-accent-light) 85%, white 8%);
 }
 
 body.landing-active .segment {
@@ -375,16 +404,16 @@ body.landing-active .tile {
     --tile-base-bg,
     linear-gradient(145deg, rgba(9, 27, 66, 0.92), rgba(11, 41, 94, 0.88))
   );
-  border: 1px solid rgba(192, 192, 192, 0.45);
-  color: #d5dae6;
+  border: 1px solid color-mix(in srgb, var(--color-neutral-light) 38%, transparent);
+  color: var(--text-strong);
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   backdrop-filter: blur(calc(var(--blur) * 0.35));
 }
 
-body.dark.landing-active .tile {
-  background: var(--tile-base-bg, #7d7f81);
-  border-color: rgba(255, 255, 255, 0.2);
-  color: #ffffff;
+body[data-theme-appearance='dark'].landing-active .tile {
+  background: var(--tile-base-bg, color-mix(in srgb, var(--color-neutral-dark) 55%, transparent));
+  border-color: color-mix(in srgb, var(--color-neutral-light) 28%, transparent);
+  color: var(--text-strong);
   box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
 }
 
@@ -393,14 +422,14 @@ body.landing-active .tile:hover {
     --tile-hover-bg,
     linear-gradient(145deg, rgba(12, 38, 88, 0.95), rgba(15, 52, 120, 0.92))
   );
-  border-color: rgba(224, 224, 224, 0.75);
-  box-shadow: 0 0 0 2px rgba(208, 215, 227, 0.35);
+  border-color: color-mix(in srgb, var(--color-neutral-light) 55%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-neutral-light) 35%, transparent);
 }
 
-body.dark.landing-active .tile:hover {
-  background: var(--tile-hover-bg, #8b8d8f);
-  border-color: rgba(255, 255, 255, 0.32);
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18);
+body[data-theme-appearance='dark'].landing-active .tile:hover {
+  background: var(--tile-hover-bg, color-mix(in srgb, var(--color-neutral-dark) 65%, transparent));
+  border-color: color-mix(in srgb, var(--color-neutral-light) 42%, transparent);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-neutral-light) 22%, transparent);
 }
 
 body.landing-active .tile.is-active {
@@ -408,32 +437,28 @@ body.landing-active .tile.is-active {
     --tile-active-bg,
     linear-gradient(145deg, rgba(7, 23, 56, 0.98), rgba(13, 44, 104, 0.96))
   );
-  border-color: rgba(236, 236, 236, 0.85);
-  box-shadow: 0 0 0 3px rgba(214, 221, 235, 0.4);
+  border-color: color-mix(in srgb, var(--color-neutral-light) 75%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-neutral-light) 42%, transparent);
 }
 
-body.dark.landing-active .tile.is-active {
-  background: var(--tile-active-bg, #646668);
-  border-color: rgba(255, 255, 255, 0.36);
-  box-shadow: 0 0 0 3px rgba(255, 255, 255, 0.22);
+body[data-theme-appearance='dark'].landing-active .tile.is-active {
+  background: var(--tile-active-bg, color-mix(in srgb, var(--color-neutral-dark) 72%, transparent));
+  border-color: color-mix(in srgb, var(--color-neutral-light) 48%, transparent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-neutral-light) 26%, transparent);
 }
 
 body.landing-active .tile__name {
   font-weight: 700;
-  color: #e1e5f0;
-}
-
-body.dark.landing-active .tile__name {
-  color: #ffffff;
+  color: color-mix(in srgb, var(--text-strong) 88%, white 6%);
 }
 
 body.landing-active .tile__desc {
-  color: rgba(201, 210, 224, 0.85);
+  color: color-mix(in srgb, var(--text-muted) 85%, transparent);
   font-size: 12px;
 }
 
-body.dark.landing-active .tile__desc {
-  color: rgba(255, 255, 255, 0.82);
+body[data-theme-appearance='dark'].landing-active .tile__desc {
+  color: color-mix(in srgb, var(--text-strong) 70%, transparent);
 }
 
 body.landing-active .seed-row {
@@ -446,17 +471,17 @@ body.landing-active .input {
   flex: 1 1 260px;
   padding: 10px 12px;
   border-radius: 14px;
-  background: rgba(16, 26, 42, 0.72);
+  background: color-mix(in srgb, var(--color-background-light) 65%, transparent);
   color: var(--text-strong);
-  border: 1px solid rgba(80, 100, 140, 0.55);
+  border: 1px solid color-mix(in srgb, var(--color-neutral-dark) 55%, transparent);
   outline: none;
   backdrop-filter: blur(calc(var(--blur) * 0.35));
   transition: border 0.18s ease, box-shadow 0.18s ease;
 }
 
 body.landing-active .input:focus {
-  border-color: #7d7f81;
-  box-shadow: 0 0 0 3px #7d7f81;
+  border-color: var(--outline-strong);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--outline-strong) 35%, transparent);
 }
 
 body.landing-active .btn {
@@ -464,9 +489,9 @@ body.landing-active .btn {
   border-radius: 14px;
   font-weight: 700;
   cursor: pointer;
-  border: 1px solid rgba(84, 112, 164, 0.45);
+  border: 1px solid color-mix(in srgb, var(--color-primary-dark) 45%, transparent);
   color: var(--text-strong);
-  background: linear-gradient(160deg, rgba(22, 44, 86, 0.8), rgba(14, 28, 54, 0.75));
+  background: linear-gradient(160deg, color-mix(in srgb, var(--color-primary-dark) 65%, transparent), color-mix(in srgb, var(--color-background-light) 55%, transparent));
   transition: filter 0.18s ease, transform 0.1s ease;
   backdrop-filter: blur(calc(var(--blur) * 0.3));
 }
@@ -477,25 +502,25 @@ body.landing-active .btn:hover {
 }
 
 body.landing-active .btn:focus-visible {
-  outline: 2px solid #7d7f81;
+  outline: 2px solid var(--outline-strong);
   outline-offset: 3px;
 }
 
 body.landing-active .btn--ghost {
-  background: rgba(15, 28, 50, 0.4);
-  border-color: rgba(90, 134, 206, 0.32);
+  background: color-mix(in srgb, var(--color-background-light) 35%, transparent);
+  border-color: color-mix(in srgb, var(--color-neutral-dark) 40%, transparent);
 }
 
 body.landing-active .btn--primary {
-  background: #7d7f81;
-  border-color: #7d7f81;
-  color: #ffffff;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--color-primary) 75%, transparent), color-mix(in srgb, var(--color-primary-light) 65%, transparent));
+  border-color: color-mix(in srgb, var(--color-primary-light) 55%, transparent);
+  color: var(--text-strong);
 }
 
 body.landing-active .btn--ok {
-  background: linear-gradient(160deg, rgba(134, 243, 196, 0.85), rgba(88, 201, 156, 0.75));
-  border-color: rgba(134, 243, 196, 0.4);
-  color: #0f1d19;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--color-secondary) 70%, transparent), color-mix(in srgb, var(--color-secondary-light) 60%, transparent));
+  border-color: color-mix(in srgb, var(--color-secondary-light) 45%, transparent);
+  color: color-mix(in srgb, var(--color-secondary-light) 20%, #0f1d19 80%);
 }
 
 body.landing-active .cta-row {

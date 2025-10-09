@@ -8,7 +8,13 @@ import {
   TERRAIN_COLORS
 } from './map.js';
 import { createMapView } from './mapView.js';
-import { getTheme, onThemeChange, setTheme } from './theme.js';
+import {
+  getAvailableThemes,
+  getTheme,
+  getThemeDefinition,
+  onThemeChange,
+  setTheme
+} from './theme.js';
 
 const seasons = [
   { id: 'Thawbound', label: 'Thawbound', hint: 'emergent thaw' },
@@ -93,29 +99,10 @@ export function initSetupUI(onStart) {
                 <div class="badge badge--ok">Alpha</div>
                 <div class="hero-settings__title" id="landing-settings-title">Settings</div>
               </div>
-              <div class="hero-settings__section">
-                <div class="hero-settings__section-title">Theme</div>
-                <div class="hero-settings__theme-row">
-                  <button
-                    type="button"
-                    class="hero-settings__theme-btn"
-                    data-theme-mode="light"
-                    aria-pressed="false"
-                  >
-                    <span aria-hidden="true">☀️</span>
-                    <span>Light</span>
-                  </button>
-                  <button
-                    type="button"
-                    class="hero-settings__theme-btn"
-                    data-theme-mode="dark"
-                    aria-pressed="false"
-                  >
-                    <span aria-hidden="true">🌙</span>
-                    <span>Dark</span>
-                  </button>
-                </div>
-              </div>
+          <div class="hero-settings__section">
+            <div class="hero-settings__section-title">Theme</div>
+            <div class="hero-settings__theme-row" id="landing-theme-grid"></div>
+          </div>
             </div>
           </div>
         </div>
@@ -165,8 +152,6 @@ export function initSetupUI(onStart) {
   const wrap = template.content.firstElementChild;
   container.appendChild(wrap);
 
-  applyInverseCardBackgrounds(wrap);
-
   const biomeGrid = wrap.querySelector('#biome-grid');
   const biomeDetails = wrap.querySelector('#biome-details');
   const biomeMiniMap = wrap.querySelector('#biome-mini-map');
@@ -183,26 +168,55 @@ export function initSetupUI(onStart) {
   const landingSettingsTrigger = wrap.querySelector('#landing-settings-btn');
   const landingSettingsPanel = wrap.querySelector('#landing-settings-panel');
   const heroSettings = wrap.querySelector('.hero-settings');
+  const landingThemeContainer = landingSettingsPanel?.querySelector('#landing-theme-grid');
 
+  const availableThemes = getAvailableThemes();
   const landingThemeButtons = new Map();
-  if (landingSettingsPanel) {
-    landingSettingsPanel
-      .querySelectorAll('.hero-settings__theme-btn[data-theme-mode]')
-      .forEach(button => {
-        const mode = button.dataset.themeMode;
-        if (!mode) return;
-        landingThemeButtons.set(mode, button);
-        button.addEventListener('click', () => {
-          setTheme(mode);
-          closeLandingSettings();
-        });
+  if (landingThemeContainer) {
+    landingThemeContainer.innerHTML = '';
+    availableThemes.forEach(theme => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'hero-settings__theme-btn';
+      button.dataset.themeId = theme.id;
+      button.dataset.themeAppearance = theme.appearance;
+      button.setAttribute('aria-pressed', 'false');
+      button.setAttribute('aria-label', `Switch to ${theme.name}`);
+
+      const swatch = document.createElement('div');
+      swatch.className = 'hero-settings__theme-swatch';
+      const swatchColors = [
+        theme.colors.background.base,
+        theme.colors.primary.base,
+        theme.colors.secondary.base,
+        theme.colors.accent.base,
+        theme.colors.neutral.base
+      ];
+      swatchColors.forEach(color => {
+        const cell = document.createElement('span');
+        cell.className = 'hero-settings__theme-swatch-cell';
+        cell.style.setProperty('--swatch-color', color);
+        swatch.appendChild(cell);
       });
+
+      const label = document.createElement('span');
+      label.className = 'hero-settings__theme-label';
+      label.textContent = theme.name;
+
+      button.append(swatch, label);
+      button.addEventListener('click', () => {
+        setTheme(theme.id);
+        closeLandingSettings();
+      });
+
+      landingThemeContainer.appendChild(button);
+      landingThemeButtons.set(theme.id, button);
+    });
   }
 
-  function updateLandingThemeButtons() {
-    const theme = getTheme();
-    landingThemeButtons.forEach((button, mode) => {
-      const isActive = mode === theme;
+  function updateLandingThemeButtons(themeId = getTheme()) {
+    landingThemeButtons.forEach((button, id) => {
+      const isActive = id === themeId;
       button.classList.toggle('is-active', isActive);
       button.setAttribute('aria-pressed', String(isActive));
     });
@@ -249,16 +263,19 @@ export function initSetupUI(onStart) {
     });
   }
 
-  onThemeChange(() => {
-    updateLandingThemeButtons();
-    applyInverseCardBackgrounds(wrap);
-  }, {
-    immediate: true
-  });
-
   const biomeTiles = [];
   const seasonButtons = [];
   const difficultyButtons = [];
+
+  let currentThemeInfo = getThemeDefinition();
+
+  onThemeChange((themeId, themeDefinition) => {
+    currentThemeInfo = themeDefinition || getThemeDefinition(themeId);
+    updateLandingThemeButtons(themeId);
+    biomeTiles.forEach(applyTileBackground);
+  }, {
+    immediate: true
+  });
 
   const defaultBiome = biomes.find(b => b.id === 'temperate-deciduous') || biomes[0];
   const defaultSeason = seasons[0];
@@ -289,42 +306,6 @@ export function initSetupUI(onStart) {
 
   seedInput.value = mapSeed;
 
-  function applyInverseCardBackgrounds(rootNode) {
-    if (!rootNode) return;
-    const cards = rootNode.querySelectorAll('.card');
-    if (!cards.length) return;
-
-    const theme = getTheme();
-    if (theme === 'light') {
-      cards.forEach(card => {
-        card.style.background = 'var(--card-bg)';
-        card.style.color = 'var(--card-text)';
-      });
-      return;
-    }
-
-    const parentColorCache = new WeakMap();
-    cards.forEach(card => {
-      const parent = card.parentElement;
-      if (!parent) return;
-      let colors = parentColorCache.get(parent);
-      if (!colors) {
-        const baseColor = resolveBackgroundColor(parent);
-        if (!baseColor) return;
-        const background = invertColor(baseColor);
-        const text = background ? invertColor(background) : null;
-        colors = { background, text };
-        parentColorCache.set(parent, colors);
-      }
-      if (colors.background) {
-        card.style.background = formatColor(colors.background);
-      }
-      if (colors.text) {
-        card.style.color = formatColor(colors.text);
-      }
-    });
-  }
-
   function resolveBackgroundColor(element, depth = 0, maxDepth = 20) {
     if (!element || depth > maxDepth) return null;
     const styles = getComputedStyle(element);
@@ -344,16 +325,6 @@ export function initSetupUI(onStart) {
     const match = backgroundImage.match(/rgba?\([^\)]+\)|#(?:[0-9a-fA-F]{3,4}|[0-9a-fA-F]{6}|[0-9a-fA-F]{8})/);
     if (!match) return null;
     return parseColor(match[0]);
-  }
-
-  function invertColor(color) {
-    if (!color) return null;
-    return {
-      r: 255 - color.r,
-      g: 255 - color.g,
-      b: 255 - color.b,
-      a: typeof color.a === 'number' ? color.a : 1
-    };
   }
 
   function parseColor(colorString) {
@@ -439,8 +410,10 @@ export function initSetupUI(onStart) {
 
   function applyTileBackground(button) {
     if (!button) return;
-    if (document.body?.classList?.contains('dark')) {
-      const baseColor = parseColor(DARK_TILE_BASE_COLOR);
+    if (currentThemeInfo?.appearance === 'dark') {
+      const baseHex =
+        currentThemeInfo?.colors?.neutral?.dark || currentThemeInfo?.colors?.background?.light || DARK_TILE_BASE_COLOR;
+      const baseColor = parseColor(baseHex || DARK_TILE_BASE_COLOR);
       if (baseColor) {
         const hoverColor = lightenColor(baseColor, DARK_TILE_HOVER_LIFT);
         const activeColor = darkenColor(baseColor, DARK_TILE_ACTIVE_SHADE);

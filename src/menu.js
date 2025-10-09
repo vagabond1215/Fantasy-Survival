@@ -1,4 +1,10 @@
-import { getTheme, initTheme, onThemeChange, setTheme } from './theme.js';
+import {
+  getAvailableThemes,
+  getTheme,
+  initTheme,
+  onThemeChange,
+  setTheme
+} from './theme.js';
 
 let zoomLevel = 1;
 
@@ -9,7 +15,7 @@ let settingsPanel = null;
 let menuPanel = null;
 let settingsTrigger = null;
 let menuTrigger = null;
-let themeToggleButtons = { light: null, dark: null };
+let themeButtons = new Map();
 let zoomDisplayButton = null;
 let backMenuButton = null;
 let constructionMenuButton = null;
@@ -25,17 +31,12 @@ function applyZoom() {
   updateZoomDisplay();
 }
 
-function updateThemeButtonVisuals() {
-  const theme = getTheme();
-  const isLight = theme === 'light';
-  if (themeToggleButtons.light) {
-    themeToggleButtons.light.classList.toggle('active', isLight);
-    themeToggleButtons.light.setAttribute('aria-pressed', String(isLight));
-  }
-  if (themeToggleButtons.dark) {
-    themeToggleButtons.dark.classList.toggle('active', !isLight);
-    themeToggleButtons.dark.setAttribute('aria-pressed', String(!isLight));
-  }
+function updateThemeButtonVisuals(themeId = getTheme()) {
+  themeButtons.forEach((button, id) => {
+    const isActive = id === themeId;
+    button.classList.toggle('active', isActive);
+    button.setAttribute('aria-pressed', String(isActive));
+  });
 }
 
 function applyTheme() {
@@ -192,7 +193,7 @@ function buildSettingsPanel() {
   if (!settingsPanel) return;
   settingsPanel.innerHTML = '';
 
-  themeToggleButtons = { light: null, dark: null };
+  themeButtons = new Map();
 
   if (removeThemeListener) {
     removeThemeListener();
@@ -200,25 +201,53 @@ function buildSettingsPanel() {
   }
 
   const themeRow = document.createElement('div');
-  themeRow.className = 'theme-toggle-row';
+  themeRow.className = 'theme-toggle-grid';
 
-  const createThemeButton = (icon, mode, label) => {
-    const button = createIconControl(icon, label, () => {
-      setTheme(mode);
+  const availableThemes = getAvailableThemes();
+
+  availableThemes.forEach(theme => {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = 'theme-toggle-button';
+    button.dataset.themeId = theme.id;
+    button.dataset.themeAppearance = theme.appearance;
+    button.setAttribute('aria-pressed', 'false');
+    button.setAttribute('aria-label', `Switch to ${theme.name}`);
+
+    const swatch = document.createElement('div');
+    swatch.className = 'theme-toggle-button__swatch';
+    const swatchColors = [
+      theme.colors.background.base,
+      theme.colors.primary.base,
+      theme.colors.secondary.base,
+      theme.colors.accent.base,
+      theme.colors.neutral.base
+    ];
+    swatchColors.forEach(color => {
+      const cell = document.createElement('span');
+      cell.className = 'theme-toggle-button__swatch-cell';
+      cell.style.setProperty('--swatch-color', color);
+      swatch.appendChild(cell);
+    });
+
+    const label = document.createElement('span');
+    label.className = 'theme-toggle-button__label';
+    label.textContent = theme.name;
+
+    button.append(swatch, label);
+    button.addEventListener('click', () => {
+      setTheme(theme.id);
       closePanels();
     });
-    button.classList.add('theme-toggle-button');
-    button.setAttribute('aria-pressed', 'false');
-    button.dataset.themeMode = mode;
-    return button;
-  };
 
-  themeToggleButtons.light = createThemeButton('☀️', 'light', 'Use light theme');
-  themeToggleButtons.dark = createThemeButton('🌙', 'dark', 'Use dark theme');
+    themeRow.appendChild(button);
+    themeButtons.set(theme.id, button);
+  });
 
-  themeRow.append(themeToggleButtons.light, themeToggleButtons.dark);
   settingsPanel.appendChild(themeRow);
-  removeThemeListener = onThemeChange(updateThemeButtonVisuals, { immediate: true });
+  removeThemeListener = onThemeChange((themeId = getTheme()) => {
+    updateThemeButtonVisuals(themeId);
+  }, { immediate: true });
 
   const zoomRow = document.createElement('div');
   zoomRow.className = 'icon-row';
