@@ -44,6 +44,17 @@ const BIOME_SWATCHES = [
   'linear-gradient(135deg, rgba(255, 165, 92, 0.45), rgba(109, 227, 243, 0.18))'
 ];
 
+function formatThemeLabel(id, fallback = '') {
+  if (!id || typeof id !== 'string') {
+    return fallback;
+  }
+  return id
+    .split('-')
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
 function createSeed() {
   if (typeof crypto !== 'undefined' && crypto?.getRandomValues) {
     return crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
@@ -174,6 +185,55 @@ export function initSetupUI(onStart) {
   const landingThemeButtons = new Map();
   if (landingThemeContainer) {
     landingThemeContainer.innerHTML = '';
+
+    const landingContrastToggle = document.createElement('div');
+    landingContrastToggle.className = 'hero-settings__theme-contrast';
+
+    const landingContrastLabel = document.createElement('span');
+    landingContrastLabel.className = 'hero-settings__theme-contrast-label';
+    landingContrastLabel.textContent = 'Preview contrast';
+
+    const landingContrastControls = document.createElement('div');
+    landingContrastControls.className = 'hero-settings__theme-contrast-controls';
+
+    const landingLightToggle = document.createElement('button');
+    landingLightToggle.type = 'button';
+    landingLightToggle.className = 'hero-settings__theme-contrast-btn';
+    landingLightToggle.textContent = 'Light';
+    landingLightToggle.setAttribute('aria-pressed', 'false');
+
+    const landingDarkToggle = document.createElement('button');
+    landingDarkToggle.type = 'button';
+    landingDarkToggle.className = 'hero-settings__theme-contrast-btn';
+    landingDarkToggle.textContent = 'Dark';
+    landingDarkToggle.setAttribute('aria-pressed', 'false');
+
+    landingContrastControls.append(landingLightToggle, landingDarkToggle);
+    landingContrastToggle.append(landingContrastLabel, landingContrastControls);
+
+    const landingThemeGrid = document.createElement('div');
+    landingThemeGrid.className = 'hero-settings__theme-grid';
+
+    landingThemeContainer.append(landingContrastToggle, landingThemeGrid);
+
+    function setLandingPreviewContrast(nextContrast) {
+      if (nextContrast !== 'light' && nextContrast !== 'dark') {
+        return;
+      }
+      landingThemeGrid.dataset.contrast = nextContrast;
+      landingLightToggle.classList.toggle('is-active', nextContrast === 'light');
+      landingDarkToggle.classList.toggle('is-active', nextContrast === 'dark');
+      landingLightToggle.setAttribute('aria-pressed', String(nextContrast === 'light'));
+      landingDarkToggle.setAttribute('aria-pressed', String(nextContrast === 'dark'));
+    }
+
+    landingLightToggle.addEventListener('click', () => {
+      setLandingPreviewContrast('light');
+    });
+    landingDarkToggle.addEventListener('click', () => {
+      setLandingPreviewContrast('dark');
+    });
+
     availableThemes.forEach(theme => {
       const button = document.createElement('button');
       button.type = 'button';
@@ -181,37 +241,42 @@ export function initSetupUI(onStart) {
       button.dataset.themeId = theme.id;
       button.dataset.themeAppearance = theme.appearance;
       button.setAttribute('aria-pressed', 'false');
-      button.setAttribute('aria-label', `Switch to ${theme.name}`);
+      const displayName = formatThemeLabel(theme.id, theme.name);
+      button.setAttribute('aria-label', `Switch to ${displayName}`);
+      button.title = displayName;
 
-      const swatch = document.createElement('div');
-      swatch.className = 'hero-settings__theme-swatch';
-      const swatchColors = [
-        theme.colors.background.base,
-        theme.colors.primary.base,
-        theme.colors.secondary.base,
-        theme.colors.accent.base,
-        theme.colors.neutral.base
-      ];
-      swatchColors.forEach(color => {
-        const cell = document.createElement('span');
-        cell.className = 'hero-settings__theme-swatch-cell';
-        cell.style.setProperty('--swatch-color', color);
-        swatch.appendChild(cell);
-      });
+      const icon = document.createElement('span');
+      icon.className = 'hero-settings__theme-icon';
+      icon.textContent = theme.name;
+      icon.setAttribute('aria-hidden', 'true');
 
       const label = document.createElement('span');
       label.className = 'hero-settings__theme-label';
-      label.textContent = theme.name;
+      label.textContent = displayName;
 
-      button.append(swatch, label);
+      const lightGradient = `linear-gradient(145deg, ${theme.colors.primary.light}, ${theme.colors.secondary.light})`;
+      const darkGradient = `linear-gradient(145deg, ${theme.colors.primary.dark}, ${theme.colors.secondary.dark})`;
+
+      button.style.setProperty('--preview-bg-light', lightGradient);
+      button.style.setProperty('--preview-bg-dark', darkGradient);
+      button.style.setProperty('--preview-border-light', theme.colors.primary.light);
+      button.style.setProperty('--preview-border-dark', theme.colors.primary.dark);
+      button.style.setProperty('--preview-fg-light', '#18202b');
+      button.style.setProperty('--preview-fg-dark', '#f6f8ff');
+      button.style.setProperty('--preview-shadow-light', '0 1px 1px rgba(255, 255, 255, 0.55)');
+      button.style.setProperty('--preview-shadow-dark', '0 2px 8px rgba(0, 0, 0, 0.55)');
+
+      button.append(icon, label);
       button.addEventListener('click', () => {
         setTheme(theme.id);
         closeLandingSettings();
       });
 
-      landingThemeContainer.appendChild(button);
+      landingThemeGrid.appendChild(button);
       landingThemeButtons.set(theme.id, button);
     });
+
+    setLandingPreviewContrast('light');
   }
 
   function updateLandingThemeButtons(themeId = getTheme()) {
