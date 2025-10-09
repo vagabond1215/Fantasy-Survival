@@ -13,159 +13,393 @@ const STANDARD_COLOR_KEYS = [
 
 const THEME_DEFINITIONS = [
   {
-    id: 'aurora-midnight',
-    name: 'Aurora Midnight',
+    id: 'apple-orchard',
+    name: '🍎',
     appearance: 'dark',
     colors: {
-      background: { light: '#1b2542', base: '#111930', dark: '#070b16' },
-      neutral: { light: '#e8efff', base: '#bac4db', dark: '#828ba1' },
-      primary: { light: '#6feaff', base: '#3dc2f0', dark: '#2a94c2' },
-      secondary: { light: '#b991ff', base: '#7b2ff7', dark: '#5520ad' },
-      accent: { light: '#ffe39b', base: '#ffd166', dark: '#c99c30' }
+      background: { light: '#3a181b', base: '#271012', dark: '#120708' },
+      neutral: { light: '#e4cfc9', base: '#b68f84', dark: '#7d6257' },
+      primary: { light: '#ff6b6f', base: '#d9393e', dark: '#941c20' },
+      secondary: { light: '#8ed97a', base: '#5faa4c', dark: '#3a6f2b' },
+      accent: { light: '#f0b36a', base: '#c87f2f', dark: '#8a4f12' }
     },
     standardColors: {
-      red: { light: '#ff6f7a', dark: '#b7414c' },
-      orange: { light: '#ff9955', dark: '#c86b1f' },
-      yellow: { light: '#ffe680', dark: '#bfa326' },
-      green: { light: '#73e4b8', dark: '#2f9d6f' },
-      blue: { light: '#7ccaff', dark: '#2676c9' },
-      pink: { light: '#f5a6ff', dark: '#b05bc7' },
-      purple: { light: '#b59cff', dark: '#6a55c7' },
-      brown: { light: '#d6a37a', dark: '#8a6238' }
+      red: { light: '#ff6b6f', dark: '#941c20' },
+      orange: { light: '#ff9b4f', dark: '#a85318' },
+      yellow: { light: '#ffe38a', dark: '#b38a1b' },
+      green: { light: '#8ed97a', dark: '#2f6b2a' },
+      blue: { light: '#7fc1f7', dark: '#215b8e' },
+      pink: { light: '#f7a1b5', dark: '#9a4963' },
+      purple: { light: '#c29aff', dark: '#6c3ab8' },
+      brown: { light: '#d7a47d', dark: '#7b4a2d' }
     },
     text: {
-      primary: '#f5f7ff',
-      muted: '#b9c2dc'
+      primary: '#fbeae7',
+      muted: '#c7a8a0'
     }
   },
   {
-    id: 'sunrise-harbor',
-    name: 'Sunrise Harbor',
+    id: 'heartbeat-glow',
+    name: '❤️',
+    appearance: 'dark',
+    colors: {
+      background: { light: '#431a2a', base: '#301320', dark: '#14060d' },
+      neutral: { light: '#efd1da', base: '#c79aa9', dark: '#8a6976' },
+      primary: { light: '#ff6b8f', base: '#ff3366', dark: '#b1123d' },
+      secondary: { light: '#ffa4d9', base: '#ff6fbf', dark: '#c13f8a' },
+      accent: { light: '#ffd27f', base: '#ffb347', dark: '#b47618' }
+    },
+    standardColors: {
+      red: { light: '#ff6b8f', dark: '#b1123d' },
+      orange: { light: '#ff9354', dark: '#b5541c' },
+      yellow: { light: '#ffe382', dark: '#b88a20' },
+      green: { light: '#9de2c0', dark: '#2f7a52' },
+      blue: { light: '#7fbbff', dark: '#245a9d' },
+      pink: { light: '#ff9ed1', dark: '#aa4d83' },
+      purple: { light: '#c69dff', dark: '#6f3fab' },
+      brown: { light: '#d7a691', dark: '#7a4937' }
+    },
+    text: {
+      primary: '#ffeef3',
+      muted: '#d7a3b7'
+    }
+  },
+  {
+    id: 'evergreen-grove',
+    name: '🌳',
     appearance: 'light',
     colors: {
-      background: { light: '#fff6f0', base: '#f6ede6', dark: '#d9c4b4' },
-      neutral: { light: '#876f61', base: '#5e4535', dark: '#3e2c24' },
-      primary: { light: '#ffb38a', base: '#f2845c', dark: '#c35d35' },
-      secondary: { light: '#ff8cb3', base: '#f25d8e', dark: '#c33b68' },
-      accent: { light: '#73a8d6', base: '#4a7ba7', dark: '#2e5272' }
+      background: { light: '#f7fbf5', base: '#edf5eb', dark: '#c7d5c4' },
+      neutral: { light: '#88977f', base: '#5b6a54', dark: '#394637' },
+      primary: { light: '#63b36a', base: '#3d8543', dark: '#24562a' },
+      secondary: { light: '#9dc98a', base: '#7aa66a', dark: '#4c7341' },
+      accent: { light: '#f2c78d', base: '#c9985b', dark: '#8f6330' }
     },
     standardColors: {
-      red: { light: '#f0716b', dark: '#9c2421' },
-      orange: { light: '#f8b36d', dark: '#b55d0e' },
-      yellow: { light: '#ffec99', dark: '#b69524' },
-      green: { light: '#a9e4a6', dark: '#4a9b47' },
-      blue: { light: '#8bc6f0', dark: '#2b76a8' },
-      pink: { light: '#f7b6d8', dark: '#c46497' },
-      purple: { light: '#c5a7f0', dark: '#6f4ba7' },
-      brown: { light: '#c79269', dark: '#714423' }
+      red: { light: '#f07f6f', dark: '#9c3b2c' },
+      orange: { light: '#f6a85f', dark: '#b16019' },
+      yellow: { light: '#fbe183', dark: '#b39829' },
+      green: { light: '#7dd687', dark: '#2d6a35' },
+      blue: { light: '#7fb5d9', dark: '#285c7d' },
+      pink: { light: '#f2adc5', dark: '#9b4f74' },
+      purple: { light: '#bfa6ec', dark: '#62479f' },
+      brown: { light: '#cba581', dark: '#6c4b2e' }
     },
     text: {
-      primary: '#2f1f16',
-      muted: '#6f584b'
+      primary: '#263322',
+      muted: '#546250'
     }
   },
   {
-    id: 'verdant-hollow',
-    name: 'Verdant Hollow',
+    id: 'ember-forge',
+    name: '🔥',
     appearance: 'dark',
     colors: {
-      background: { light: '#213528', base: '#15251b', dark: '#0a150e' },
-      neutral: { light: '#e6f0e2', base: '#c7d5c5', dark: '#8a9585' },
-      primary: { light: '#7ed98f', base: '#58b368', dark: '#3b7f46' },
-      secondary: { light: '#5ab292', base: '#3d8a6b', dark: '#23614b' },
-      accent: { light: '#ffe79b', base: '#f2cf63', dark: '#c49c2d' }
+      background: { light: '#401812', base: '#2a0f0a', dark: '#120503' },
+      neutral: { light: '#f1d0c2', base: '#d0a89b', dark: '#946f63' },
+      primary: { light: '#ff8a52', base: '#ff6b2d', dark: '#b73c07' },
+      secondary: { light: '#ffc075', base: '#ff9f43', dark: '#c36a15' },
+      accent: { light: '#ffe28a', base: '#ffd166', dark: '#b99229' }
     },
     standardColors: {
-      red: { light: '#ff8a7a', dark: '#b44b3e' },
-      orange: { light: '#ffb070', dark: '#c46a28' },
-      yellow: { light: '#ffe685', dark: '#b79d28' },
-      green: { light: '#8ae79a', dark: '#327a45' },
-      blue: { light: '#73c9ff', dark: '#226d9f' },
-      pink: { light: '#f3a3d3', dark: '#a95690' },
-      purple: { light: '#c0a6ff', dark: '#5e4dad' },
-      brown: { light: '#d9b48a', dark: '#7c5632' }
+      red: { light: '#ff7053', dark: '#b12f1a' },
+      orange: { light: '#ff9f43', dark: '#b55311' },
+      yellow: { light: '#ffd76a', dark: '#b48b16' },
+      green: { light: '#a4d67a', dark: '#436a1f' },
+      blue: { light: '#77b4e8', dark: '#1f5387' },
+      pink: { light: '#f293b3', dark: '#9d4363' },
+      purple: { light: '#c79ae8', dark: '#69399c' },
+      brown: { light: '#d49c71', dark: '#7c451b' }
     },
     text: {
-      primary: '#f2f8f1',
-      muted: '#b9c7b7'
+      primary: '#fff2ea',
+      muted: '#ddb09e'
     }
   },
   {
-    id: 'emberfall-dusk',
-    name: 'Emberfall Dusk',
-    appearance: 'dark',
-    colors: {
-      background: { light: '#3a2725', base: '#2b1c1d', dark: '#130a0a' },
-      neutral: { light: '#f2e5dd', base: '#d7c2b8', dark: '#9f8a80' },
-      primary: { light: '#f59d89', base: '#e26d5c', dark: '#a94333' },
-      secondary: { light: '#ffc48a', base: '#f4a259', dark: '#be6d26' },
-      accent: { light: '#aee063', base: '#8cbf3f', dark: '#5d861f' }
-    },
-    standardColors: {
-      red: { light: '#ff8072', dark: '#b43f32' },
-      orange: { light: '#ffb676', dark: '#c16920' },
-      yellow: { light: '#ffe27d', dark: '#b68c1f' },
-      green: { light: '#b6e178', dark: '#4f8620' },
-      blue: { light: '#76b4ff', dark: '#1f5f9c' },
-      pink: { light: '#f9a2c2', dark: '#a55a7a' },
-      purple: { light: '#c79afe', dark: '#6a409c' },
-      brown: { light: '#d7a07a', dark: '#7c4c31' }
-    },
-    text: {
-      primary: '#fdf5f1',
-      muted: '#cdb9b2'
-    }
-  },
-  {
-    id: 'mistwood-veil',
-    name: 'Mistwood Veil',
-    appearance: 'dark',
-    colors: {
-      background: { light: '#2b313e', base: '#1f2530', dark: '#10151f' },
-      neutral: { light: '#eef3ff', base: '#c5d0e0', dark: '#8c95a6' },
-      primary: { light: '#99c3ff', base: '#6ba4ff', dark: '#376ec5' },
-      secondary: { light: '#7de2d3', base: '#49c5b6', dark: '#258478' },
-      accent: { light: '#ffd5ad', base: '#f2b880', dark: '#c58b4d' }
-    },
-    standardColors: {
-      red: { light: '#ff7f8f', dark: '#b24453' },
-      orange: { light: '#ffb17d', dark: '#bf6b33' },
-      yellow: { light: '#ffe39f', dark: '#b9933d' },
-      green: { light: '#88e2b0', dark: '#2d8360' },
-      blue: { light: '#8fc6ff', dark: '#2c6fb6' },
-      pink: { light: '#f5a3d6', dark: '#a65f96' },
-      purple: { light: '#c3a7ff', dark: '#654fab' },
-      brown: { light: '#ceb195', dark: '#735d45' }
-    },
-    text: {
-      primary: '#f5f7ff',
-      muted: '#bfc7d7'
-    }
-  },
-  {
-    id: 'opaline-garden',
-    name: 'Opaline Garden',
+    id: 'fireworks-festival',
+    name: '🎆',
     appearance: 'light',
     colors: {
-      background: { light: '#f9fbff', base: '#eef3fb', dark: '#ccd7ea' },
-      neutral: { light: '#6b7280', base: '#4b5563', dark: '#2f3642' },
-      primary: { light: '#7ea7d6', base: '#4f7cac', dark: '#345377' },
-      secondary: { light: '#caa1d8', base: '#9a6fb0', dark: '#6d4180' },
-      accent: { light: '#ffe4b1', base: '#f0c987', dark: '#c5954d' }
+      background: { light: '#fbfdff', base: '#f4f7ff', dark: '#d0d9f5' },
+      neutral: { light: '#6f7691', base: '#4e5470', dark: '#313752' },
+      primary: { light: '#6d81ff', base: '#3d5af1', dark: '#2235a3' },
+      secondary: { light: '#ff83da', base: '#ff4ecd', dark: '#c11c92' },
+      accent: { light: '#ffe67a', base: '#ffd74f', dark: '#b89711' }
     },
     standardColors: {
-      red: { light: '#f28b8d', dark: '#a53437' },
-      orange: { light: '#fbb074', dark: '#b5631d' },
-      yellow: { light: '#ffe48f', dark: '#b8962b' },
-      green: { light: '#9fe3b1', dark: '#3f8c57' },
-      blue: { light: '#86baf0', dark: '#2f6fa6' },
-      pink: { light: '#f4add5', dark: '#a4538f' },
-      purple: { light: '#c7b0f2', dark: '#6a4aa6' },
-      brown: { light: '#c89d7d', dark: '#7a4f32' }
+      red: { light: '#ff6a86', dark: '#b31e3d' },
+      orange: { light: '#ff9a4a', dark: '#b35d0d' },
+      yellow: { light: '#ffe67a', dark: '#b5971a' },
+      green: { light: '#94e6c3', dark: '#2c7d4f' },
+      blue: { light: '#6fb6ff', dark: '#205ea2' },
+      pink: { light: '#ffa0de', dark: '#b94b91' },
+      purple: { light: '#b79aff', dark: '#5b38b4' },
+      brown: { light: '#c8a37a', dark: '#704c22' }
     },
     text: {
-      primary: '#233047',
-      muted: '#5a6475'
+      primary: '#202544',
+      muted: '#535a79'
+    }
+  },
+  {
+    id: 'rose-garden',
+    name: '🌹',
+    appearance: 'light',
+    colors: {
+      background: { light: '#fff9fb', base: '#fff4f6', dark: '#e7c7d0' },
+      neutral: { light: '#9c6b7b', base: '#6f4a57', dark: '#402730' },
+      primary: { light: '#ff7a9b', base: '#d03a59', dark: '#911932' },
+      secondary: { light: '#ff98b8', base: '#ff7899', dark: '#c5476b' },
+      accent: { light: '#b6daa1', base: '#8fbf72', dark: '#55773d' }
+    },
+    standardColors: {
+      red: { light: '#ff7a9b', dark: '#911932' },
+      orange: { light: '#ffad71', dark: '#b55e22' },
+      yellow: { light: '#ffe6a3', dark: '#b59135' },
+      green: { light: '#9fdda7', dark: '#3d7b43' },
+      blue: { light: '#7fbef0', dark: '#2a6190' },
+      pink: { light: '#ff9ec6', dark: '#b14a7e' },
+      purple: { light: '#c8a1e8', dark: '#6a347f' },
+      brown: { light: '#d2a28a', dark: '#744434' }
+    },
+    text: {
+      primary: '#2c1a22',
+      muted: '#5c3d47'
+    }
+  },
+  {
+    id: 'melody-waves',
+    name: '🎵',
+    appearance: 'dark',
+    colors: {
+      background: { light: '#272b50', base: '#1a1d3b', dark: '#0a0b1b' },
+      neutral: { light: '#d6d8f0', base: '#b5b8d8', dark: '#7c80a3' },
+      primary: { light: '#7a8aff', base: '#5b6dff', dark: '#2c38b8' },
+      secondary: { light: '#b68aff', base: '#9b58ff', dark: '#6221c1' },
+      accent: { light: '#58e2d6', base: '#33d1c6', dark: '#17887e' }
+    },
+    standardColors: {
+      red: { light: '#ff6c87', dark: '#a9203a' },
+      orange: { light: '#ff9a55', dark: '#b1581a' },
+      yellow: { light: '#ffdf73', dark: '#af8b18' },
+      green: { light: '#7ce8c3', dark: '#1f7a54' },
+      blue: { light: '#7fb6ff', dark: '#244ea2' },
+      pink: { light: '#f99ade', dark: '#a7438a' },
+      purple: { light: '#c49dff', dark: '#5f33b6' },
+      brown: { light: '#c6a48a', dark: '#704b34' }
+    },
+    text: {
+      primary: '#eef0ff',
+      muted: '#bfc2df'
+    }
+  },
+  {
+    id: 'ocean-tide',
+    name: '🌊',
+    appearance: 'light',
+    colors: {
+      background: { light: '#f4fbfd', base: '#e7f4f9', dark: '#bfd6e1' },
+      neutral: { light: '#73929e', base: '#4d6773', dark: '#2c3f46' },
+      primary: { light: '#3b92c7', base: '#0f6fa4', dark: '#0a4a6e' },
+      secondary: { light: '#55c0e6', base: '#2ba5d6', dark: '#176a8d' },
+      accent: { light: '#f5c98a', base: '#f2b866', dark: '#af7a24' }
+    },
+    standardColors: {
+      red: { light: '#f57c7d', dark: '#9c2d2f' },
+      orange: { light: '#f7a65d', dark: '#b05919' },
+      yellow: { light: '#ffe38a', dark: '#b59128' },
+      green: { light: '#87dcb3', dark: '#2f7850' },
+      blue: { light: '#68c3ff', dark: '#1e5d9a' },
+      pink: { light: '#f4a7c8', dark: '#9e4a73' },
+      purple: { light: '#b8a0f0', dark: '#5d3f9c' },
+      brown: { light: '#c49a76', dark: '#6d4426' }
+    },
+    text: {
+      primary: '#1f2f38',
+      muted: '#4a5e69'
+    }
+  },
+  {
+    id: 'sunburst-plains',
+    name: '☀️',
+    appearance: 'light',
+    colors: {
+      background: { light: '#fffdf5', base: '#fff8e6', dark: '#e9d5a5' },
+      neutral: { light: '#9d8458', base: '#755f36', dark: '#4a3819' },
+      primary: { light: '#ffbe4a', base: '#f4a11a', dark: '#b56a06' },
+      secondary: { light: '#ffe066', base: '#ffcc33', dark: '#c1900b' },
+      accent: { light: '#7cd3dc', base: '#5dbec8', dark: '#2d8087' }
+    },
+    standardColors: {
+      red: { light: '#ff8360', dark: '#b33e1a' },
+      orange: { light: '#ffb347', dark: '#b86612' },
+      yellow: { light: '#ffe066', dark: '#b6910a' },
+      green: { light: '#a7e37c', dark: '#4a8b20' },
+      blue: { light: '#7fc4f5', dark: '#2a6aa6' },
+      pink: { light: '#f9a4c2', dark: '#a64d6f' },
+      purple: { light: '#c9a6ef', dark: '#6d459d' },
+      brown: { light: '#d2a877', dark: '#704819' }
+    },
+    text: {
+      primary: '#2c220e',
+      muted: '#605235'
+    }
+  },
+  {
+    id: 'lunar-serenity',
+    name: '🌙',
+    appearance: 'dark',
+    colors: {
+      background: { light: '#272a42', base: '#1a1c2e', dark: '#0c0d18' },
+      neutral: { light: '#e0e3f0', base: '#c6c9dd', dark: '#8b8fa8' },
+      primary: { light: '#9aa5ff', base: '#7c89ff', dark: '#3d48b8' },
+      secondary: { light: '#daa9ff', base: '#c98bff', dark: '#8640c9' },
+      accent: { light: '#ffe7a4', base: '#f6d87d', dark: '#b79a33' }
+    },
+    standardColors: {
+      red: { light: '#ff7083', dark: '#ac2538' },
+      orange: { light: '#ff9e55', dark: '#b35a1b' },
+      yellow: { light: '#ffe18a', dark: '#b49028' },
+      green: { light: '#8edcc2', dark: '#2f7860' },
+      blue: { light: '#80c0ff', dark: '#245ca2' },
+      pink: { light: '#f5a7da', dark: '#a55a92' },
+      purple: { light: '#c3a2ff', dark: '#5e3ab2' },
+      brown: { light: '#cdb196', dark: '#755a3b' }
+    },
+    text: {
+      primary: '#f4f5ff',
+      muted: '#c2c5da'
+    }
+  },
+  {
+    id: 'frostfall-glade',
+    name: '❄️',
+    appearance: 'light',
+    colors: {
+      background: { light: '#ffffff', base: '#f2f8ff', dark: '#c7d8ea' },
+      neutral: { light: '#6d7f93', base: '#4f6175', dark: '#2b3746' },
+      primary: { light: '#6bc1f2', base: '#4aa4e0', dark: '#1f6498' },
+      secondary: { light: '#b2e1ff', base: '#8fd0ff', dark: '#4d8ec7' },
+      accent: { light: '#8ee4d8', base: '#6bd4c4', dark: '#2d8a7d' }
+    },
+    standardColors: {
+      red: { light: '#f27f8e', dark: '#a23744' },
+      orange: { light: '#f8ad6a', dark: '#b3621f' },
+      yellow: { light: '#ffea95', dark: '#b59a24' },
+      green: { light: '#7fdcc0', dark: '#2c7955' },
+      blue: { light: '#6fc3ff', dark: '#1f5da0' },
+      pink: { light: '#f4a6d5', dark: '#9d4f87' },
+      purple: { light: '#bfa4f2', dark: '#5f419f' },
+      brown: { light: '#c6a584', dark: '#6e4c2e' }
+    },
+    text: {
+      primary: '#24364b',
+      muted: '#54677f'
+    }
+  },
+  {
+    id: 'granite-peaks',
+    name: '⛰️',
+    appearance: 'dark',
+    colors: {
+      background: { light: '#2b2f32', base: '#1f2224', dark: '#0f1112' },
+      neutral: { light: '#e0e3e7', base: '#c2c6cb', dark: '#8a8f95' },
+      primary: { light: '#8a98a7', base: '#6d7e8f', dark: '#425260' },
+      secondary: { light: '#c69b6c', base: '#a57e54', dark: '#6b4b26' },
+      accent: { light: '#7fc2b5', base: '#57a999', dark: '#276f60' }
+    },
+    standardColors: {
+      red: { light: '#f07672', dark: '#a32e2c' },
+      orange: { light: '#f29a5a', dark: '#ae5c19' },
+      yellow: { light: '#f5d877', dark: '#b08a1f' },
+      green: { light: '#9dd2a7', dark: '#316a3a' },
+      blue: { light: '#7fb1d4', dark: '#264d6c' },
+      pink: { light: '#f0a6c5', dark: '#9a4f74' },
+      purple: { light: '#b7a0d9', dark: '#5a417f' },
+      brown: { light: '#c7a47f', dark: '#6d4a28' }
+    },
+    text: {
+      primary: '#edf0f3',
+      muted: '#b7bcc3'
+    }
+  },
+  {
+    id: 'hearthside-brew',
+    name: '☕',
+    appearance: 'dark',
+    colors: {
+      background: { light: '#3f2720', base: '#2e1b13', dark: '#170c08' },
+      neutral: { light: '#ecd8c9', base: '#d0b5a1', dark: '#9a7f6b' },
+      primary: { light: '#d99260', base: '#c47a3d', dark: '#8a4614' },
+      secondary: { light: '#ad6c45', base: '#8d4f2c', dark: '#5b2f14' },
+      accent: { light: '#f6dba0', base: '#e5c27c', dark: '#b38a38' }
+    },
+    standardColors: {
+      red: { light: '#f07262', dark: '#a32b1c' },
+      orange: { light: '#f89c54', dark: '#ae5614' },
+      yellow: { light: '#f8d072', dark: '#b1871a' },
+      green: { light: '#97d28c', dark: '#3a6c30' },
+      blue: { light: '#76b7df', dark: '#1f547a' },
+      pink: { light: '#f09ebc', dark: '#94415f' },
+      purple: { light: '#c59be1', dark: '#66358d' },
+      brown: { light: '#d8aa7c', dark: '#6d3e1b' }
+    },
+    text: {
+      primary: '#fef4ec',
+      muted: '#d8b89d'
+    }
+  },
+  {
+    id: 'zephyr-leaf',
+    name: '🍃',
+    appearance: 'light',
+    colors: {
+      background: { light: '#fafffc', base: '#f2fbf4', dark: '#c8e1cd' },
+      neutral: { light: '#789883', base: '#56715c', dark: '#334537' },
+      primary: { light: '#73c08b', base: '#4fa26d', dark: '#2f7047' },
+      secondary: { light: '#a9d8a8', base: '#8ac78a', dark: '#577f57' },
+      accent: { light: '#f6d895', base: '#f2c86b', dark: '#b58b2b' }
+    },
+    standardColors: {
+      red: { light: '#f37d78', dark: '#a33a32' },
+      orange: { light: '#f7aa63', dark: '#b3621c' },
+      yellow: { light: '#ffe08c', dark: '#b19227' },
+      green: { light: '#7fd89a', dark: '#2f6d42' },
+      blue: { light: '#7ebfde', dark: '#266180' },
+      pink: { light: '#f2a9c7', dark: '#964469' },
+      purple: { light: '#bea5e6', dark: '#5f3e93' },
+      brown: { light: '#c7a378', dark: '#6b4726' }
+    },
+    text: {
+      primary: '#233027',
+      muted: '#4f6355'
+    }
+  },
+  {
+    id: 'stormspark',
+    name: '⚡',
+    appearance: 'dark',
+    colors: {
+      background: { light: '#202633', base: '#141923', dark: '#07090d' },
+      neutral: { light: '#d5d9e4', base: '#b7bdc9', dark: '#7f8591' },
+      primary: { light: '#ffe06a', base: '#ffd13b', dark: '#b99105' },
+      secondary: { light: '#86c7ff', base: '#5aa9ff', dark: '#1f69b1' },
+      accent: { light: '#ff8c5c', base: '#ff6f3c', dark: '#b33a11' }
+    },
+    standardColors: {
+      red: { light: '#ff6e63', dark: '#b22c22' },
+      orange: { light: '#ff9945', dark: '#b55612' },
+      yellow: { light: '#ffe06a', dark: '#b89316' },
+      green: { light: '#8bd9a3', dark: '#2f7341' },
+      blue: { light: '#7dbaff', dark: '#1f5ca7' },
+      pink: { light: '#f79cd0', dark: '#a24677' },
+      purple: { light: '#c7a3ff', dark: '#6138a2' },
+      brown: { light: '#c9a281', dark: '#6f4b2a' }
+    },
+    text: {
+      primary: '#f5f6ff',
+      muted: '#c3c8d4'
     }
   }
 ];
