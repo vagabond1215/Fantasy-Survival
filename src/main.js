@@ -18,7 +18,8 @@ import {
   showLogPopup,
   showCraftPlannerPopup,
   showHerbariumPopup,
-  showBestiaryPopup
+  showBestiaryPopup,
+  renderHeader
 } from './gameUI.js';
 import { initTopMenu, initBottomMenu } from './menu.js';
 import { resetToDawn, getSeasonDetails, getSeasonForMonth, randomDarkAgeYear } from './time.js';
@@ -97,6 +98,10 @@ function init() {
     window.location.reload();
   }, showConstructionDashboard, showInventoryPopup, showProfilePopup, showLogPopup, showCraftPlannerPopup, showHerbariumPopup,
   showBestiaryPopup);
+  const mainRoot = document.getElementById('content');
+  if (mainRoot) {
+    renderHeader(mainRoot);
+  }
   initBottomMenu();
   if (!loadGame()) {
     initSetupUI(startGame);

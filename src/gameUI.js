@@ -27,6 +27,7 @@ import {
 } from './orders.js';
 import { calculateOrderDelta, calculateExpectedInventoryFlows } from './resources.js';
 import { createMapView } from './mapView.js';
+import { getTheme, getThemeDefinition, onThemeChange } from './theme.js';
 import {
   evaluateBuilding,
   beginConstruction,
@@ -125,6 +126,7 @@ let jobHighlightTimer = null;
 let inventoryDialog = null;
 let inventoryDialogContent = null;
 let inventoryTableBody = null;
+let inventoryEmblemHost = null;
 let inventoryVisible = false;
 let jobsDialog = null;
 let jobsContent = null;
@@ -138,6 +140,109 @@ let tileInfoPanel = null;
 let tileInfoContent = null;
 
 const MASS_NOUNS = new Set(['wood', 'firewood', 'food', 'water']);
+
+const emblemHosts = new Set();
+let removeThemeListenerForEmblem = null;
+
+function ensureEmblemThemeListener() {
+  if (removeThemeListenerForEmblem) return;
+  removeThemeListenerForEmblem = onThemeChange((themeId = getTheme()) => {
+    const staleHosts = [];
+    emblemHosts.forEach(host => {
+      if (!host?.isConnected) {
+        staleHosts.push(host);
+        return;
+      }
+      renderHeader(host, themeId);
+    });
+    staleHosts.forEach(host => emblemHosts.delete(host));
+  }, { immediate: false });
+}
+
+function formatThemeName(themeId = '') {
+  if (!themeId) return '';
+  return String(themeId)
+    .split('-')
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function createEmblemContent({ emoji = '', image = '', label = '' } = {}) {
+  const fragment = document.createDocumentFragment();
+
+  if (emoji) {
+    const emojiSpan = document.createElement('span');
+    emojiSpan.className = 'emblem-emoji';
+    emojiSpan.textContent = emoji;
+    emojiSpan.setAttribute('aria-hidden', 'true');
+    fragment.appendChild(emojiSpan);
+  }
+
+  const imageEl = document.createElement('img');
+  imageEl.className = 'emblem-img';
+  imageEl.src = image || '';
+  imageEl.alt = '';
+  imageEl.decoding = 'async';
+  imageEl.loading = 'lazy';
+  fragment.appendChild(imageEl);
+
+  const labelSpan = document.createElement('span');
+  labelSpan.className = 'emblem-label';
+  labelSpan.textContent = label || '';
+  fragment.appendChild(labelSpan);
+
+  return fragment;
+}
+
+export function renderHeader(root, activeThemeKey = getTheme()) {
+  if (!root) return null;
+  const themeId = activeThemeKey || getTheme();
+  const definition = getThemeDefinition(themeId);
+  const meta = definition?.meta || {};
+  const label = meta.label || definition?.label || formatThemeName(definition?.id || themeId);
+  const emoji = meta.emoji || '';
+  const image = meta.image || '';
+
+  let emblem = root.querySelector(':scope > .emblem');
+  if (!emblem) {
+    emblem = document.createElement('div');
+    emblem.className = 'emblem';
+    root.insertBefore(emblem, root.firstChild || null);
+  } else {
+    while (emblem.firstChild) {
+      emblem.removeChild(emblem.firstChild);
+    }
+    if (emblem.parentElement !== root || root.firstChild !== emblem) {
+      root.insertBefore(emblem, root.firstChild || null);
+    }
+  }
+
+  emblem.dataset.theme = themeId || '';
+  emblem.classList.toggle('emblem--with-emoji', !!emoji);
+  emblem.classList.toggle('emblem--with-image', !!image);
+  emblem.setAttribute('role', 'group');
+  if (label) {
+    emblem.setAttribute('aria-label', label);
+  } else {
+    emblem.removeAttribute('aria-label');
+  }
+
+  emblem.appendChild(
+    createEmblemContent({
+      emoji,
+      image,
+      label
+    })
+  );
+
+  if (!emblemHosts.has(root)) {
+    emblemHosts.add(root);
+    ensureEmblemThemeListener();
+  }
+
+  return emblem;
+}
 
 function articleFor(word = '') {
   const trimmed = String(word || '').trim().toLowerCase();
@@ -2500,6 +2605,9 @@ function ensureInventoryDialog() {
     if (!inventoryDialog.parentElement) {
       document.body.appendChild(inventoryDialog);
     }
+    if (inventoryEmblemHost) {
+      renderHeader(inventoryEmblemHost);
+    }
     return inventoryDialog;
   }
 
@@ -2528,6 +2636,7 @@ function ensureInventoryDialog() {
   });
 
   inventoryDialogContent = document.createElement('div');
+  inventoryDialogContent.classList.add('inventory-dialog');
   Object.assign(inventoryDialogContent.style, {
     background: 'var(--menu-bg)',
     color: 'var(--text-color)',
@@ -2546,11 +2655,22 @@ function ensureInventoryDialog() {
   header.style.justifyContent = 'space-between';
   header.style.gap = '12px';
 
+  const headerLead = document.createElement('div');
+  headerLead.style.display = 'flex';
+  headerLead.style.alignItems = 'center';
+  headerLead.style.gap = '12px';
+
+  inventoryEmblemHost = document.createElement('div');
+  inventoryEmblemHost.className = 'inventory-dialog__emblem';
+  headerLead.appendChild(inventoryEmblemHost);
+
   const title = document.createElement('h3');
   title.id = 'inventory-popup-title';
   title.textContent = 'Inventory Overview';
   title.style.margin = '0';
-  header.appendChild(title);
+  headerLead.appendChild(title);
+
+  header.appendChild(headerLead);
 
   const closeBtn = document.createElement('button');
   closeBtn.type = 'button';
@@ -2561,6 +2681,7 @@ function ensureInventoryDialog() {
   header.appendChild(closeBtn);
 
   inventoryDialogContent.appendChild(header);
+  renderHeader(inventoryEmblemHost);
 
   const blurb = document.createElement('p');
   blurb.textContent = 'Track on-hand quantities alongside projected supply and demand from queued orders.';
@@ -3688,6 +3809,10 @@ export function showLogPopup() {
 export function initGameUI() {
   const container = document.getElementById('game');
   if (!container) return;
+  const mainRoot = document.getElementById('content');
+  if (mainRoot) {
+    renderHeader(mainRoot);
+  }
   container.innerHTML = '';
   Object.assign(container.style, {
     display: 'grid',
