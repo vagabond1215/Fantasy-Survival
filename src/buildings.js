@@ -1,3 +1,4 @@
+// @ts-nocheck
 import store from './state.js';
 import { hasTechnology } from './technology.js';
 import { buildingCatalog } from './buildingCatalog.js';

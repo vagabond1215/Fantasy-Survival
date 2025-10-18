@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS, TERRAIN_COLORS } from './map.js';
 
 const LEGEND_DEFAULTS = {

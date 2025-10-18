@@ -4,7 +4,28 @@
   "description": "First stab at a text based fantasy survival builder.",
   "type": "module",
   "scripts": {
-    "test": "node -e \"console.log('No tests specified')\"",
+    "dev": "vite",
+    "build": "vite build",
+    "preview": "vite preview",
+    "lint": "eslint .",
+    "format": "prettier --write .",
+    "test": "vitest run --passWithNoTests",
+    "check:links": "linkinator docs --recurse --silent",
+    "check:types": "tsc --noEmit",
     "sync-docs": "node ./scripts/sync-docs.js"
+  },
+  "devDependencies": {
+    "@types/node": "^20.12.7",
+    "eslint": "^8.57.0",
+    "eslint-config-prettier": "^9.1.0",
+    "eslint-plugin-import": "^2.29.1",
+    "eslint-plugin-n": "^16.6.2",
+    "eslint-plugin-promise": "^6.1.1",
+    "linkinator": "^7.1.3",
+    "prettier": "^3.2.5",
+    "typescript": "^5.4.5",
+    "vite": "^5.2.10",
+    "vitest": "^1.5.0",
+    "zod": "^3.22.4"
   }
 }

@@ -1,3 +1,4 @@
+// @ts-check
 import store from './state.js';
 import { addItem } from './inventory.js';
 import { refreshBuildingUnlocks } from './buildings.js';
@@ -119,4 +120,4 @@ if (document.readyState === 'loading') {
   init();
 }
 
-window.Game = { store, saveGame };
+/** @type {any} */ (window).Game = { store, saveGame };
