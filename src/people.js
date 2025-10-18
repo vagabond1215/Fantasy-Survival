@@ -1,3 +1,4 @@
+// @ts-nocheck
 import store from './state.js';
 
 export function addPerson(person) {

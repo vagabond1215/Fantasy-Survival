@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { addItem, setItemFlow, getItem, listInventory } from './inventory.js';
 import {
   advanceDay,

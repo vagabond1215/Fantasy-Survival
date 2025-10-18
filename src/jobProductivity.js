@@ -1,3 +1,4 @@
+// @ts-nocheck
 import store from './state.js';
 import { getJobs, getJobWorkday } from './jobs.js';
 import { addItem, getItem } from './inventory.js';

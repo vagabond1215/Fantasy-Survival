@@ -24,6 +24,8 @@ class DataStore {
     this.discoveredFlora = new Map();
     this.jobSettings = {};
     this.jobDaily = {};
+    this.buildQueue = 0;
+    this.haulQueue = 0;
   }
 
   addItem(collection, item) {

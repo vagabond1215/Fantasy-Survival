@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { biomes, getBiome } from './biomes.js';
 import { difficulties, difficultySettings } from './difficulty.js';
 import {

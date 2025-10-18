@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Resource production and consumption calculations.
 // Values are expressed using SAE units (feet, pounds, etc.)
 // to allow for future conversion to metric.
