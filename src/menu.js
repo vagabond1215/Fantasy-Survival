@@ -254,13 +254,14 @@ function buildSettingsPanel() {
     button.dataset.themeId = theme.id;
     button.dataset.themeAppearance = theme.appearance;
     button.setAttribute('aria-pressed', 'false');
-    const displayName = formatThemeLabel(theme.id, theme.name);
-    button.setAttribute('aria-label', `Switch to ${displayName}`);
-    button.title = displayName;
+    const displayName = theme.meta?.label || formatThemeLabel(theme.id);
+    const announcement = displayName || theme.meta?.emoji || theme.id;
+    button.setAttribute('aria-label', `Switch to ${announcement}`);
+    button.title = announcement;
 
     const icon = document.createElement('span');
     icon.className = 'theme-toggle-button__icon';
-    icon.textContent = theme.name;
+    icon.textContent = theme.meta?.emoji || '';
     icon.setAttribute('aria-hidden', 'true');
 
     const label = document.createElement('span');
