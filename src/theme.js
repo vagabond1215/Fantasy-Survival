@@ -14,7 +14,11 @@ const STANDARD_COLOR_KEYS = [
 const THEME_DEFINITIONS = [
   {
     id: 'apple-orchard',
-    name: '🍎',
+    meta: {
+      label: 'Apple Orchard',
+      emoji: '🍎',
+      image: null
+    },
     appearance: 'dark',
     colors: {
       background: { light: '#3a181b', base: '#271012', dark: '#120708' },
@@ -40,7 +44,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'heartbeat-glow',
-    name: '❤️',
+    meta: {
+      label: 'Heartbeat Glow',
+      emoji: '❤️',
+      image: null
+    },
     appearance: 'dark',
     colors: {
       background: { light: '#431a2a', base: '#301320', dark: '#14060d' },
@@ -66,7 +74,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'evergreen-grove',
-    name: '🌳',
+    meta: {
+      label: 'Evergreen Grove',
+      emoji: '🌳',
+      image: null
+    },
     appearance: 'light',
     colors: {
       background: { light: '#f7fbf5', base: '#edf5eb', dark: '#c7d5c4' },
@@ -92,7 +104,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'ember-forge',
-    name: '🔥',
+    meta: {
+      label: 'Ember Forge',
+      emoji: '🔥',
+      image: null
+    },
     appearance: 'dark',
     colors: {
       background: { light: '#401812', base: '#2a0f0a', dark: '#120503' },
@@ -118,7 +134,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'fireworks-festival',
-    name: '🎆',
+    meta: {
+      label: 'Fireworks Festival',
+      emoji: '🎆',
+      image: null
+    },
     appearance: 'light',
     colors: {
       background: { light: '#fbfdff', base: '#f4f7ff', dark: '#d0d9f5' },
@@ -144,7 +164,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'rose-garden',
-    name: '🌹',
+    meta: {
+      label: 'Rose Garden',
+      emoji: '🌹',
+      image: null
+    },
     appearance: 'light',
     colors: {
       background: { light: '#fff9fb', base: '#fff4f6', dark: '#e7c7d0' },
@@ -170,7 +194,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'melody-waves',
-    name: '🎵',
+    meta: {
+      label: 'Melody Waves',
+      emoji: '🎵',
+      image: null
+    },
     appearance: 'dark',
     colors: {
       background: { light: '#272b50', base: '#1a1d3b', dark: '#0a0b1b' },
@@ -196,7 +224,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'ocean-tide',
-    name: '🌊',
+    meta: {
+      label: 'Ocean Tide',
+      emoji: '🌊',
+      image: null
+    },
     appearance: 'light',
     colors: {
       background: { light: '#f4fbfd', base: '#e7f4f9', dark: '#bfd6e1' },
@@ -222,7 +254,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'sunburst-plains',
-    name: '☀️',
+    meta: {
+      label: 'Sunburst Plains',
+      emoji: '☀️',
+      image: null
+    },
     appearance: 'light',
     colors: {
       background: { light: '#fffdf5', base: '#fff8e6', dark: '#e9d5a5' },
@@ -248,7 +284,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'lunar-serenity',
-    name: '🌙',
+    meta: {
+      label: 'Lunar Serenity',
+      emoji: '🌙',
+      image: null
+    },
     appearance: 'dark',
     colors: {
       background: { light: '#272a42', base: '#1a1c2e', dark: '#0c0d18' },
@@ -274,7 +314,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'frostfall-glade',
-    name: '❄️',
+    meta: {
+      label: 'Frostfall Glade',
+      emoji: '❄️',
+      image: null
+    },
     appearance: 'light',
     colors: {
       background: { light: '#ffffff', base: '#f2f8ff', dark: '#c7d8ea' },
@@ -300,7 +344,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'granite-peaks',
-    name: '⛰️',
+    meta: {
+      label: 'Granite Peaks',
+      emoji: '⛰️',
+      image: null
+    },
     appearance: 'dark',
     colors: {
       background: { light: '#2b2f32', base: '#1f2224', dark: '#0f1112' },
@@ -326,7 +374,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'hearthside-brew',
-    name: '☕',
+    meta: {
+      label: 'Hearthside Brew',
+      emoji: '☕',
+      image: null
+    },
     appearance: 'dark',
     colors: {
       background: { light: '#3f2720', base: '#2e1b13', dark: '#170c08' },
@@ -352,7 +404,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'zephyr-leaf',
-    name: '🍃',
+    meta: {
+      label: 'Zephyr Leaf',
+      emoji: '🍃',
+      image: null
+    },
     appearance: 'light',
     colors: {
       background: { light: '#fafffc', base: '#f2fbf4', dark: '#c8e1cd' },
@@ -378,7 +434,11 @@ const THEME_DEFINITIONS = [
   },
   {
     id: 'stormspark',
-    name: '⚡',
+    meta: {
+      label: 'Stormspark',
+      emoji: '⚡',
+      image: null
+    },
     appearance: 'dark',
     colors: {
       background: { light: '#202633', base: '#141923', dark: '#07090d' },
@@ -407,6 +467,17 @@ const THEME_DEFINITIONS = [
 const THEME_INDEX = new Map(THEME_DEFINITIONS.map(theme => [theme.id, theme]));
 const VALID_THEMES = new Set(THEME_DEFINITIONS.map(theme => theme.id));
 const THEME_CLASSES = THEME_DEFINITIONS.map(theme => `theme-${theme.id}`);
+
+function toThemeExport(theme) {
+  if (!theme) return null;
+  const meta = theme.meta ? { ...theme.meta } : { label: '', emoji: '', image: null };
+  return {
+    ...theme,
+    meta,
+    name: meta.emoji || '',
+    label: meta.label || ''
+  };
+}
 
 const listeners = new Set();
 
@@ -639,9 +710,10 @@ function applyThemeClass() {
 
 function notifyListeners() {
   const themeDefinition = THEME_INDEX.get(currentTheme);
+  const exportableTheme = toThemeExport(themeDefinition);
   listeners.forEach(listener => {
     try {
-      listener(currentTheme, themeDefinition);
+      listener(currentTheme, exportableTheme);
     } catch (error) {
       console.error('Theme listener error', error);
     }
@@ -660,17 +732,11 @@ export function getTheme() {
 }
 
 export function getThemeDefinition(themeId = currentTheme) {
-  return THEME_INDEX.get(themeId) || null;
+  return toThemeExport(THEME_INDEX.get(themeId));
 }
 
 export function getAvailableThemes() {
-  return THEME_DEFINITIONS.map(({ id, name, appearance, colors, standardColors }) => ({
-    id,
-    name,
-    appearance,
-    colors,
-    standardColors
-  }));
+  return THEME_DEFINITIONS.map(theme => toThemeExport(theme));
 }
 
 export function setTheme(nextTheme) {
@@ -685,7 +751,7 @@ export function onThemeChange(listener, { immediate = false } = {}) {
   listeners.add(listener);
   if (immediate) {
     try {
-      listener(currentTheme, THEME_INDEX.get(currentTheme));
+      listener(currentTheme, toThemeExport(THEME_INDEX.get(currentTheme)));
     } catch (error) {
       console.error('Theme listener error', error);
     }
