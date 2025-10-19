@@ -13,8 +13,10 @@ import {
   getAvailableThemes,
   getTheme,
   getThemeDefinition,
+  getThemeAppearance,
   onThemeChange,
-  setTheme
+  setTheme,
+  setThemeAppearance
 } from './theme.js';
 
 const seasons = [
@@ -181,6 +183,7 @@ export function initSetupUI(onStart) {
   const landingSettingsPanel = wrap.querySelector('#landing-settings-panel');
   const heroSettings = wrap.querySelector('.hero-settings');
   const landingThemeContainer = landingSettingsPanel?.querySelector('#landing-theme-grid');
+  let syncLandingAppearance = () => {};
 
   const availableThemes = getAvailableThemes();
   const landingThemeButtons = new Map();
@@ -217,22 +220,20 @@ export function initSetupUI(onStart) {
 
     landingThemeContainer.append(landingContrastToggle, landingThemeGrid);
 
-    function setLandingPreviewContrast(nextContrast) {
-      if (nextContrast !== 'light' && nextContrast !== 'dark') {
-        return;
-      }
-      landingThemeGrid.dataset.contrast = nextContrast;
-      landingLightToggle.classList.toggle('is-active', nextContrast === 'light');
-      landingDarkToggle.classList.toggle('is-active', nextContrast === 'dark');
-      landingLightToggle.setAttribute('aria-pressed', String(nextContrast === 'light'));
-      landingDarkToggle.setAttribute('aria-pressed', String(nextContrast === 'dark'));
-    }
+    syncLandingAppearance = nextAppearance => {
+      const contrast = nextAppearance === 'light' ? 'light' : 'dark';
+      landingThemeGrid.dataset.contrast = contrast;
+      landingLightToggle.classList.toggle('is-active', contrast === 'light');
+      landingDarkToggle.classList.toggle('is-active', contrast === 'dark');
+      landingLightToggle.setAttribute('aria-pressed', String(contrast === 'light'));
+      landingDarkToggle.setAttribute('aria-pressed', String(contrast === 'dark'));
+    };
 
     landingLightToggle.addEventListener('click', () => {
-      setLandingPreviewContrast('light');
+      setThemeAppearance('light');
     });
     landingDarkToggle.addEventListener('click', () => {
-      setLandingPreviewContrast('dark');
+      setThemeAppearance('dark');
     });
 
     availableThemes.forEach(theme => {
@@ -278,7 +279,7 @@ export function initSetupUI(onStart) {
       landingThemeButtons.set(theme.id, button);
     });
 
-    setLandingPreviewContrast('light');
+    syncLandingAppearance(getThemeAppearance());
   }
 
   function updateLandingThemeButtons(themeId = getTheme()) {
@@ -338,6 +339,7 @@ export function initSetupUI(onStart) {
 
   onThemeChange((themeId, themeDefinition) => {
     currentThemeInfo = themeDefinition || getThemeDefinition(themeId);
+    syncLandingAppearance(currentThemeInfo?.activeAppearance || getThemeAppearance());
     updateLandingThemeButtons(themeId);
     biomeTiles.forEach(applyTileBackground);
   }, {
@@ -477,7 +479,8 @@ export function initSetupUI(onStart) {
 
   function applyTileBackground(button) {
     if (!button) return;
-    if (currentThemeInfo?.appearance === 'dark') {
+    const appearance = currentThemeInfo?.activeAppearance || currentThemeInfo?.appearance;
+    if (appearance === 'dark') {
       const baseHex =
         currentThemeInfo?.colors?.neutral?.dark || currentThemeInfo?.colors?.background?.light || DARK_TILE_BASE_COLOR;
       const baseColor = parseColor(baseHex || DARK_TILE_BASE_COLOR);

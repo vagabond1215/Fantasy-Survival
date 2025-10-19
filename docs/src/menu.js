@@ -1,9 +1,11 @@
 import {
   getAvailableThemes,
   getTheme,
+  getThemeAppearance,
   initTheme,
   onThemeChange,
-  setTheme
+  setTheme,
+  setThemeAppearance
 } from './theme.js';
 
 let zoomLevel = 1;
@@ -290,10 +292,8 @@ function buildSettingsPanel() {
     themeButtons.set(theme.id, button);
   });
 
-  function setPreviewContrast(nextContrast) {
-    if (nextContrast !== 'light' && nextContrast !== 'dark') {
-      return;
-    }
+  function syncAppearanceControls(appearance) {
+    const nextContrast = appearance === 'light' ? 'light' : 'dark';
     themeRow.dataset.contrast = nextContrast;
     lightToggle.classList.toggle('is-active', nextContrast === 'light');
     darkToggle.classList.toggle('is-active', nextContrast === 'dark');
@@ -302,15 +302,17 @@ function buildSettingsPanel() {
   }
 
   lightToggle.addEventListener('click', () => {
-    setPreviewContrast('light');
+    setThemeAppearance('light');
   });
   darkToggle.addEventListener('click', () => {
-    setPreviewContrast('dark');
+    setThemeAppearance('dark');
   });
 
-  setPreviewContrast('light');
-  removeThemeListener = onThemeChange((themeId = getTheme()) => {
+  syncAppearanceControls(getThemeAppearance());
+  removeThemeListener = onThemeChange((themeId = getTheme(), themeDefinition) => {
     updateThemeButtonVisuals(themeId);
+    const appearance = themeDefinition?.activeAppearance || getThemeAppearance();
+    syncAppearanceControls(appearance);
   }, { immediate: true });
 
   const zoomRow = document.createElement('div');
