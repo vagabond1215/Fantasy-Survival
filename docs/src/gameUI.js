@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { addItem, setItemFlow, getItem, listInventory } from './inventory.js';
 import {
   advanceDay,
@@ -27,7 +28,6 @@ import {
 } from './orders.js';
 import { calculateOrderDelta, calculateExpectedInventoryFlows } from './resources.js';
 import { createMapView } from './mapView.js';
-import { getTheme, getThemeDefinition, onThemeChange } from './theme.js';
 import {
   evaluateBuilding,
   beginConstruction,
@@ -141,68 +141,11 @@ let tileInfoContent = null;
 
 const MASS_NOUNS = new Set(['wood', 'firewood', 'food', 'water']);
 
-const emblemHosts = new Set();
-let removeThemeListenerForEmblem = null;
+const HEADER_EMOJI = '🛡️';
+const HEADER_LABEL = 'Fantasy Survival';
 
-function ensureEmblemThemeListener() {
-  if (removeThemeListenerForEmblem) return;
-  removeThemeListenerForEmblem = onThemeChange((themeId = getTheme()) => {
-    const staleHosts = [];
-    emblemHosts.forEach(host => {
-      if (!host?.isConnected) {
-        staleHosts.push(host);
-        return;
-      }
-      renderHeader(host, themeId);
-    });
-    staleHosts.forEach(host => emblemHosts.delete(host));
-  }, { immediate: false });
-}
-
-function formatThemeName(themeId = '') {
-  if (!themeId) return '';
-  return String(themeId)
-    .split('-')
-    .filter(Boolean)
-    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
-    .join(' ');
-}
-
-function createEmblemContent({ emoji = '', image = '', label = '' } = {}) {
-  const fragment = document.createDocumentFragment();
-
-  if (emoji) {
-    const emojiSpan = document.createElement('span');
-    emojiSpan.className = 'emblem-emoji';
-    emojiSpan.textContent = emoji;
-    emojiSpan.setAttribute('aria-hidden', 'true');
-    fragment.appendChild(emojiSpan);
-  }
-
-  const imageEl = document.createElement('img');
-  imageEl.className = 'emblem-img';
-  imageEl.src = image || '';
-  imageEl.alt = '';
-  imageEl.decoding = 'async';
-  imageEl.loading = 'lazy';
-  fragment.appendChild(imageEl);
-
-  const labelSpan = document.createElement('span');
-  labelSpan.className = 'emblem-label';
-  labelSpan.textContent = label || '';
-  fragment.appendChild(labelSpan);
-
-  return fragment;
-}
-
-export function renderHeader(root, activeThemeKey = getTheme()) {
+export function renderHeader(root) {
   if (!root) return null;
-  const themeId = activeThemeKey || getTheme();
-  const definition = getThemeDefinition(themeId);
-  const meta = definition?.meta || {};
-  const label = meta.label || definition?.label || formatThemeName(definition?.id || themeId);
-  const emoji = meta.emoji || '';
-  const image = meta.image || '';
 
   let emblem = root.querySelector(':scope > .emblem');
   if (!emblem) {
@@ -218,28 +161,22 @@ export function renderHeader(root, activeThemeKey = getTheme()) {
     }
   }
 
-  emblem.dataset.theme = themeId || '';
-  emblem.classList.toggle('emblem--with-emoji', !!emoji);
-  emblem.classList.toggle('emblem--with-image', !!image);
+  emblem.removeAttribute('data-theme');
+  emblem.classList.remove('emblem--with-image');
+  emblem.classList.add('emblem--with-emoji');
   emblem.setAttribute('role', 'group');
-  if (label) {
-    emblem.setAttribute('aria-label', label);
-  } else {
-    emblem.removeAttribute('aria-label');
-  }
+  emblem.setAttribute('aria-label', HEADER_LABEL);
 
-  emblem.appendChild(
-    createEmblemContent({
-      emoji,
-      image,
-      label
-    })
-  );
+  const emojiSpan = document.createElement('span');
+  emojiSpan.className = 'emblem-emoji';
+  emojiSpan.textContent = HEADER_EMOJI;
+  emojiSpan.setAttribute('aria-hidden', 'true');
 
-  if (!emblemHosts.has(root)) {
-    emblemHosts.add(root);
-    ensureEmblemThemeListener();
-  }
+  const labelSpan = document.createElement('span');
+  labelSpan.className = 'emblem-label';
+  labelSpan.textContent = HEADER_LABEL;
+
+  emblem.append(emojiSpan, labelSpan);
 
   return emblem;
 }

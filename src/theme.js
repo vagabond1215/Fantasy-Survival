@@ -1,4 +1,7 @@
-const THEME_STORAGE_KEY = 'theme';
+const THEME_SELECTION_STORAGE_KEY = 'theme:selected';
+const THEME_APPEARANCE_STORAGE_KEY = 'theme:appearance';
+const LEGACY_THEME_STORAGE_KEYS = ['theme'];
+const APPEARANCE_VALUES = new Set(['light', 'dark']);
 
 const STANDARD_COLOR_KEYS = [
   'red',
@@ -10,6 +13,144 @@ const STANDARD_COLOR_KEYS = [
   'purple',
   'brown'
 ];
+
+function clamp(value, min = 0, max = 1) {
+  if (typeof value !== 'number' || Number.isNaN(value)) {
+    return min;
+  }
+  return Math.min(Math.max(value, min), max);
+}
+
+function normalizeHex(hex) {
+  if (!hex) return null;
+  const value = String(hex).trim();
+  if (!value) return null;
+  const prefixed = value.startsWith('#') ? value.slice(1) : value;
+  if (/^([0-9a-f]{6})$/i.test(prefixed)) {
+    return `#${prefixed.toLowerCase()}`;
+  }
+  if (/^([0-9a-f]{3})$/i.test(prefixed)) {
+    const [r, g, b] = prefixed.split('');
+    return `#${r}${r}${g}${g}${b}${b}`.toLowerCase();
+  }
+  return null;
+}
+
+function hexToRgb(hex) {
+  const normalized = normalizeHex(hex);
+  if (!normalized) return null;
+  const value = normalized.slice(1);
+  const r = parseInt(value.slice(0, 2), 16);
+  const g = parseInt(value.slice(2, 4), 16);
+  const b = parseInt(value.slice(4, 6), 16);
+  if ([r, g, b].some(channel => Number.isNaN(channel))) {
+    return null;
+  }
+  return { r, g, b };
+}
+
+function rgbToHex({ r, g, b }) {
+  const red = clamp(Math.round(r), 0, 255);
+  const green = clamp(Math.round(g), 0, 255);
+  const blue = clamp(Math.round(b), 0, 255);
+  return `#${[red, green, blue]
+    .map(channel => channel.toString(16).padStart(2, '0'))
+    .join('')}`;
+}
+
+function mixHex(hexA, hexB, weight = 0.5) {
+  const colorA = hexToRgb(hexA);
+  const colorB = hexToRgb(hexB);
+  if (!colorA || !colorB) {
+    return normalizeHex(hexA) || normalizeHex(hexB);
+  }
+  const ratio = clamp(weight, 0, 1);
+  return rgbToHex({
+    r: colorA.r * (1 - ratio) + colorB.r * ratio,
+    g: colorA.g * (1 - ratio) + colorB.g * ratio,
+    b: colorA.b * (1 - ratio) + colorB.b * ratio
+  });
+}
+
+function lightenHex(hex, amount = 0.15) {
+  return mixHex(hex, '#ffffff', clamp(amount, 0, 1));
+}
+
+function darkenHex(hex, amount = 0.15) {
+  return mixHex(hex, '#000000', clamp(amount, 0, 1));
+}
+
+function relativeLuminance(hex) {
+  const rgb = hexToRgb(hex);
+  if (!rgb) return 0;
+  const components = [rgb.r, rgb.g, rgb.b].map(channel => {
+    const value = channel / 255;
+    if (value <= 0.03928) {
+      return value / 12.92;
+    }
+    return Math.pow((value + 0.055) / 1.055, 2.4);
+  });
+  return 0.2126 * components[0] + 0.7152 * components[1] + 0.0722 * components[2];
+}
+
+function contrastRatio(foreground, background) {
+  const fg = normalizeHex(foreground);
+  const bg = normalizeHex(background);
+  if (!fg || !bg) return 1;
+  const fgLum = relativeLuminance(fg);
+  const bgLum = relativeLuminance(bg);
+  const lighter = Math.max(fgLum, bgLum);
+  const darker = Math.min(fgLum, bgLum);
+  return (lighter + 0.05) / (darker + 0.05);
+}
+
+function ensureContrast(foreground, background, minimumRatio = 4.5) {
+  const bg = normalizeHex(background);
+  if (!bg) {
+    return normalizeHex(foreground) || '#ffffff';
+  }
+
+  const baseForeground = normalizeHex(foreground);
+  const backgroundLum = relativeLuminance(bg);
+  const preferredTarget = backgroundLum > 0.5 ? '#111827' : '#f9fafb';
+  const alternateTarget = backgroundLum > 0.5 ? '#f9fafb' : '#111827';
+
+  const candidates = [];
+  if (baseForeground) {
+    candidates.push({ color: baseForeground, ratio: contrastRatio(baseForeground, bg) });
+  }
+  candidates.push({ color: normalizeHex(preferredTarget), ratio: contrastRatio(preferredTarget, bg) });
+  candidates.push({ color: normalizeHex(alternateTarget), ratio: contrastRatio(alternateTarget, bg) });
+
+  let best = candidates
+    .filter(candidate => candidate.color)
+    .sort((a, b) => b.ratio - a.ratio)[0];
+
+  if (!best) {
+    return '#ffffff';
+  }
+
+  if (best.ratio >= minimumRatio) {
+    return best.color;
+  }
+
+  const target = backgroundLum > 0.5 ? '#000000' : '#ffffff';
+  let adjusted = best.color;
+  let ratio = best.ratio;
+  for (let step = 0; step < 6 && ratio < minimumRatio; step += 1) {
+    adjusted = mixHex(adjusted, target, 0.35);
+    ratio = contrastRatio(adjusted, bg);
+  }
+
+  return ratio >= minimumRatio ? adjusted : best.color;
+}
+
+function fillColorScale(scale = {}) {
+  const base = normalizeHex(scale.base) || normalizeHex(scale.light) || normalizeHex(scale.dark) || '#6b7280';
+  const light = normalizeHex(scale.light) || lightenHex(base, 0.18);
+  const dark = normalizeHex(scale.dark) || darkenHex(base, 0.22);
+  return { light, base: normalizeHex(scale.base) || base, dark };
+}
 
 const THEME_DEFINITIONS = [
   {
@@ -483,20 +624,22 @@ const THEME_INDEX = new Map(THEME_DEFINITIONS.map(theme => [theme.id, theme]));
 const VALID_THEMES = new Set(THEME_DEFINITIONS.map(theme => theme.id));
 const THEME_CLASSES = THEME_DEFINITIONS.map(theme => `theme-${theme.id}`);
 
-function toThemeExport(theme) {
+function toThemeExport(theme, activeAppearance = currentAppearance) {
   if (!theme) return null;
   const meta = theme.meta ? { ...theme.meta } : { label: '', emoji: '', image: null };
   return {
     ...theme,
     meta,
     name: meta.emoji || '',
-    label: meta.label || ''
+    label: meta.label || '',
+    activeAppearance
   };
 }
 
 const listeners = new Set();
 
-let hasStoredPreference = false;
+let hasStoredThemePreference = false;
+let hasStoredAppearancePreference = false;
 let systemPreferenceQuery = null;
 let systemPreferenceListener = null;
 
@@ -513,26 +656,55 @@ function resolveSystemPreferenceQuery() {
   return systemPreferenceQuery;
 }
 
-function detectPreferredTheme() {
+function detectPreferredAppearance() {
+  const keys = [THEME_APPEARANCE_STORAGE_KEY, ...LEGACY_THEME_STORAGE_KEYS];
+  for (const key of keys) {
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored && APPEARANCE_VALUES.has(stored)) {
+        hasStoredAppearancePreference = true;
+        return stored;
+      }
+    } catch (error) {
+      console.warn('Unable to access theme appearance preference.', error);
+    }
+  }
   const query = resolveSystemPreferenceQuery();
   const prefersDark = query && typeof query.matches === 'boolean' ? query.matches : true;
-  const preferredAppearance = prefersDark ? 'dark' : 'light';
-  const fallback = THEME_DEFINITIONS.find(theme => theme.appearance === preferredAppearance)
-    || THEME_DEFINITIONS[0];
-  return fallback?.id || THEME_DEFINITIONS[0].id;
+  return prefersDark ? 'dark' : 'light';
 }
 
-let currentTheme = (() => {
-  try {
-    const stored = localStorage.getItem(THEME_STORAGE_KEY);
-    if (stored && VALID_THEMES.has(stored)) {
-      hasStoredPreference = true;
-      return stored;
+function detectPreferredTheme(preferredAppearance) {
+  const appearance = preferredAppearance || currentAppearance || 'dark';
+  const fallback = THEME_DEFINITIONS.find(theme => theme.appearance === appearance)
+    || THEME_DEFINITIONS[0];
+  return fallback?.id || THEME_DEFINITIONS[0]?.id;
+}
+
+function readStoredThemeSelection() {
+  const keys = [THEME_SELECTION_STORAGE_KEY, ...LEGACY_THEME_STORAGE_KEYS];
+  for (const key of keys) {
+    try {
+      const stored = localStorage.getItem(key);
+      if (stored && VALID_THEMES.has(stored)) {
+        return stored;
+      }
+    } catch (error) {
+      console.warn('Unable to access theme preference storage.', error);
     }
-  } catch (error) {
-    console.warn('Unable to access theme preference storage.', error);
   }
-  return detectPreferredTheme();
+  return null;
+}
+
+let currentAppearance = detectPreferredAppearance();
+
+let currentTheme = (() => {
+  const storedTheme = readStoredThemeSelection();
+  if (storedTheme) {
+    hasStoredThemePreference = true;
+    return storedTheme;
+  }
+  return detectPreferredTheme(currentAppearance);
 })();
 
 function setCSSVariable(root, name, value) {
@@ -548,8 +720,10 @@ function applyStandardColorVariables(root, standardColors) {
       setCSSVariable(root, `--color-${key}-dark`, '');
       return;
     }
-    setCSSVariable(root, `--color-${key}-light`, palette.light);
-    setCSSVariable(root, `--color-${key}-dark`, palette.dark);
+    const light = normalizeHex(palette.light);
+    const dark = normalizeHex(palette.dark);
+    setCSSVariable(root, `--color-${key}-light`, light || '');
+    setCSSVariable(root, `--color-${key}-dark`, dark || '');
   });
 }
 
@@ -559,15 +733,16 @@ function buildGradient(from, to) {
 }
 
 function rgbaFromHex(hex, alpha = 1) {
-  if (!hex) return '';
-  const trimmed = hex.replace('#', '');
-  if (trimmed.length !== 6) {
+  const normalized = normalizeHex(hex);
+  if (!normalized) return '';
+  const r = parseInt(normalized.slice(1, 3), 16);
+  const g = parseInt(normalized.slice(3, 5), 16);
+  const b = parseInt(normalized.slice(5, 7), 16);
+  if ([r, g, b].some(channel => Number.isNaN(channel))) {
     return '';
   }
-  const r = parseInt(trimmed.slice(0, 2), 16);
-  const g = parseInt(trimmed.slice(2, 4), 16);
-  const b = parseInt(trimmed.slice(4, 6), 16);
-  return `rgba(${r}, ${g}, ${b}, ${alpha})`;
+  const clampedAlpha = Math.round(clamp(alpha, 0, 1) * 1000) / 1000;
+  return `rgba(${r}, ${g}, ${b}, ${clampedAlpha})`;
 }
 
 function applyThemeVariables() {
@@ -578,35 +753,81 @@ function applyThemeVariables() {
   const theme = THEME_INDEX.get(currentTheme);
   if (!theme) return;
 
-  const { colors, standardColors, text } = theme;
+  const { colors = {}, standardColors, text } = theme;
 
-  const layerBackgrounds = [
-    colors.background.dark,
-    colors.background.base,
-    colors.background.light,
-    colors.neutral.dark,
-    colors.neutral.base
-  ];
+  const backgroundScale = fillColorScale(colors.background || {});
+  const neutralScale = fillColorScale(colors.neutral || {});
+  const primaryScale = fillColorScale(colors.primary || {});
+  const secondaryScale = fillColorScale(colors.secondary || {});
+  const accentScale = fillColorScale(colors.accent || {});
 
-  setCSSVariable(root, '--color-background', colors.background.base);
-  setCSSVariable(root, '--color-background-light', colors.background.light);
-  setCSSVariable(root, '--color-background-dark', colors.background.dark);
+  let backgroundBase;
+  let backgroundLight;
+  let backgroundDark;
+  let backgroundStrong;
+  let neutralBase;
+  let neutralLight;
+  let neutralDark;
+  let neutralStrong;
+  let layerBackgrounds;
 
-  setCSSVariable(root, '--color-neutral', colors.neutral.base);
-  setCSSVariable(root, '--color-neutral-light', colors.neutral.light);
-  setCSSVariable(root, '--color-neutral-dark', colors.neutral.dark);
+  if (currentAppearance === 'light') {
+    backgroundBase = backgroundScale.light;
+    backgroundLight = lightenHex(backgroundBase, 0.12);
+    backgroundDark = backgroundScale.base;
+    backgroundStrong = darkenHex(backgroundScale.base, 0.22);
 
-  setCSSVariable(root, '--color-primary', colors.primary.base);
-  setCSSVariable(root, '--color-primary-light', colors.primary.light);
-  setCSSVariable(root, '--color-primary-dark', colors.primary.dark);
+    neutralBase = neutralScale.light;
+    neutralLight = lightenHex(neutralBase, 0.12);
+    neutralDark = neutralScale.base;
+    neutralStrong = neutralScale.dark;
 
-  setCSSVariable(root, '--color-secondary', colors.secondary.base);
-  setCSSVariable(root, '--color-secondary-light', colors.secondary.light);
-  setCSSVariable(root, '--color-secondary-dark', colors.secondary.dark);
+    layerBackgrounds = [
+      backgroundBase,
+      backgroundLight,
+      lightenHex(backgroundLight, 0.14),
+      neutralBase,
+      neutralLight
+    ];
+  } else {
+    backgroundBase = backgroundScale.base;
+    backgroundLight = backgroundScale.light;
+    backgroundDark = backgroundScale.dark;
+    backgroundStrong = darkenHex(backgroundDark, 0.28);
 
-  setCSSVariable(root, '--color-accent', colors.accent.base);
-  setCSSVariable(root, '--color-accent-light', colors.accent.light);
-  setCSSVariable(root, '--color-accent-dark', colors.accent.dark);
+    neutralBase = neutralScale.base;
+    neutralLight = neutralScale.light;
+    neutralDark = neutralScale.dark;
+    neutralStrong = darkenHex(neutralDark, 0.24);
+
+    layerBackgrounds = [
+      backgroundStrong,
+      backgroundBase,
+      backgroundLight,
+      neutralDark,
+      neutralBase
+    ];
+  }
+
+  setCSSVariable(root, '--color-background', backgroundBase);
+  setCSSVariable(root, '--color-background-light', backgroundLight);
+  setCSSVariable(root, '--color-background-dark', backgroundDark);
+
+  setCSSVariable(root, '--color-neutral', neutralBase);
+  setCSSVariable(root, '--color-neutral-light', neutralLight);
+  setCSSVariable(root, '--color-neutral-dark', neutralDark);
+
+  setCSSVariable(root, '--color-primary', primaryScale.base);
+  setCSSVariable(root, '--color-primary-light', primaryScale.light);
+  setCSSVariable(root, '--color-primary-dark', primaryScale.dark);
+
+  setCSSVariable(root, '--color-secondary', secondaryScale.base);
+  setCSSVariable(root, '--color-secondary-light', secondaryScale.light);
+  setCSSVariable(root, '--color-secondary-dark', secondaryScale.dark);
+
+  setCSSVariable(root, '--color-accent', accentScale.base);
+  setCSSVariable(root, '--color-accent-light', accentScale.light);
+  setCSSVariable(root, '--color-accent-dark', accentScale.dark);
 
   setCSSVariable(root, '--layer-background-0', layerBackgrounds[0]);
   setCSSVariable(root, '--layer-background-1', layerBackgrounds[1]);
@@ -621,56 +842,75 @@ function applyThemeVariables() {
 
   setCSSVariable(root, '--menu-bg', layerBackgrounds[1]);
   setCSSVariable(root, '--map-bg', layerBackgrounds[1]);
-  setCSSVariable(root, '--map-border', rgbaFromHex(colors.primary.dark, 0.45));
-  setCSSVariable(root, '--map-border-strong', rgbaFromHex(colors.secondary.dark, 0.55));
+  const mapBorderAlpha = currentAppearance === 'light' ? 0.32 : 0.45;
+  const mapBorderStrongAlpha = currentAppearance === 'light' ? 0.4 : 0.55;
+  setCSSVariable(root, '--map-border', rgbaFromHex(primaryScale.dark, mapBorderAlpha));
+  setCSSVariable(root, '--map-border-strong', rgbaFromHex(secondaryScale.dark, mapBorderStrongAlpha));
 
   setCSSVariable(root, '--action-panel-bg', layerBackgrounds[2]);
   setCSSVariable(root, '--action-option-bg', layerBackgrounds[3]);
   setCSSVariable(root, '--card-bg', layerBackgrounds[3]);
   setCSSVariable(root, '--card-bg-alt', layerBackgrounds[4]);
 
-  const primaryText = text?.primary || colors.neutral.light;
-  const mutedText = text?.muted || colors.neutral.base;
+  const baseSurface = layerBackgrounds[1] || backgroundBase;
+  const cardSurface = layerBackgrounds[3] || baseSurface;
+
+  const primaryText = ensureContrast(text?.primary, baseSurface, 4.6);
+  const mutedText = ensureContrast(text?.muted, baseSurface, 3.2);
+  const headingText = ensureContrast(text?.primary, cardSurface, 4.6);
 
   setCSSVariable(root, '--text-color', primaryText);
   setCSSVariable(root, '--text-muted', mutedText);
-  setCSSVariable(root, '--card-text', primaryText);
-  setCSSVariable(root, '--heading-color', text?.primary || primaryText);
+  setCSSVariable(root, '--card-text', ensureContrast(text?.primary, cardSurface, 4.6));
+  setCSSVariable(root, '--heading-color', headingText);
 
-  const actionButtonGradient = buildGradient(colors.primary.dark, colors.primary.light);
-  const actionButtonActiveGradient = buildGradient(colors.secondary.dark, colors.secondary.light);
+  const actionButtonGradient = buildGradient(primaryScale.dark, primaryScale.light);
+  const actionButtonActiveGradient = buildGradient(secondaryScale.dark, secondaryScale.light);
 
   setCSSVariable(root, '--action-button-bg', actionButtonGradient);
-  setCSSVariable(root, '--action-button-text', primaryText);
-  setCSSVariable(root, '--action-button-shadow', `0 3px 12px ${rgbaFromHex(colors.primary.dark, 0.4)}`);
-  setCSSVariable(root, '--action-button-shadow-hover', `0 10px 24px ${rgbaFromHex(colors.primary.dark, 0.5)}`);
+  setCSSVariable(root, '--action-button-text', ensureContrast(primaryText, primaryScale.dark, 4.6));
+  const actionShadowBase = currentAppearance === 'light' ? 0.25 : 0.4;
+  const actionShadowHover = currentAppearance === 'light' ? 0.3 : 0.5;
+  const actionShadowActive = currentAppearance === 'light' ? 0.3 : 0.45;
+  setCSSVariable(root, '--action-button-shadow', `0 3px 12px ${rgbaFromHex(primaryScale.dark, actionShadowBase)}`);
+  setCSSVariable(root, '--action-button-shadow-hover', `0 10px 24px ${rgbaFromHex(primaryScale.dark, actionShadowHover)}`);
   setCSSVariable(root, '--action-button-bg-active', actionButtonActiveGradient);
-  setCSSVariable(root, '--action-button-text-active', colors.neutral.light);
-  setCSSVariable(root, '--action-button-shadow-active', `0 12px 26px ${rgbaFromHex(colors.secondary.dark, 0.45)}`);
+  setCSSVariable(root, '--action-button-text-active', ensureContrast(primaryText, secondaryScale.dark, 4.6));
+  setCSSVariable(root, '--action-button-shadow-active', `0 12px 26px ${rgbaFromHex(secondaryScale.dark, actionShadowActive)}`);
 
-  setCSSVariable(root, '--chip-bg', rgbaFromHex(colors.neutral.dark, 0.6));
-  setCSSVariable(root, '--chip-bg-hover', rgbaFromHex(colors.neutral.dark, 0.75));
-  setCSSVariable(root, '--chip-bg-active', rgbaFromHex(colors.neutral.dark, 0.9));
+  const chipBase = mixHex(neutralDark, baseSurface, currentAppearance === 'light' ? 0.6 : 0.35);
+  const chipHover = mixHex(neutralDark, baseSurface, currentAppearance === 'light' ? 0.5 : 0.28);
+  const chipActive = mixHex(neutralDark, baseSurface, currentAppearance === 'light' ? 0.42 : 0.22);
+  setCSSVariable(root, '--chip-bg', chipBase);
+  setCSSVariable(root, '--chip-bg-hover', chipHover);
+  setCSSVariable(root, '--chip-bg-active', chipActive);
 
-  setCSSVariable(root, '--outline-strong', colors.primary.light);
-  setCSSVariable(root, '--border-strong', rgbaFromHex(colors.neutral.dark, 0.6));
-  setCSSVariable(root, '--border-soft', rgbaFromHex(colors.neutral.dark, 0.35));
-  setCSSVariable(root, '--backdrop-shadow', `0 24px 60px ${rgbaFromHex(colors.background.dark, 0.55)}`);
+  setCSSVariable(root, '--outline-strong', primaryScale.light);
+  const borderStrong = mixHex(neutralStrong, baseSurface, currentAppearance === 'light' ? 0.35 : 0.6);
+  const borderSoft = mixHex(neutralStrong, baseSurface, currentAppearance === 'light' ? 0.65 : 0.35);
+  setCSSVariable(root, '--border-strong', borderStrong);
+  setCSSVariable(root, '--border-soft', borderSoft);
 
-  setCSSVariable(root, '--accent-glow-soft', rgbaFromHex(colors.accent.light, 0.4));
+  const backdropAlpha = currentAppearance === 'light' ? 0.28 : 0.55;
+  setCSSVariable(root, '--backdrop-shadow', `0 24px 60px ${rgbaFromHex(backgroundStrong, backdropAlpha)}`);
+
+  setCSSVariable(root, '--accent-glow-soft', rgbaFromHex(accentScale.light, currentAppearance === 'light' ? 0.35 : 0.4));
 
   applyStandardColorVariables(root, standardColors);
 
-  body.dataset.themeAppearance = theme.appearance;
+  body.dataset.themeAppearance = currentAppearance;
 }
 
 function updateTheme(nextTheme, { persist = true } = {}) {
   if (!VALID_THEMES.has(nextTheme)) return;
 
   if (persist) {
-    hasStoredPreference = true;
+    hasStoredThemePreference = true;
     try {
-      localStorage.setItem(THEME_STORAGE_KEY, nextTheme);
+      localStorage.setItem(THEME_SELECTION_STORAGE_KEY, nextTheme);
+      if (LEGACY_THEME_STORAGE_KEYS[0]) {
+        localStorage.setItem(LEGACY_THEME_STORAGE_KEYS[0], nextTheme);
+      }
     } catch (error) {
       console.warn('Unable to persist theme preference.', error);
     }
@@ -682,6 +922,28 @@ function updateTheme(nextTheme, { persist = true } = {}) {
   notifyListeners();
 }
 
+function applyAppearance(nextAppearance, { persist = true, notify = true } = {}) {
+  if (!APPEARANCE_VALUES.has(nextAppearance)) {
+    return;
+  }
+  if (nextAppearance === currentAppearance) {
+    return;
+  }
+  if (persist) {
+    hasStoredAppearancePreference = true;
+    try {
+      localStorage.setItem(THEME_APPEARANCE_STORAGE_KEY, nextAppearance);
+    } catch (error) {
+      console.warn('Unable to persist theme appearance preference.', error);
+    }
+  }
+  currentAppearance = nextAppearance;
+  applyThemeVariables();
+  if (notify) {
+    notifyListeners();
+  }
+}
+
 function setupSystemPreferenceListener() {
   const query = resolveSystemPreferenceQuery();
   if (!query || systemPreferenceListener) {
@@ -689,14 +951,18 @@ function setupSystemPreferenceListener() {
   }
 
   const handleChange = event => {
-    if (hasStoredPreference) {
+    if (hasStoredAppearancePreference) {
       return;
     }
     const matches = typeof event?.matches === 'boolean' ? event.matches : !!query.matches;
     const preferredAppearance = matches ? 'dark' : 'light';
     const nextTheme =
       THEME_DEFINITIONS.find(theme => theme.appearance === preferredAppearance)?.id || currentTheme;
-    updateTheme(nextTheme, { persist: false });
+    const willChangeTheme = !hasStoredThemePreference && nextTheme !== currentTheme;
+    applyAppearance(preferredAppearance, { persist: false, notify: !willChangeTheme });
+    if (!hasStoredThemePreference && willChangeTheme) {
+      updateTheme(nextTheme, { persist: false });
+    }
   };
 
   if (typeof query.addEventListener === 'function') {
@@ -725,7 +991,7 @@ function applyThemeClass() {
 
 function notifyListeners() {
   const themeDefinition = THEME_INDEX.get(currentTheme);
-  const exportableTheme = toThemeExport(themeDefinition);
+  const exportableTheme = toThemeExport(themeDefinition, currentAppearance);
   listeners.forEach(listener => {
     try {
       listener(currentTheme, exportableTheme);
@@ -747,16 +1013,24 @@ export function getTheme() {
 }
 
 export function getThemeDefinition(themeId = currentTheme) {
-  return toThemeExport(THEME_INDEX.get(themeId));
+  return toThemeExport(THEME_INDEX.get(themeId), currentAppearance);
 }
 
 export function getAvailableThemes() {
-  return THEME_DEFINITIONS.map(theme => toThemeExport(theme));
+  return THEME_DEFINITIONS.map(theme => toThemeExport(theme, currentAppearance));
 }
 
 export function setTheme(nextTheme) {
   if (!VALID_THEMES.has(nextTheme)) return;
   updateTheme(nextTheme, { persist: true });
+}
+
+export function getThemeAppearance() {
+  return currentAppearance;
+}
+
+export function setThemeAppearance(nextAppearance) {
+  applyAppearance(nextAppearance, { persist: true, notify: true });
 }
 
 export function onThemeChange(listener, { immediate = false } = {}) {
@@ -766,7 +1040,7 @@ export function onThemeChange(listener, { immediate = false } = {}) {
   listeners.add(listener);
   if (immediate) {
     try {
-      listener(currentTheme, toThemeExport(THEME_INDEX.get(currentTheme)));
+      listener(currentTheme, toThemeExport(THEME_INDEX.get(currentTheme), currentAppearance));
     } catch (error) {
       console.error('Theme listener error', error);
     }

@@ -428,34 +428,68 @@
 <body>
   <script>
     (function () {
-      const THEME_STORAGE_KEY = 'theme';
-      const VALID_THEMES = new Set(['light', 'dark']);
-      let preferredTheme = null;
-      try {
-        const stored = localStorage.getItem(THEME_STORAGE_KEY);
-        if (stored && VALID_THEMES.has(stored)) {
-          preferredTheme = stored;
+      const APPEARANCE_KEY = 'theme:appearance';
+      const THEME_SELECTION_KEY = 'theme:selected';
+      const LEGACY_THEME_KEY = 'theme';
+      const APPEARANCES = new Set(['light', 'dark']);
+
+      function readAppearancePreference() {
+        try {
+          const stored = localStorage.getItem(APPEARANCE_KEY);
+          if (stored && APPEARANCES.has(stored)) {
+            return stored;
+          }
+        } catch (error) {
+          console.warn('Unable to access stored appearance preference during initial load.', error);
         }
-      } catch (error) {
-        console.warn('Unable to access theme preference storage during initial load.', error);
-      }
-      if (!preferredTheme) {
+        try {
+          const legacy = localStorage.getItem(LEGACY_THEME_KEY);
+          if (legacy && APPEARANCES.has(legacy)) {
+            return legacy;
+          }
+        } catch (error) {
+          console.warn('Unable to access legacy theme preference during initial load.', error);
+        }
         try {
           const query = typeof window !== 'undefined' && typeof window.matchMedia === 'function'
             ? window.matchMedia('(prefers-color-scheme: dark)')
             : null;
           if (query && typeof query.matches === 'boolean') {
-            preferredTheme = query.matches ? 'dark' : 'light';
+            return query.matches ? 'dark' : 'light';
           }
         } catch (error) {
           console.warn('Unable to detect system color scheme during initial load.', error);
         }
+        return 'dark';
       }
-      if (!preferredTheme) {
-        preferredTheme = 'dark';
+
+      function readThemeSelection() {
+        try {
+          const storedTheme = localStorage.getItem(THEME_SELECTION_KEY);
+          if (storedTheme) {
+            return storedTheme;
+          }
+        } catch (error) {
+          console.warn('Unable to access stored theme selection during initial load.', error);
+        }
+        try {
+          const legacyTheme = localStorage.getItem(LEGACY_THEME_KEY);
+          if (legacyTheme && !APPEARANCES.has(legacyTheme)) {
+            return legacyTheme;
+          }
+        } catch (error) {
+          console.warn('Unable to access legacy theme selection during initial load.', error);
+        }
+        return null;
       }
-      document.body.classList.remove('light', 'dark');
-      document.body.classList.add(preferredTheme);
+
+      const appearance = readAppearancePreference();
+      const themeSelection = readThemeSelection();
+
+      document.body.dataset.themeAppearance = appearance;
+      if (themeSelection) {
+        document.body.classList.add(`theme-${themeSelection}`);
+      }
     })();
   </script>
   <div id="top-menu"></div>
