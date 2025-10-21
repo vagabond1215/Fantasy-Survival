@@ -135,6 +135,21 @@ const BASE_HABITAT_ITEMS = [
     successSuffix: 'by stripping tough grasses.'
   },
   {
+    id: 'straight-saplings',
+    resource: 'straight branch',
+    singularName: 'straight branch',
+    encounterName: 'stand of straight saplings',
+    type: 'loose',
+    habitats: ['open', 'forest'],
+    baseWeight: 2.5,
+    seasonWeights: { Thawbound: 2, Sunheight: 3, Emberwane: 3, Frostshroud: 2 },
+    minQuantity: 1,
+    maxQuantity: 3,
+    timePerUnit: 0.18,
+    respawnHours: 18,
+    successSuffix: 'after trimming a straight sapling for tool shafts.'
+  },
+  {
     id: 'open-berries',
     resource: 'berries',
     singularName: 'handful of berries',

@@ -30,6 +30,66 @@ const CRAFTING_RECIPES = [
     unlock: { always: true }
   },
   {
+    id: 'prepared-hides',
+    name: 'Prepared Hides',
+    icon: '🧵',
+    description: 'Scrape, cure, and soften hides for armor and advanced crafting.',
+    inputs: { hides: 1, herbs: 1, 'plant fibers': 1 },
+    outputs: { 'prepared hides': 1 },
+    laborHours: 2.5,
+    timeHours: 6,
+    toolsRequired: ['stone knife'],
+    unlock: { always: true }
+  },
+  {
+    id: 'seasoned-wood',
+    name: 'Seasoned Wood',
+    icon: '🪑',
+    description: 'Air-dry select timber into balanced hafts and bow staves.',
+    inputs: { firewood: 3 },
+    outputs: { 'seasoned wood': 1 },
+    laborHours: 1,
+    timeHours: 24,
+    toolsRequired: ['stone hand axe'],
+    unlock: { always: true }
+  },
+  {
+    id: 'bronze-ingot',
+    name: 'Smelt Bronze Ingot',
+    icon: '🔶',
+    description: 'Smelt raw ore in clay crucibles to pour balanced bronze ingots.',
+    inputs: { 'raw ore': 3, firewood: 2 },
+    outputs: { 'bronze ingot': 1 },
+    laborHours: 6,
+    timeHours: 8,
+    toolsRequired: ['wooden hammer'],
+    unlock: { always: true }
+  },
+  {
+    id: 'iron-ingot',
+    name: 'Smelt Iron Ingot',
+    icon: '⛓️',
+    description: 'Roast ore and hammer blooms into workable iron ingots.',
+    inputs: { 'raw ore': 4, firewood: 3 },
+    outputs: { 'iron ingot': 1 },
+    laborHours: 8,
+    timeHours: 12,
+    toolsRequired: ['wooden hammer'],
+    unlock: { always: true }
+  },
+  {
+    id: 'steel-ingot',
+    name: 'Forge Steel Ingot',
+    icon: '⚙️',
+    description: 'Carburize iron with additional ore to forge high-grade steel.',
+    inputs: { 'iron ingot': 1, 'raw ore': 3, 'seasoned wood': 1 },
+    outputs: { 'steel ingot': 1 },
+    laborHours: 10,
+    timeHours: 16,
+    toolsRequired: ['wooden hammer'],
+    unlock: { always: true }
+  },
+  {
     id: 'stone-hand-axe',
     name: 'Stone Hand Axe',
     icon: '🪓',

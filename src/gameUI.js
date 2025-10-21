@@ -38,7 +38,7 @@ import {
   markBuildingComplete,
   getAllBuildingTypes
 } from './buildings.js';
-import { getResourceIcon } from './icons.js';
+import { getResourceIcon, getResourceLabel } from './icons.js';
 import {
   rewardOrderProficiency,
   getProficiencyLevel,
@@ -2490,10 +2490,17 @@ function renderInventoryTable() {
   ensureInventoryDialog();
   if (!inventoryTableBody) return;
   inventoryTableBody.innerHTML = '';
-  const items = listInventory().sort((a, b) => a.id.localeCompare(b.id));
+  const items = listInventory().sort((a, b) => {
+    if (a.isEquipment !== b.isEquipment) {
+      return a.isEquipment ? -1 : 1;
+    }
+    const labelA = (a.label || a.id || '').toLowerCase();
+    const labelB = (b.label || b.id || '').toLowerCase();
+    return labelA.localeCompare(labelB);
+  });
   if (!items.length) {
     const empty = document.createElement('tr');
-    empty.innerHTML = '<td colspan="4">No supplies on hand.</td>';
+    empty.innerHTML = '<td colspan="5">No supplies on hand.</td>';
     inventoryTableBody.appendChild(empty);
     return;
   }
@@ -2501,6 +2508,9 @@ function renderInventoryTable() {
     const tr = document.createElement('tr');
 
     const nameCell = document.createElement('td');
+    nameCell.style.display = 'flex';
+    nameCell.style.alignItems = 'center';
+    nameCell.style.gap = '6px';
     const iconInfo = getResourceIcon(item.id);
     if (iconInfo) {
       const iconSpan = document.createElement('span');
@@ -2509,20 +2519,28 @@ function renderInventoryTable() {
       iconSpan.setAttribute('role', 'img');
       iconSpan.setAttribute('aria-label', iconInfo.label);
       nameCell.appendChild(iconSpan);
-    } else {
-      nameCell.textContent = item.id;
     }
+    const nameLabel = document.createElement('span');
+    nameLabel.textContent = item.label || getResourceLabel(item.id) || item.id;
+    nameCell.appendChild(nameLabel);
+
+    const tierCell = document.createElement('td');
+    tierCell.textContent = item.tierLabel || item.qualityLabel || '—';
 
     const qtyCell = document.createElement('td');
     qtyCell.textContent = Math.round((item.quantity || 0) * 10) / 10;
+    qtyCell.style.textAlign = 'right';
 
     const supplyCell = document.createElement('td');
     supplyCell.textContent = formatFlowValue(item.supply, '+');
+    supplyCell.style.textAlign = 'right';
 
     const demandCell = document.createElement('td');
     demandCell.textContent = formatFlowValue(item.demand, '-');
+    demandCell.style.textAlign = 'right';
 
     tr.appendChild(nameCell);
+    tr.appendChild(tierCell);
     tr.appendChild(qtyCell);
     tr.appendChild(supplyCell);
     tr.appendChild(demandCell);
@@ -2630,7 +2648,12 @@ function ensureInventoryDialog() {
   table.style.width = '100%';
   table.style.borderCollapse = 'collapse';
   const headerRow = document.createElement('tr');
-  headerRow.innerHTML = '<th style="text-align:left;">Item</th><th style="text-align:right;">#</th><th style="text-align:right;">Supply (+)</th><th style="text-align:right;">Demand (-)</th>';
+  headerRow.innerHTML =
+    '<th style="text-align:left;">Item</th>' +
+    '<th style="text-align:left;">Tier</th>' +
+    '<th style="text-align:right;">#</th>' +
+    '<th style="text-align:right;">Supply (+)</th>' +
+    '<th style="text-align:right;">Demand (-)</th>';
   const thead = document.createElement('thead');
   thead.appendChild(headerRow);
   table.appendChild(thead);

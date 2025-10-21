@@ -81,6 +81,25 @@ Existing orders populate these fields automatically:
 Future features should follow the same pattern: define a `metadata` object when calling
 `queueOrder` so that proficiencies and inventory projections remain accurate.
 
+### Equipment catalog and supply chains
+
+Equipment definitions now live in `src/data/equipment.js`. Each entry captures the
+category, tier, durability, icon, and crafting materials for the weapon, armor, or tool so
+that UI components and crafting logic can reference a single source of truth. Icon helpers
+(`src/icons.js`) automatically surface these entries alongside dedicated resource icons for
+supporting materials such as straight branches, seasoned wood, and prepared hides.
+
+To keep every recipe ingredient attainable, new gathering and crafting loops fill the gaps:
+
+- A sapling gathering prospect yields **straight branches** for tool shafts.
+- Leatherworkers can cure **prepared hides** from raw hides, herbs, and plant fibers.
+- Woodcutters can season timber into **seasoned wood** for bows and handles.
+- Smelting recipes transform **raw ore** and fuel into bronze, iron, and steel ingots.
+
+All new recipes live in `src/crafting.js` (and mirrored in `docs/src/crafting.js`) and obey the
+same unlock rules as the equipment tiers they support. This ensures higher-tier equipment and
+armor can be produced without requiring placeholder resources or manual inventory edits.
+
 ### Population generation and assignments
 
 `src/population.js` produces the starting settlement roster. On a new game the module:

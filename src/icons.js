@@ -1,3 +1,5 @@
+import { listEquipment, getEquipmentDefinition } from './data/equipment.js';
+
 const RESOURCE_ICON_MAP = {
   wood: { icon: '🪵', label: 'Wood' },
   firewood: { icon: '🪵', label: 'Firewood' },
@@ -17,18 +19,52 @@ const RESOURCE_ICON_MAP = {
   'plant fibers': { icon: '🌾', label: 'Plant Fibers' },
   cord: { icon: '🪢', label: 'Cord' },
   'sharpened stone': { icon: '🗡️', label: 'Sharpened Stone' },
-  'raw ore': { icon: '⛏️', label: 'Raw Ore' }
+  'straight branch': { icon: '🌿', label: 'Straight Branch' },
+  'sturdy haft stick': { icon: '🥢', label: 'Sturdy Haft Stick' },
+  'seasoned wood': { icon: '🪑', label: 'Seasoned Wood' },
+  'prepared hides': { icon: '🧵', label: 'Prepared Hides' },
+  'raw ore': { icon: '⛏️', label: 'Raw Ore' },
+  'bronze ingot': { icon: '🔶', label: 'Bronze Ingot' },
+  'iron ingot': { icon: '⛓️', label: 'Iron Ingot' },
+  'steel ingot': { icon: '⚙️', label: 'Steel Ingot' }
 };
+
+listEquipment().forEach(item => {
+  const existing = RESOURCE_ICON_MAP[item.id] || {};
+  RESOURCE_ICON_MAP[item.id] = {
+    icon: item.icon || existing.icon || '🎒',
+    label: item.label || existing.label || item.id
+  };
+});
 
 export function getResourceIcon(name) {
   if (!name) return null;
-  return RESOURCE_ICON_MAP[name] || null;
+  const entry = RESOURCE_ICON_MAP[name];
+  if (entry) return entry;
+  const equipment = getEquipmentDefinition(name);
+  if (equipment) {
+    return { icon: equipment.icon, label: equipment.label };
+  }
+  return null;
+}
+
+export function getResourceLabel(name) {
+  if (!name) return '';
+  const entry = getResourceIcon(name);
+  if (entry?.label) return entry.label;
+  if (typeof name === 'string' && name.trim()) {
+    return name
+      .split(/\s+/)
+      .map(word => word.charAt(0).toUpperCase() + word.slice(1))
+      .join(' ');
+  }
+  return '';
 }
 
 export function renderIconLabel(name, { includeText = false } = {}) {
   const entry = getResourceIcon(name);
   if (!entry) {
-    return includeText ? name : null;
+    return includeText ? getResourceLabel(name) || name : null;
   }
   if (includeText) {
     return `${entry.icon} ${entry.label}`;
