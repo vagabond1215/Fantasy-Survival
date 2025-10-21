@@ -6,6 +6,23 @@ import { recipeGroups } from './data/recipes.js';
 import { hasTechnology } from './technology.js';
 import { hasCompletedBuilding, getBuildingType } from './buildings.js';
 
+/**
+ * @typedef {Object} UnlockRequirements
+ * @property {boolean} [always]
+ * @property {string[]} [technologies]
+ * @property {string[]} [anyTechnology]
+ * @property {string[]} [buildings]
+ * @property {string[]} [anyBuilding]
+ */
+
+/**
+ * @typedef {Object} MissingRequirements
+ * @property {string[]} [technologies]
+ * @property {string[]} [anyTechnology]
+ * @property {string[]} [buildings]
+ * @property {string[]} [anyBuilding]
+ */
+
 function requireEquipment(id) {
   const spec = getEquipmentDefinition(id);
   if (!spec) {
@@ -78,12 +95,17 @@ function normalizeBatch(batch) {
   return { defaultSize, maxSize, label };
 }
 
+/**
+ * @param {any} unlock
+ * @returns {UnlockRequirements | null}
+ */
 function normalizeUnlock(unlock) {
   if (!unlock) return null;
   if (unlock === 'always') return { always: true };
   if (typeof unlock === 'string') {
     return { technologies: [unlock] };
   }
+  /** @type {UnlockRequirements} */
   const normalized = {};
   if (unlock.always) normalized.always = true;
 
@@ -192,10 +214,12 @@ function normalizeProductionMode(entry, index = 0) {
   const description = entry.description || '';
 
   const requirementSpec = entry.requires || entry.requirement || entry.unlock || null;
+  /** @type {UnlockRequirements | null} */
   let requirements = normalizeUnlock(requirementSpec);
   const buildingId = entry.building || entry.structure || entry.station || null;
   if (buildingId) {
     const normalizedId = String(buildingId);
+    /** @type {UnlockRequirements} */
     const base = requirements ? { ...requirements } : {};
     const buildingSet = new Set(base.buildings || []);
     buildingSet.add(normalizedId);
@@ -235,6 +259,9 @@ function normalizeProductionModes(list) {
   return list.map((mode, index) => normalizeProductionMode(mode, index)).filter(Boolean);
 }
 
+/**
+ * @param {UnlockRequirements | null} requirements
+ */
 function evaluateRequirementStatus(requirements) {
   if (!requirements) {
     return { available: true, missing: null };
@@ -242,12 +269,12 @@ function evaluateRequirementStatus(requirements) {
   if (requirements.always) {
     return { available: true, missing: null };
   }
+  /** @type {MissingRequirements} */
   const missing = { technologies: [], anyTechnology: [], buildings: [], anyBuilding: [] };
   let available = true;
 
   const techList = [];
   if (Array.isArray(requirements.technologies)) techList.push(...requirements.technologies);
-  if (requirements.technology) techList.push(requirements.technology);
   if (techList.length) {
     const unmet = techList.filter(id => !hasTechnology(id));
     if (unmet.length) {
@@ -267,7 +294,6 @@ function evaluateRequirementStatus(requirements) {
 
   const buildingList = [];
   if (Array.isArray(requirements.buildings)) buildingList.push(...requirements.buildings);
-  if (requirements.building) buildingList.push(requirements.building);
   if (buildingList.length) {
     const unmetBuildings = buildingList.filter(id => !hasCompletedBuilding(id));
     if (unmetBuildings.length) {
@@ -376,6 +402,9 @@ function recipeById(id) {
   return CRAFTING_RECIPES.find(entry => entry.id === id) || null;
 }
 
+/**
+ * @param {ReturnType<typeof normalizeRecipe>} recipe
+ */
 function evaluateUnlockStatus(recipe) {
   const unlock = recipe?.unlock;
   if (!unlock) {
@@ -390,7 +419,6 @@ function evaluateUnlockStatus(recipe) {
   const missing = { technologies: [], anyTechnology: [], buildings: [], anyBuilding: [] };
 
   const technologies = Array.isArray(unlock.technologies) ? [...unlock.technologies] : [];
-  if (unlock.technology) technologies.push(unlock.technology);
   if (technologies.length) {
     gated = true;
     const unmet = technologies.filter(id => !hasTechnology(id));
@@ -411,7 +439,6 @@ function evaluateUnlockStatus(recipe) {
   }
 
   const buildings = Array.isArray(unlock.buildings) ? [...unlock.buildings] : [];
-  if (unlock.building) buildings.push(unlock.building);
   if (buildings.length) {
     gated = true;
     const unmetBuildings = buildings.filter(id => !hasCompletedBuilding(id));
@@ -474,11 +501,12 @@ function scaleInputSpec(spec, factor) {
       }
     });
     if (baseQuantity !== null) {
-      const scaled = baseQuantity * factor;
+      const baseValue = baseQuantity;
+      const scaled = baseValue * factor;
       let finalQuantity = 0;
       if (Number.isFinite(scaled) && scaled > 0) {
         finalQuantity = Math.ceil(scaled - 1e-9);
-        if (finalQuantity <= 0 && baseQuantity > 0) finalQuantity = 1;
+        if (finalQuantity <= 0 && baseValue > 0) finalQuantity = 1;
       }
       INPUT_QUANTITY_KEYS.forEach(key => {
         if (cloned[key] !== undefined) {
@@ -530,7 +558,8 @@ function scaleOutputSpec(spec, factor) {
       }
     });
     if (baseQuantity !== null) {
-      const scaled = baseQuantity * factor;
+      const baseValue = baseQuantity;
+      const scaled = baseValue * factor;
       let finalQuantity = 0;
       if (Number.isFinite(scaled) && scaled > 0) {
         finalQuantity = Math.round(scaled);
@@ -830,6 +859,7 @@ export function craftRecipe(id, { availableTools = [], batchSize = null, product
   }
   if (!info.unlocked) {
     const reasons = [];
+    /** @type {MissingRequirements} */
     const missing = info.unlockStatus?.missing || {};
     if (missing.technologies?.length) {
       reasons.push(`missing technology: ${missing.technologies.join(', ')}`);
@@ -846,26 +876,26 @@ export function craftRecipe(id, { availableTools = [], batchSize = null, product
       reasons.push(`construct one of: ${labels.join(', ')}`);
     }
     if (!info.hasProductionAccess && info.productionModes?.length) {
-      const productionNeeds = info.productionModes
-        .filter(mode => !mode.available && mode.missing)
-        .map(mode => {
-          const parts = [];
-          if (mode.missing.buildings?.length) {
-            const labels = describeBuildings(mode.missing.buildings);
-            parts.push(`build ${labels.join(', ')}`);
-          }
-          if (mode.missing.anyBuilding?.length) {
-            const labels = describeBuildings(mode.missing.anyBuilding);
-            parts.push(`build one of ${labels.join(', ')}`);
-          }
-          if (mode.missing.technologies?.length) {
-            parts.push(`research ${mode.missing.technologies.join(', ')}`);
-          }
-          if (mode.missing.anyTechnology?.length) {
-            parts.push(`research one of ${mode.missing.anyTechnology.join(', ')}`);
-          }
-          return parts.length ? `${mode.label || mode.id}: ${parts.join('; ')}` : null;
-        })
+        const productionNeeds = info.productionModes
+          .filter(mode => !mode.available && mode.missing)
+          .map(mode => {
+            const parts = [];
+            if (mode.missing?.buildings?.length) {
+              const labels = describeBuildings(mode.missing.buildings);
+              parts.push(`build ${labels.join(', ')}`);
+            }
+            if (mode.missing?.anyBuilding?.length) {
+              const labels = describeBuildings(mode.missing.anyBuilding);
+              parts.push(`build one of ${labels.join(', ')}`);
+            }
+            if (mode.missing?.technologies?.length) {
+              parts.push(`research ${mode.missing.technologies.join(', ')}`);
+            }
+            if (mode.missing?.anyTechnology?.length) {
+              parts.push(`research one of ${mode.missing.anyTechnology.join(', ')}`);
+            }
+            return parts.length ? `${mode.label || mode.id}: ${parts.join('; ')}` : null;
+          })
         .filter(Boolean);
       if (productionNeeds.length) {
         reasons.push(`prepare a workstation (${productionNeeds.join(' | ')})`);
