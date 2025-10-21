@@ -1,5 +1,40 @@
 const DEFAULT_PLAYER_JOB = 'survey';
 
+function coerceTechnologyTimestamp(value) {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number' && Number.isFinite(value)) return value;
+  if (value instanceof Date) {
+    const time = value.getTime();
+    return Number.isFinite(time) ? time : null;
+  }
+  if (typeof value === 'string' && value.trim()) {
+    const parsed = Date.parse(value);
+    return Number.isFinite(parsed) ? parsed : null;
+  }
+  return null;
+}
+
+function normalizeTechnologyStateRecord(id, value) {
+  const base = value && typeof value === 'object' ? value : {};
+  const normalizedId = id || base.id ? String(id || base.id) : null;
+  if (!normalizedId) return null;
+  const unlocked = base.unlocked === true || base.status === 'unlocked' || (!('unlocked' in base) && Boolean(base.discovered || base.name));
+  const discovered = base.discovered === true || unlocked;
+  const progress = Number.isFinite(base.progress) ? Math.min(1, Math.max(0, base.progress)) : unlocked ? 1 : 0;
+  const label = base.label || base.name || normalizedId;
+  const unlockedAt = coerceTechnologyTimestamp(base.unlockedAt ?? base.completedAt ?? null);
+  const notes = typeof base.notes === 'string' && base.notes.trim() ? base.notes : null;
+  return {
+    id: normalizedId,
+    unlocked,
+    discovered,
+    progress,
+    unlockedAt,
+    label,
+    notes
+  };
+}
+
 class DataStore {
   constructor() {
     this.buildings = new Map();
@@ -24,6 +59,8 @@ class DataStore {
     this.discoveredFlora = new Map();
     this.jobSettings = {};
     this.jobDaily = {};
+    this.buildQueue = 0;
+    this.haulQueue = 0;
   }
 
   addItem(collection, item) {
@@ -55,13 +92,19 @@ class DataStore {
 
   // Serialize store to plain object for saving.
   serialize() {
+    const technologies = [...this.technologies.entries()]
+      .map(([id, value]) => {
+        const normalized = normalizeTechnologyStateRecord(id, value);
+        return normalized ? [normalized.id, normalized] : null;
+      })
+      .filter(Boolean);
     return {
       buildings: [...this.buildings.entries()],
       people: [...this.people.entries()],
       inventory: [...this.inventory.entries()],
       craftTargets: [...this.craftTargets.entries()],
       locations: [...this.locations.entries()],
-      technologies: [...this.technologies.entries()],
+      technologies,
       proficiencies: [...this.proficiencies.entries()],
       player: { ...this.player },
       time: this.time,
@@ -94,7 +137,25 @@ class DataStore {
     this.inventory = new Map(data.inventory || []);
     this.craftTargets = new Map(data.craftTargets || []);
     this.locations = new Map(data.locations || []);
-    this.technologies = new Map(data.technologies || []);
+    const rawTechnologies = Array.isArray(data.technologies)
+      ? data.technologies
+      : data.technologies && typeof data.technologies === 'object'
+        ? Object.entries(data.technologies)
+        : [];
+    const technologyEntries = rawTechnologies
+      .map(entry => {
+        if (Array.isArray(entry) && entry.length >= 2) {
+          const normalized = normalizeTechnologyStateRecord(entry[0], entry[1]);
+          return normalized ? [normalized.id, normalized] : null;
+        }
+        if (entry && typeof entry === 'object') {
+          const normalized = normalizeTechnologyStateRecord(entry.id, entry);
+          return normalized ? [normalized.id, normalized] : null;
+        }
+        return null;
+      })
+      .filter(Boolean);
+    this.technologies = new Map(technologyEntries);
     this.proficiencies = new Map(data.proficiencies || []);
     const savedPlayer = data.player || {};
     this.player = {

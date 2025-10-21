@@ -38,7 +38,7 @@ import {
   markBuildingComplete,
   getAllBuildingTypes
 } from './buildings.js';
-import { getResourceIcon } from './icons.js';
+import { getResourceIcon, getResourceLabel } from './icons.js';
 import {
   rewardOrderProficiency,
   getProficiencyLevel,
@@ -48,6 +48,8 @@ import {
 import { calculateTravelTime, describeTerrainDifficulty } from './movement.js';
 import { performGathering, formatBlockedMessages, getHabitatProspects } from './gathering.js';
 import { getUnlockedRecipes, craftRecipe } from './crafting.js';
+import { recipeGroups } from './data/recipes.js';
+import { getEquipmentDefinition } from './data/equipment.js';
 import { getJobOverview, setJob, setJobWorkday, listJobDefinitions } from './jobs.js';
 import { getCraftTarget, setCraftTarget, listCraftTargets, calculateReservedQuantity } from './craftPlanner.js';
 import {
@@ -58,6 +60,7 @@ import {
   getUnknownLabel
 } from './naturalHistory.js';
 import { saveGame } from './persistence.js';
+import { getTechnologyLabel, listTechnologiesWithStatus } from './technology.js';
 
 const LEGEND_LABELS = {
   water: 'Water',
@@ -102,6 +105,8 @@ let timeBannerChipsContainer = null;
 let timeBannerActionsContainer = null;
 let startBtn = null;
 let buildOptionsContainer = null;
+let buildCategoryFilters = null;
+let buildCategoryFilter = 'all';
 let projectList = null;
 let completedList = null;
 let lockedList = null;
@@ -138,6 +143,8 @@ let bestiaryDialog = null;
 let bestiaryContent = null;
 let tileInfoPanel = null;
 let tileInfoContent = null;
+let researchSection = null;
+let researchContent = null;
 
 const MASS_NOUNS = new Set(['wood', 'firewood', 'food', 'water']);
 
@@ -371,6 +378,195 @@ function ensureTileInfoPanel(parent) {
     parent.appendChild(tileInfoPanel);
   }
   return tileInfoPanel;
+}
+
+function ensureResearchPanel(parent) {
+  if (!parent) return null;
+  if (!researchSection) {
+    researchSection = document.createElement('section');
+    researchSection.id = 'research-panel';
+    Object.assign(researchSection.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      border: '1px solid var(--map-border, #ccc)',
+      borderRadius: '12px',
+      padding: '16px',
+      background: 'var(--bg-color, #fff)',
+      minWidth: '0'
+    });
+    const heading = document.createElement('h3');
+    heading.textContent = 'Research & Technologies';
+    heading.style.margin = '0';
+    researchSection.appendChild(heading);
+
+    const blurb = document.createElement('p');
+    blurb.textContent = 'Monitor discoveries, required prerequisites, and the benefits unlocked for your settlement.';
+    blurb.style.margin = '0';
+    blurb.style.fontSize = '13px';
+    blurb.style.opacity = '0.85';
+    researchSection.appendChild(blurb);
+
+    researchContent = document.createElement('div');
+    Object.assign(researchContent.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px'
+    });
+    researchSection.appendChild(researchContent);
+  }
+  if (researchSection.parentElement !== parent) {
+    researchSection.parentElement?.removeChild(researchSection);
+    parent.appendChild(researchSection);
+  }
+  return researchSection;
+}
+
+function renderResearchPanel() {
+  if (!researchContent) return;
+  researchContent.innerHTML = '';
+  const technologies = listTechnologiesWithStatus();
+  if (!technologies.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No technologies have been catalogued yet. Advance your settlement to discover new research.';
+    empty.style.margin = '0';
+    researchContent.appendChild(empty);
+    return;
+  }
+
+  technologies.forEach(entry => {
+    const { definition, state, unlocked, available, missingPrerequisites } = entry;
+    const card = document.createElement('article');
+    Object.assign(card.style, {
+      border: '1px solid var(--map-border, #ccc)',
+      borderRadius: '10px',
+      padding: '12px',
+      background: 'var(--menu-bg)',
+      color: 'var(--text-color)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px'
+    });
+
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '8px',
+      flexWrap: 'wrap'
+    });
+
+    const title = document.createElement('h4');
+    title.textContent = definition?.name || titleizeIdentifier(entry.id);
+    title.style.margin = '0';
+    header.appendChild(title);
+
+    if (definition?.category) {
+      const categoryBadge = document.createElement('span');
+      categoryBadge.textContent = definition.category;
+      Object.assign(categoryBadge.style, {
+        fontSize: '12px',
+        padding: '2px 6px',
+        borderRadius: '999px',
+        background: 'rgba(128, 128, 128, 0.15)'
+      });
+      header.appendChild(categoryBadge);
+    }
+
+    let statusLabel = 'Locked';
+    let statusColor = 'rgba(160, 40, 40, 0.85)';
+    if (unlocked) {
+      statusLabel = 'Researched';
+      statusColor = 'rgba(36, 115, 72, 0.85)';
+    } else if (available) {
+      statusLabel = 'Available to research';
+      statusColor = 'rgba(196, 132, 16, 0.85)';
+    } else if (missingPrerequisites.length) {
+      statusLabel = 'Locked — prerequisites missing';
+      statusColor = 'rgba(160, 40, 40, 0.85)';
+    }
+
+    const statusBadge = document.createElement('span');
+    statusBadge.textContent = statusLabel;
+    Object.assign(statusBadge.style, {
+      fontSize: '12px',
+      padding: '2px 8px',
+      borderRadius: '999px',
+      color: '#fff',
+      background: statusColor
+    });
+    header.appendChild(statusBadge);
+
+    card.appendChild(header);
+
+    if (definition?.description) {
+      const desc = document.createElement('p');
+      desc.textContent = definition.description;
+      desc.style.margin = '0';
+      card.appendChild(desc);
+    }
+
+    const prereqNames = entry.prerequisites.length
+      ? entry.prerequisites.map(id => {
+          const name = getTechnologyLabel(id);
+          return missingPrerequisites.includes(id) ? `${name} (missing)` : `${name}`;
+        })
+      : ['None'];
+    card.appendChild(createInfoLine('Prerequisites', prereqNames.join(', ')));
+
+    if (!unlocked && missingPrerequisites.length) {
+      card.appendChild(createInfoLine('Missing', formatTechnologyList(missingPrerequisites)));
+    }
+
+    if (definition?.cost) {
+      const fragments = [];
+      if (Number.isFinite(definition.cost.research) && definition.cost.research > 0) {
+        fragments.push(`${definition.cost.research} research points`);
+      }
+      const materialEntries = Object.entries(definition.cost.materials || {})
+        .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
+        .map(([name, amount]) => `${amount} ${getResourceLabel(name) || titleizeIdentifier(name)}`);
+      if (materialEntries.length) {
+        fragments.push(`Materials: ${materialEntries.join(', ')}`);
+      }
+      if (fragments.length) {
+        card.appendChild(createInfoLine('Cost', fragments.join(' • ')));
+      }
+    }
+
+    const unlockLines = [];
+    const unlocks = definition?.effects?.unlocks || {};
+    if (unlocks.technologies?.length) {
+      unlockLines.push(`Technologies: ${formatTechnologyList(unlocks.technologies)}`);
+    }
+    if (unlocks.buildings?.length) {
+      const labels = unlocks.buildings.map(id => getBuildingType(id)?.name || titleizeIdentifier(id));
+      unlockLines.push(`Buildings: ${formatList(labels)}`);
+    }
+    if (unlocks.recipes?.length) {
+      const labels = unlocks.recipes.map(id => getRecipeName(id));
+      unlockLines.push(`Recipes: ${formatList(labels)}`);
+    }
+    if (unlocks.equipment?.length) {
+      const labels = unlocks.equipment.map(id => getEquipmentDefinition(id)?.label || titleizeIdentifier(id));
+      unlockLines.push(`Equipment: ${formatList(labels)}`);
+    }
+    if (definition?.effects?.description) {
+      unlockLines.unshift(definition.effects.description);
+    }
+    if (unlockLines.length) {
+      card.appendChild(createInfoLine('Unlocks', unlockLines.join('; ')));
+    }
+
+    if (state?.unlockedAt) {
+      const date = new Date(state.unlockedAt);
+      const stamp = Number.isFinite(date.getTime()) ? date.toLocaleString() : state.unlockedAt;
+      card.appendChild(createInfoLine('Unlocked', unlocked ? stamp : 'Not yet researched'));
+    }
+
+    researchContent.appendChild(card);
+  });
 }
 
 function matchesProjectTile(project, x, y) {
@@ -2468,8 +2664,82 @@ function renderEventLog() {
   renderEventLogDialogEntries(log);
 }
 
+function addFlowContribution(target, name, amount) {
+  if (!Number.isFinite(amount) || amount === 0) return;
+  if (!target[name]) {
+    target[name] = { supply: 0, demand: 0 };
+  }
+  if (amount > 0) {
+    target[name].supply += amount;
+  } else {
+    target[name].demand += Math.abs(amount);
+  }
+}
+
+function calculateBuildingInventoryFlows() {
+  const flows = {};
+  const completed = getBuildings({ statuses: ['completed'] });
+  const overview = getJobOverview();
+  const assignmentMap = new Map();
+  overview?.assignments?.forEach(job => {
+    assignmentMap.set(job.id, job.assigned || 0);
+  });
+
+  const jobCapacities = new Map();
+  completed.forEach(entry => {
+    const type = getBuildingType(entry.typeId);
+    const jobEffects = type?.effects?.jobs;
+    if (!jobEffects) return;
+    Object.entries(jobEffects).forEach(([jobId, capacity]) => {
+      const numeric = Number(capacity) || 0;
+      if (numeric > 0) {
+        jobCapacities.set(jobId, (jobCapacities.get(jobId) || 0) + numeric);
+      }
+    });
+  });
+
+  completed.forEach(entry => {
+    const type = getBuildingType(entry.typeId);
+    if (!type) return;
+    const effects = type.effects || {};
+    let scale = 1;
+    const jobEffects = effects.jobs;
+    if (jobEffects && Object.keys(jobEffects).length) {
+      let minScale = 1;
+      Object.entries(jobEffects).forEach(([jobId]) => {
+        const capacity = jobCapacities.get(jobId) || 0;
+        const assigned = assignmentMap.get(jobId) || 0;
+        const ratio = capacity > 0 ? Math.min(1, assigned / capacity) : 0;
+        minScale = Math.min(minScale, ratio);
+      });
+      scale = minScale;
+    }
+    Object.entries(effects.supply || {}).forEach(([name, amount]) => {
+      addFlowContribution(flows, name, (amount || 0) * scale);
+    });
+    Object.entries(effects.demand || {}).forEach(([name, amount]) => {
+      if (!Number.isFinite(amount) || amount === 0) return;
+      const scaled = amount * scale;
+      if (scaled > 0) {
+        addFlowContribution(flows, name, -scaled);
+      } else {
+        addFlowContribution(flows, name, Math.abs(scaled));
+      }
+    });
+  });
+  return flows;
+}
+
 function updateInventoryFlows() {
   const flows = calculateExpectedInventoryFlows(getOrders());
+  const buildingFlows = calculateBuildingInventoryFlows();
+  Object.entries(buildingFlows).forEach(([name, entry]) => {
+    if (!flows[name]) {
+      flows[name] = { supply: 0, demand: 0 };
+    }
+    flows[name].supply += entry.supply || 0;
+    flows[name].demand += entry.demand || 0;
+  });
   const known = new Set(Array.from(store.inventory.keys()));
   Object.keys(flows).forEach(name => known.add(name));
   known.forEach(name => {
@@ -2490,10 +2760,17 @@ function renderInventoryTable() {
   ensureInventoryDialog();
   if (!inventoryTableBody) return;
   inventoryTableBody.innerHTML = '';
-  const items = listInventory().sort((a, b) => a.id.localeCompare(b.id));
+  const items = listInventory().sort((a, b) => {
+    if (a.isEquipment !== b.isEquipment) {
+      return a.isEquipment ? -1 : 1;
+    }
+    const labelA = (a.label || a.id || '').toLowerCase();
+    const labelB = (b.label || b.id || '').toLowerCase();
+    return labelA.localeCompare(labelB);
+  });
   if (!items.length) {
     const empty = document.createElement('tr');
-    empty.innerHTML = '<td colspan="4">No supplies on hand.</td>';
+    empty.innerHTML = '<td colspan="5">No supplies on hand.</td>';
     inventoryTableBody.appendChild(empty);
     return;
   }
@@ -2501,6 +2778,9 @@ function renderInventoryTable() {
     const tr = document.createElement('tr');
 
     const nameCell = document.createElement('td');
+    nameCell.style.display = 'flex';
+    nameCell.style.alignItems = 'center';
+    nameCell.style.gap = '6px';
     const iconInfo = getResourceIcon(item.id);
     if (iconInfo) {
       const iconSpan = document.createElement('span');
@@ -2509,20 +2789,28 @@ function renderInventoryTable() {
       iconSpan.setAttribute('role', 'img');
       iconSpan.setAttribute('aria-label', iconInfo.label);
       nameCell.appendChild(iconSpan);
-    } else {
-      nameCell.textContent = item.id;
     }
+    const nameLabel = document.createElement('span');
+    nameLabel.textContent = item.label || getResourceLabel(item.id) || item.id;
+    nameCell.appendChild(nameLabel);
+
+    const tierCell = document.createElement('td');
+    tierCell.textContent = item.tierLabel || item.qualityLabel || '—';
 
     const qtyCell = document.createElement('td');
     qtyCell.textContent = Math.round((item.quantity || 0) * 10) / 10;
+    qtyCell.style.textAlign = 'right';
 
     const supplyCell = document.createElement('td');
     supplyCell.textContent = formatFlowValue(item.supply, '+');
+    supplyCell.style.textAlign = 'right';
 
     const demandCell = document.createElement('td');
     demandCell.textContent = formatFlowValue(item.demand, '-');
+    demandCell.style.textAlign = 'right';
 
     tr.appendChild(nameCell);
+    tr.appendChild(tierCell);
     tr.appendChild(qtyCell);
     tr.appendChild(supplyCell);
     tr.appendChild(demandCell);
@@ -2630,7 +2918,12 @@ function ensureInventoryDialog() {
   table.style.width = '100%';
   table.style.borderCollapse = 'collapse';
   const headerRow = document.createElement('tr');
-  headerRow.innerHTML = '<th style="text-align:left;">Item</th><th style="text-align:right;">#</th><th style="text-align:right;">Supply (+)</th><th style="text-align:right;">Demand (-)</th>';
+  headerRow.innerHTML =
+    '<th style="text-align:left;">Item</th>' +
+    '<th style="text-align:left;">Tier</th>' +
+    '<th style="text-align:right;">#</th>' +
+    '<th style="text-align:right;">Supply (+)</th>' +
+    '<th style="text-align:right;">Demand (-)</th>';
   const thead = document.createElement('thead');
   thead.appendChild(headerRow);
   table.appendChild(thead);
@@ -2664,6 +2957,123 @@ function formatSigned(value = 0) {
   const rounded = Math.round(value * 10) / 10;
   if (rounded > 0) return `+${rounded}`;
   return `${rounded}`;
+}
+
+function formatList(items = []) {
+  const list = (Array.isArray(items) ? items : [items]).filter(item => item !== null && item !== undefined && `${item}`.trim() !== '');
+  if (!list.length) return '';
+  if (list.length === 1) return `${list[0]}`;
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  return `${list.slice(0, -1).join(', ')}, and ${list[list.length - 1]}`;
+}
+
+function titleizeIdentifier(id = '') {
+  return String(id || '')
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function normalizeUiBuildingRequirement(entry) {
+  if (!entry && entry !== 0) return null;
+  if (typeof entry === 'string' || typeof entry === 'number') {
+    return { id: String(entry), count: 1 };
+  }
+  if (entry && typeof entry === 'object') {
+    const id = entry.id ?? entry.building ?? entry.type;
+    if (!id && id !== 0) return null;
+    const count = Number.isFinite(entry.count)
+      ? Math.max(1, entry.count)
+      : Number.isFinite(entry.required)
+        ? Math.max(1, entry.required)
+        : 1;
+    return { id: String(id), count };
+  }
+  return null;
+}
+
+function arrayify(value) {
+  if (!value && value !== 0) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function formatTechnologyList(ids = []) {
+  const list = (Array.isArray(ids) ? ids : [ids])
+    .filter(id => id || id === 0)
+    .map(id => getTechnologyLabel(id));
+  return formatList(list);
+}
+
+function describeUnlockRequirements(unlock = {}) {
+  if (!unlock) return [];
+  const parts = [];
+  const techs = arrayify(unlock.technologies || []).filter(id => id || id === 0);
+  if (techs.length) {
+    parts.push(`Research ${formatTechnologyList(techs)}`);
+  }
+  const anyTechs = arrayify(unlock.anyTechnology || []).filter(id => id || id === 0);
+  if (anyTechs.length) {
+    parts.push(`Research one of ${formatTechnologyList(anyTechs)}`);
+  }
+  const research = arrayify(unlock.research || []).filter(id => id || id === 0);
+  if (research.length) {
+    const labels = research.map(id => titleizeIdentifier(id));
+    parts.push(`Complete research: ${formatList(labels)}`);
+  }
+  const anyResearch = arrayify(unlock.anyResearch || []).filter(id => id || id === 0);
+  if (anyResearch.length) {
+    const labels = anyResearch.map(id => titleizeIdentifier(id));
+    parts.push(`Complete one of: ${formatList(labels)}`);
+  }
+  const buildings = arrayify(unlock.buildings || [])
+    .map(normalizeUiBuildingRequirement)
+    .filter(Boolean)
+    .map(req => {
+      const label = getBuildingType(req.id)?.name || titleizeIdentifier(req.id);
+      return req.count > 1 ? `${req.count}× ${label}` : label;
+    });
+  if (buildings.length) {
+    parts.push(`Construct ${formatList(buildings)}`);
+  }
+  const anyBuildings = arrayify(unlock.anyBuilding || [])
+    .map(normalizeUiBuildingRequirement)
+    .filter(Boolean)
+    .map(req => {
+      const label = getBuildingType(req.id)?.name || titleizeIdentifier(req.id);
+      return req.count > 1 ? `${req.count}× ${label}` : label;
+    });
+  if (anyBuildings.length) {
+    parts.push(`Construct one of: ${formatList(anyBuildings)}`);
+  }
+  if (unlock.resources && typeof unlock.resources === 'object') {
+    const entries = Object.entries(unlock.resources)
+      .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
+      .map(([name, amount]) => `${amount} ${getResourceLabel(name) || titleizeIdentifier(name)}`);
+    if (entries.length) {
+      parts.push(`Stockpile ${formatList(entries)}`);
+    }
+  }
+  return parts;
+}
+
+const recipeNameIndex = new Map();
+
+function getRecipeName(id) {
+  if (!id && id !== 0) return '';
+  const normalized = String(id);
+  if (!recipeNameIndex.size) {
+    recipeGroups.forEach(group => {
+      (group.recipes || []).forEach(recipe => {
+        const recipeId = String(recipe.id);
+        recipeNameIndex.set(recipeId, recipe.name || titleizeIdentifier(recipeId));
+      });
+    });
+  }
+  if (!recipeNameIndex.has(normalized)) {
+    recipeNameIndex.set(normalized, titleizeIdentifier(normalized));
+  }
+  return recipeNameIndex.get(normalized);
 }
 
 function createInfoLine(label, content) {
@@ -2728,6 +3138,14 @@ function describeEffects(effects = {}) {
   simpleKeys.forEach(([key, formatter]) => {
     if (effects[key]) lines.push(formatter(effects[key]));
   });
+  if (effects.jobs) {
+    const jobLabels = new Map(listJobDefinitions().map(def => [def.id, def.label || titleizeIdentifier(def.id)]));
+    Object.entries(effects.jobs).forEach(([jobId, capacity]) => {
+      if (!Number.isFinite(capacity) || capacity <= 0) return;
+      const label = jobLabels.get(jobId) || titleizeIdentifier(jobId);
+      lines.push(`Supports ${capacity} ${label}`);
+    });
+  }
   if (effects.supply) {
     Object.entries(effects.supply).forEach(([name, amount]) => {
       lines.push(`Supply ${name} ${formatSigned(amount)}`);
@@ -2750,7 +3168,24 @@ function describeEffects(effects = {}) {
   }
   if (effects.unlocks) {
     const unlocks = Array.isArray(effects.unlocks) ? effects.unlocks : [effects.unlocks];
-    lines.push(`Unlocks: ${unlocks.join(', ')}`);
+    const labels = unlocks
+      .map(entry => {
+        if (!entry && entry !== 0) return null;
+        if (typeof entry === 'string' || typeof entry === 'number') {
+          return getTechnologyLabel(entry) || titleizeIdentifier(entry);
+        }
+        if (entry && typeof entry === 'object') {
+          const techId = entry.technology ?? entry.tech ?? entry.id;
+          if (techId || techId === 0) {
+            return getTechnologyLabel(techId) || titleizeIdentifier(techId);
+          }
+        }
+        return null;
+      })
+      .filter(Boolean);
+    if (labels.length) {
+      lines.push(`Unlocks: ${labels.join(', ')}`);
+    }
   }
   return lines;
 }
@@ -2786,6 +3221,10 @@ function createBuildCard(type, info) {
   card.appendChild(createInfoLine('Full Build', createResourceBadges(type.stats.totalResources)));
   if (type.requirements?.craftedGoods) {
     card.appendChild(createInfoLine('Crafted Goods', createResourceBadges(type.requirements.craftedGoods)));
+  }
+  const requirementLines = describeUnlockRequirements(type.unlock);
+  if (requirementLines.length) {
+    card.appendChild(createInfoLine('Prerequisites', requirementLines.join('; ')));
   }
 
   const effectLines = describeEffects(type.effects);
@@ -2994,6 +3433,14 @@ function ensureConstructionModal() {
   const buildSection = document.createElement('section');
   buildSection.id = 'build-menu';
 
+  buildCategoryFilters = document.createElement('div');
+  buildCategoryFilters.id = 'build-category-filters';
+  buildCategoryFilters.style.display = 'flex';
+  buildCategoryFilters.style.flexWrap = 'wrap';
+  buildCategoryFilters.style.gap = '8px';
+  buildCategoryFilters.style.margin = '12px 0';
+  buildSection.appendChild(buildCategoryFilters);
+
   buildOptionsContainer = document.createElement('div');
   buildOptionsContainer.id = 'build-options';
   buildOptionsContainer.style.display = 'grid';
@@ -3047,21 +3494,74 @@ function ensureConstructionModal() {
   closeConstructionModal();
 }
 
+function renderBuildFilters(entries) {
+  if (!buildCategoryFilters) return;
+  const categories = new Set();
+  entries.forEach(entry => {
+    const category = entry.type?.category;
+    if (!category) return;
+    categories.add(category);
+  });
+  const categoryList = ['All', ...Array.from(categories).sort((a, b) => a.localeCompare(b))];
+  if (!categoryList.some(label => label.toLowerCase() === buildCategoryFilter)) {
+    buildCategoryFilter = 'all';
+  }
+  buildCategoryFilters.innerHTML = '';
+  categoryList.forEach(label => {
+    const value = label.toLowerCase();
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.style.padding = '4px 12px';
+    btn.style.borderRadius = '999px';
+    btn.style.border = '1px solid var(--map-border)';
+    btn.style.background = 'rgba(0, 0, 0, 0.04)';
+    btn.style.color = 'inherit';
+    btn.style.cursor = 'pointer';
+    btn.style.fontWeight = '600';
+    const isActive = value === buildCategoryFilter;
+    if (isActive) {
+      btn.disabled = true;
+      btn.style.background = 'var(--accent-color, #3b82f6)';
+      btn.style.color = '#fff';
+      btn.style.cursor = 'default';
+    }
+    btn.addEventListener('click', () => {
+      buildCategoryFilter = value;
+      renderBuildMenu();
+    });
+    buildCategoryFilters.appendChild(btn);
+  });
+}
+
 function renderBuildMenu() {
   const projects = getBuildings({ statuses: ['under-construction'] });
 
   if (!buildOptionsContainer || !projectList || !completedList || !lockedList) return;
 
   const entries = getAllBuildingTypes().map(type => ({ type, info: evaluateBuilding(type.id) })).filter(entry => entry.info);
+  renderBuildFilters(entries);
+
+  const normalizedFilter = typeof buildCategoryFilter === 'string' ? buildCategoryFilter : 'all';
+  const matchesFilter = entry => {
+    if (normalizedFilter === 'all') return true;
+    const category = (entry.type?.category || '').toLowerCase();
+    return category === normalizedFilter;
+  };
 
   buildOptionsContainer.innerHTML = '';
   const available = entries.filter(entry => entry.info.unlocked && entry.info.locationOk && entry.info.canBuildMore);
-  if (!available.length) {
+  const filteredAvailable = available.filter(matchesFilter);
+  if (!filteredAvailable.length) {
     const empty = document.createElement('p');
-    empty.textContent = 'No structures are currently available to build.';
+    if (available.length && normalizedFilter !== 'all') {
+      empty.textContent = 'No structures in this category are ready to build yet.';
+    } else {
+      empty.textContent = 'No structures are currently available to build.';
+    }
     buildOptionsContainer.appendChild(empty);
   } else {
-    available.forEach(entry => {
+    filteredAvailable.forEach(entry => {
       const card = createBuildCard(entry.type, entry.info);
       buildOptionsContainer.appendChild(card);
     });
@@ -3114,18 +3614,75 @@ function renderBuildMenu() {
 
   lockedList.innerHTML = '';
   const blocked = entries.filter(entry => !entry.info.unlocked || !entry.info.locationOk || !entry.info.canBuildMore);
-  if (!blocked.length) {
+  const filteredBlocked = blocked.filter(matchesFilter);
+  if (!filteredBlocked.length) {
     const empty = document.createElement('p');
-    empty.textContent = 'All known structures are available.';
+    if (blocked.length && normalizedFilter !== 'all') {
+      empty.textContent = 'Nothing in this category is ready—check prerequisites or staffing.';
+    } else {
+      empty.textContent = 'All known structures are available.';
+    }
     lockedList.appendChild(empty);
   } else {
     const list = document.createElement('ul');
-    blocked.forEach(({ type, info }) => {
+    filteredBlocked.forEach(({ type, info }) => {
       const li = document.createElement('li');
       const name = `${type.icon ? `${type.icon} ` : ''}${type.name}`;
       const reasons = [];
       if (!info.unlocked) {
-        reasons.push('Prerequisites not yet met');
+        const missing = info.unlockStatus?.missing;
+        if (missing) {
+          if (missing.technologies?.length) {
+            reasons.push(`Research ${formatTechnologyList(missing.technologies)}`);
+          }
+          if (missing.anyTechnology?.length) {
+            reasons.push(`Research one of ${formatTechnologyList(missing.anyTechnology)}`);
+          }
+          if (missing.research?.length) {
+            reasons.push(`Complete research: ${formatList(missing.research.map(id => titleizeIdentifier(id)))}`);
+          }
+          if (missing.anyResearch?.length) {
+            reasons.push(`Complete one of: ${formatList(missing.anyResearch.map(id => titleizeIdentifier(id)))}`);
+          }
+          if (missing.buildings?.length) {
+            missing.buildings.forEach(req => {
+              const target = normalizeUiBuildingRequirement({ id: req.id, count: req.required });
+              const label = target ? getBuildingType(target.id)?.name || titleizeIdentifier(target.id) : titleizeIdentifier(req.id);
+              const required = target ? target.count : req.required || 1;
+              const current = Number.isFinite(req.current) ? req.current : 0;
+              reasons.push(`Construct ${required > 1 ? `${required}× ${label}` : label} (${current}/${required})`);
+            });
+          }
+          if (missing.anyBuilding?.length) {
+            const options = missing.anyBuilding
+              .map(entry => {
+                const req = normalizeUiBuildingRequirement(entry);
+                if (!req) return null;
+                const label = getBuildingType(req.id)?.name || titleizeIdentifier(req.id);
+                const required = req.count;
+                const current = Number.isFinite(entry.current) ? entry.current : 0;
+                return `${required > 1 ? `${required}× ${label}` : label} (${current}/${required})`;
+              })
+              .filter(Boolean);
+            if (options.length) {
+              reasons.push(`Construct one of: ${options.join(' or ')}`);
+            }
+          }
+          if (missing.resources?.length) {
+            missing.resources.forEach(item => {
+              const label = getResourceLabel(item.name) || titleizeIdentifier(item.name);
+              const required = Number.isFinite(item.required) ? item.required : 0;
+              const available = Number.isFinite(item.available) ? item.available : 0;
+              reasons.push(`Stockpile ${label} (${available}/${required})`);
+            });
+          }
+          if (missing.custom) {
+            reasons.push('Fulfil special conditions');
+          }
+        }
+        if (!reasons.length) {
+          reasons.push('Prerequisites not yet met');
+        }
       }
       if (info.unlocked && !info.terrainOk) {
         const tags = type.requirements?.locationTags?.join(', ') || 'suitable terrain';
@@ -3284,6 +3841,7 @@ function render() {
   renderTextMap();
   renderPlayerPanel();
   renderTileInfo();
+  renderResearchPanel();
   renderBuildMenu();
   renderOrders();
   refreshInventoryProjections();
@@ -3848,6 +4406,7 @@ export function initGameUI() {
   }
 
   ensureTileInfoPanel(container);
+  ensureResearchPanel(container);
 
   ensureConstructionModal();
   closeConstructionModal();

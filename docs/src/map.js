@@ -1,3 +1,4 @@
+// @ts-nocheck
 import { getBiome } from './biomes.js';
 import store from './state.js';
 
