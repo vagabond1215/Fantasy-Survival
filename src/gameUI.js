@@ -2468,8 +2468,49 @@ function renderEventLog() {
   renderEventLogDialogEntries(log);
 }
 
+function addFlowContribution(target, name, amount) {
+  if (!Number.isFinite(amount) || amount === 0) return;
+  if (!target[name]) {
+    target[name] = { supply: 0, demand: 0 };
+  }
+  if (amount > 0) {
+    target[name].supply += amount;
+  } else {
+    target[name].demand += Math.abs(amount);
+  }
+}
+
+function calculateBuildingInventoryFlows() {
+  const flows = {};
+  const completed = getBuildings({ statuses: ['completed'] });
+  completed.forEach(entry => {
+    const type = getBuildingType(entry.typeId);
+    const effects = type?.effects || {};
+    Object.entries(effects.supply || {}).forEach(([name, amount]) => {
+      addFlowContribution(flows, name, amount);
+    });
+    Object.entries(effects.demand || {}).forEach(([name, amount]) => {
+      if (!Number.isFinite(amount) || amount === 0) return;
+      if (amount > 0) {
+        addFlowContribution(flows, name, -amount);
+      } else {
+        addFlowContribution(flows, name, Math.abs(amount));
+      }
+    });
+  });
+  return flows;
+}
+
 function updateInventoryFlows() {
   const flows = calculateExpectedInventoryFlows(getOrders());
+  const buildingFlows = calculateBuildingInventoryFlows();
+  Object.entries(buildingFlows).forEach(([name, entry]) => {
+    if (!flows[name]) {
+      flows[name] = { supply: 0, demand: 0 };
+    }
+    flows[name].supply += entry.supply || 0;
+    flows[name].demand += entry.demand || 0;
+  });
   const known = new Set(Array.from(store.inventory.keys()));
   Object.keys(flows).forEach(name => known.add(name));
   known.forEach(name => {
