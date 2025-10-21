@@ -1,3 +1,3 @@
-# Docs Assets
+# Assets
 
-The docs copy mirrors the root `assets/` folder for GitHub Pages. Since themes now rely on remote Fluent UI emoji imagery, this directory remains empty aside from this note.
+This directory is intentionally left without bundled media. Theme artwork now loads from public Fluent UI emoji URLs so Pages deployments only need the folder as a copy target for tooling.

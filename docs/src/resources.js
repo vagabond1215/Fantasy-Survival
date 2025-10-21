@@ -1,3 +1,4 @@
+// @ts-nocheck
 // Resource production and consumption calculations.
 // Values are expressed using SAE units (feet, pounds, etc.)
 // to allow for future conversion to metric.
@@ -6,6 +7,7 @@ import { hasTechnology } from './technology.js';
 import { getBiome } from './biomes.js';
 import { getJobAssignmentsSummary } from './population.js';
 import { getJobWorkday } from './jobs.js';
+import { getBuildings, getBuildingType } from './buildings.js';
 import { getProficiencyLevel, inferOrderProficiency } from './proficiencies.js';
 
 // Base wood yield per lumberjack per day in pounds depending on tool tech.
@@ -140,13 +142,21 @@ function recordFlowContribution(flows, name, amount) {
 const JOB_TO_ORDER_TYPE = {
   gather: 'gathering',
   hunt: 'hunting',
-  craft: 'crafting'
+  farm: 'farming',
+  herd: 'herding',
+  craft: 'crafting',
+  cook: 'cooking',
+  smith: 'smithing'
 };
 
 const JOB_DEFAULT_SKILL = {
   gather: 'gathering',
   hunt: 'hunting',
-  craft: 'crafting'
+  farm: 'agriculture',
+  herd: 'agriculture',
+  craft: 'crafting',
+  cook: 'cooking',
+  smith: 'smithing'
 };
 
 function clamp(value, min, max) {
@@ -190,18 +200,67 @@ function applyJobRosterFlows(flows) {
     if (!orderType) return;
     const workday = getJobWorkday(jobId);
     if (!Number.isFinite(workday) || workday <= 0) return;
-    const basePerHour = getOrderHourlyEffect({ type: orderType, workers: 1 });
-    const resourceEntries = Object.entries(basePerHour || {}).filter(([, amount]) => Number.isFinite(amount) && amount !== 0);
-    if (!resourceEntries.length) return;
+    let effectiveWorkers = 0;
     roster.forEach(worker => {
       const skillId = resolveWorkerSkill(jobId, worker, orderType);
       const productivity = scoreMultiplier(worker?.score) * proficiencyMultiplier(skillId);
-      resourceEntries.forEach(([name, amount]) => {
-        const total = amount * productivity * workday;
-        recordFlowContribution(flows, name, total);
-      });
+      if (Number.isFinite(productivity) && productivity > 0) {
+        effectiveWorkers += productivity;
+      }
+    });
+    if (!Number.isFinite(effectiveWorkers) || effectiveWorkers <= 0) return;
+    const basePerHour = getOrderHourlyEffect({
+      type: orderType,
+      workers: effectiveWorkers,
+      jobId,
+      assigned: roster.length
+    });
+    const resourceEntries = Object.entries(basePerHour || {}).filter(([, amount]) => Number.isFinite(amount) && amount !== 0);
+    if (!resourceEntries.length) return;
+    resourceEntries.forEach(([name, amount]) => {
+      const total = amount * workday;
+      recordFlowContribution(flows, name, total);
     });
   });
+}
+
+function calculateJobCapacity(jobId) {
+  const completed = getBuildings({ statuses: ['completed'] });
+  let total = 0;
+  completed.forEach(entry => {
+    const type = getBuildingType(entry.typeId);
+    const jobSupport = type?.effects?.jobs?.[jobId];
+    const capacity = Number(jobSupport) || 0;
+    if (capacity > 0) {
+      total += capacity;
+    }
+  });
+  return total;
+}
+
+const FARM_OUTPUT_PER_WORKER_HOUR = { grain: 0.2, 'root vegetables': 0.1333, herbs: 0.0333 };
+const FARM_INPUT_PER_WORKER_HOUR = { 'crafted goods': 0.02 };
+const HERD_OUTPUT_PER_WORKER_HOUR = { food: 0.15, hides: 0.04, 'animal fat': 0.02 };
+const HERD_INPUT_PER_WORKER_HOUR = { grain: 0.075, water: 0.1 };
+const COOK_OUTPUT_PER_WORKER_HOUR = {
+  cookedMeals: 0.2,
+  'hearty meal': 0.1,
+  'comfort meal': 0.05,
+  preservedFood: 0.05
+};
+const COOK_INPUT_PER_WORKER_HOUR = { food: 0.3, firewood: 0.15, herbs: 0.05, salt: 0.03, spices: 0.015 };
+const SMITH_OUTPUT_PER_WORKER_HOUR = { 'crafted goods': 0.15, 'bronze ingot': 0.05 };
+const SMITH_INPUT_PER_WORKER_HOUR = { 'raw ore': 0.1, charcoal: 0.1, firewood: 0.05 };
+
+function clampEffectiveWorkers(jobId, effectiveWorkers = 0, assigned = 0) {
+  if (!Number.isFinite(effectiveWorkers) || effectiveWorkers <= 0) {
+    return 0;
+  }
+  const capacity = calculateJobCapacity(jobId);
+  if (capacity <= 0) return 0;
+  const activeAssigned = Math.min(Math.max(0, assigned), capacity);
+  if (activeAssigned <= 0) return 0;
+  return Math.min(effectiveWorkers, activeAssigned);
 }
 
 function expectedScavengePerHour(workers = 0) {
@@ -253,6 +312,58 @@ function craftingPerHour(order) {
   };
 }
 
+function farmingPerHour(order) {
+  const effective = clampEffectiveWorkers('farm', order?.workers || 0, order?.assigned || 0);
+  if (!effective) return {};
+  const totals = {};
+  Object.entries(FARM_OUTPUT_PER_WORKER_HOUR).forEach(([name, amount]) => {
+    totals[name] = (totals[name] || 0) + amount * effective;
+  });
+  Object.entries(FARM_INPUT_PER_WORKER_HOUR).forEach(([name, amount]) => {
+    totals[name] = (totals[name] || 0) - amount * effective;
+  });
+  return totals;
+}
+
+function herdingPerHour(order) {
+  const effective = clampEffectiveWorkers('herd', order?.workers || 0, order?.assigned || 0);
+  if (!effective) return {};
+  const totals = {};
+  Object.entries(HERD_OUTPUT_PER_WORKER_HOUR).forEach(([name, amount]) => {
+    totals[name] = (totals[name] || 0) + amount * effective;
+  });
+  Object.entries(HERD_INPUT_PER_WORKER_HOUR).forEach(([name, amount]) => {
+    totals[name] = (totals[name] || 0) - amount * effective;
+  });
+  return totals;
+}
+
+function cookingPerHour(order) {
+  const effective = clampEffectiveWorkers('cook', order?.workers || 0, order?.assigned || 0);
+  if (!effective) return {};
+  const totals = {};
+  Object.entries(COOK_OUTPUT_PER_WORKER_HOUR).forEach(([name, amount]) => {
+    totals[name] = (totals[name] || 0) + amount * effective;
+  });
+  Object.entries(COOK_INPUT_PER_WORKER_HOUR).forEach(([name, amount]) => {
+    totals[name] = (totals[name] || 0) - amount * effective;
+  });
+  return totals;
+}
+
+function smithingPerHour(order) {
+  const effective = clampEffectiveWorkers('smith', order?.workers || 0, order?.assigned || 0);
+  if (!effective) return {};
+  const totals = {};
+  Object.entries(SMITH_OUTPUT_PER_WORKER_HOUR).forEach(([name, amount]) => {
+    totals[name] = (totals[name] || 0) + amount * effective;
+  });
+  Object.entries(SMITH_INPUT_PER_WORKER_HOUR).forEach(([name, amount]) => {
+    totals[name] = (totals[name] || 0) - amount * effective;
+  });
+  return totals;
+}
+
 function buildingPerHour(order) {
   const workers = order?.workers || 0;
   const perHour = {};
@@ -273,8 +384,16 @@ export function getOrderHourlyEffect(order) {
       return expectedScavengePerHour(order.workers);
     case 'hunting':
       return huntingPerHour(order);
+    case 'farming':
+      return farmingPerHour(order);
+    case 'herding':
+      return herdingPerHour(order);
     case 'crafting':
       return craftingPerHour(order);
+    case 'cooking':
+      return cookingPerHour(order);
+    case 'smithing':
+      return smithingPerHour(order);
     case 'building':
       return buildingPerHour(order);
     case 'combat':

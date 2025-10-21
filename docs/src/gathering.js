@@ -1,3 +1,4 @@
+// @ts-nocheck
 import store from './state.js';
 import { getCurrentAbsoluteHours } from './time.js';
 
@@ -119,6 +120,21 @@ const BASE_HABITAT_ITEMS = [
     successSuffix: 'from a shaded glade.'
   },
   {
+    id: 'forest-spices',
+    resource: 'spices',
+    singularName: 'handful of aromatic bark',
+    encounterName: 'clump of spice bark',
+    type: 'loose',
+    habitats: ['forest'],
+    baseWeight: 1.5,
+    seasonWeights: { Thawbound: 1, Sunheight: 2, Emberwane: 3, Frostshroud: 1 },
+    minQuantity: 1,
+    maxQuantity: 2,
+    timePerUnit: 0.22,
+    respawnHours: 36,
+    successSuffix: 'by shaving fragrant bark and seed pods.'
+  },
+  {
     id: 'open-fibers',
     resource: 'plant fibers',
     singularName: 'bundle of plant fibers',
@@ -132,6 +148,21 @@ const BASE_HABITAT_ITEMS = [
     timePerUnit: 0.2,
     respawnHours: 16,
     successSuffix: 'by stripping tough grasses.'
+  },
+  {
+    id: 'straight-saplings',
+    resource: 'straight branch',
+    singularName: 'straight branch',
+    encounterName: 'stand of straight saplings',
+    type: 'loose',
+    habitats: ['open', 'forest'],
+    baseWeight: 2.5,
+    seasonWeights: { Thawbound: 2, Sunheight: 3, Emberwane: 3, Frostshroud: 2 },
+    minQuantity: 1,
+    maxQuantity: 3,
+    timePerUnit: 0.18,
+    respawnHours: 18,
+    successSuffix: 'after trimming a straight sapling for tool shafts.'
   },
   {
     id: 'open-berries',
@@ -148,6 +179,38 @@ const BASE_HABITAT_ITEMS = [
     respawnHours: 48,
     successSuffix: 'from a tangled bramble.',
     blockedVerb: 'harvest'
+  },
+  {
+    id: 'meadow-grain',
+    resource: 'grain',
+    singularName: 'sheaf of grain',
+    encounterName: 'patch of wild grain',
+    type: 'harvest',
+    habitats: ['meadow', 'open'],
+    baseWeight: 2,
+    seasonWeights: { Thawbound: 0, Sunheight: 3, Emberwane: 4, Frostshroud: 1 },
+    minQuantity: 2,
+    maxQuantity: 5,
+    timePerUnit: 0.25,
+    respawnHours: 36,
+    successSuffix: 'from the ripened heads of wild grain.',
+    blockedVerb: 'harvest'
+  },
+  {
+    id: 'meadow-root-vegetables',
+    resource: 'root vegetables',
+    singularName: 'bundle of root vegetables',
+    encounterName: 'cluster of wild tubers',
+    type: 'harvest',
+    habitats: ['meadow', 'open'],
+    baseWeight: 2,
+    seasonWeights: { Thawbound: 1, Sunheight: 2, Emberwane: 3, Frostshroud: 1 },
+    minQuantity: 2,
+    maxQuantity: 4,
+    timePerUnit: 0.28,
+    respawnHours: 40,
+    successSuffix: 'after digging up hearty tubers.',
+    blockedVerb: 'dig'
   },
   {
     id: 'open-stones',
@@ -195,6 +258,22 @@ const BASE_HABITAT_ITEMS = [
     successSuffix: 'from the marshy banks.'
   },
   {
+    id: 'shore-salt-crust',
+    resource: 'salt',
+    singularName: 'chunk of salt crust',
+    encounterName: 'salt-encrusted tide pool',
+    type: 'harvest',
+    habitats: ['water'],
+    baseWeight: 1,
+    seasonWeights: { Thawbound: 1, Sunheight: 2, Emberwane: 2, Frostshroud: 1 },
+    minQuantity: 1,
+    maxQuantity: 3,
+    timePerUnit: 0.3,
+    respawnHours: 30,
+    successSuffix: 'by scraping salt crust from a receding tide pool.',
+    blockedVerb: 'scrape'
+  },
+  {
     id: 'forest-log',
     resource: 'firewood',
     singularName: 'length of timber',
@@ -210,6 +289,38 @@ const BASE_HABITAT_ITEMS = [
     toolsRequired: ['stone hand axe'],
     successSuffix: 'after chopping apart a fallen log.',
     blockedVerb: 'fell'
+  },
+  {
+    id: 'forest-carcass',
+    resource: 'animal fat',
+    singularName: 'lump of animal fat',
+    encounterName: 'fresh carcass scraps',
+    type: 'harvest',
+    habitats: ['forest'],
+    baseWeight: 1,
+    seasonWeights: { Thawbound: 1, Sunheight: 2, Emberwane: 2, Frostshroud: 1 },
+    minQuantity: 1,
+    maxQuantity: 2,
+    timePerUnit: 0.35,
+    respawnHours: 42,
+    toolsRequired: ['stone knife'],
+    successSuffix: 'after carefully trimming usable fats from a carcass.',
+    blockedVerb: 'render'
+  },
+  {
+    id: 'meadow-feathers',
+    resource: 'feathers',
+    singularName: 'bundle of feathers',
+    encounterName: 'scatter of molted feathers',
+    type: 'loose',
+    habitats: ['meadow', 'open'],
+    baseWeight: 2,
+    seasonWeights: { Thawbound: 1, Sunheight: 2, Emberwane: 3, Frostshroud: 1 },
+    minQuantity: 2,
+    maxQuantity: 6,
+    timePerUnit: 0.12,
+    respawnHours: 18,
+    successSuffix: 'gathered from nesting grounds.'
   },
   {
     id: 'ore-vein',

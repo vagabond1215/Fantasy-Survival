@@ -1,12 +1,30 @@
+// @ts-check
 import { biomes, getBiome } from './src/biomes.js';
 import { getPointsOfInterest } from './src/pointsOfInterest.js';
 import { getBiomeWildlife } from './src/biomeWildlife.js';
 
 // DOM Elements
-const selector = document.getElementById('biomeSelector');
-const output = document.getElementById('biomeDisplay');
-const description = document.getElementById('biomeDescription');
-const image = document.getElementById('biomeImage');
+const selectorEl = /** @type {HTMLSelectElement | null} */ (
+  document.getElementById('biomeSelector')
+);
+const outputEl = /** @type {HTMLDivElement | null} */ (
+  document.getElementById('biomeDisplay')
+);
+const descriptionEl = /** @type {HTMLParagraphElement | null} */ (
+  document.getElementById('biomeDescription')
+);
+const imageEl = /** @type {HTMLImageElement | null} */ (
+  document.getElementById('biomeImage')
+);
+
+if (!selectorEl || !outputEl || !descriptionEl || !imageEl) {
+  throw new Error('Biome explorer markup is missing expected elements.');
+}
+
+const selector = selectorEl;
+const output = outputEl;
+const description = descriptionEl;
+const image = imageEl;
 
 // Populate Selector with complete biome list
 biomes.forEach(b => {

@@ -1,3 +1,4 @@
+// @ts-nocheck
 import store from './state.js';
 import { getBiome } from './biomes.js';
 import { coordinateRandom, TERRAIN_SYMBOLS } from './map.js';

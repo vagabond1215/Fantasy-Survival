@@ -17,10 +17,34 @@ const JOB_DEFINITIONS = [
     preferredSkills: ['hunting', 'tracking', 'fishing', 'swimming']
   },
   {
+    id: 'farm',
+    label: 'Farmers',
+    description: 'Tend crop fields, manage irrigation, and rotate plantings for steady harvests.',
+    preferredSkills: ['agriculture', 'herbalism', 'gathering']
+  },
+  {
+    id: 'herd',
+    label: 'Herders',
+    description: 'Raise livestock, muck pens, and keep breeding stock healthy.',
+    preferredSkills: ['agriculture', 'hunting', 'herbalism']
+  },
+  {
     id: 'craft',
     label: 'Crafters',
     description: 'Maintain tools, weave cordage, and assemble needed goods.',
     preferredSkills: ['crafting', 'carpentry', 'smithing', 'weaving', 'pottery', 'leatherworking', 'cooking', 'smelting']
+  },
+  {
+    id: 'cook',
+    label: 'Cooks',
+    description: 'Prepare meals, smoke provisions, and keep communal kitchens stocked.',
+    preferredSkills: ['cooking', 'herbalism', 'crafting']
+  },
+  {
+    id: 'smith',
+    label: 'Smiths',
+    description: 'Work the forge to shape metal fittings, tools, and weapons.',
+    preferredSkills: ['smithing', 'smelting', 'crafting']
   },
   {
     id: 'build',

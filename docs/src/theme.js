@@ -14,6 +14,22 @@ const STANDARD_COLOR_KEYS = [
   'brown'
 ];
 
+/**
+ * @typedef {Object} ColorScale
+ * @property {string} [light]
+ * @property {string} [base]
+ * @property {string} [dark]
+ */
+
+/**
+ * @typedef {Object} ThemeColors
+ * @property {ColorScale} [background]
+ * @property {ColorScale} [neutral]
+ * @property {ColorScale} [primary]
+ * @property {ColorScale} [secondary]
+ * @property {ColorScale} [accent]
+ */
+
 function clamp(value, min = 0, max = 1) {
   if (typeof value !== 'number' || Number.isNaN(value)) {
     return min;
@@ -145,6 +161,10 @@ function ensureContrast(foreground, background, minimumRatio = 4.5) {
   return ratio >= minimumRatio ? adjusted : best.color;
 }
 
+/**
+ * @param {ColorScale} [scale]
+ * @returns {{ light: string, base: string, dark: string }}
+ */
 function fillColorScale(scale = {}) {
   const base = normalizeHex(scale.base) || normalizeHex(scale.light) || normalizeHex(scale.dark) || '#6b7280';
   const light = normalizeHex(scale.light) || lightenHex(base, 0.18);
@@ -753,7 +773,10 @@ function applyThemeVariables() {
   const theme = THEME_INDEX.get(currentTheme);
   if (!theme) return;
 
-  const { colors = {}, standardColors, text } = theme;
+  const { colors: rawColors, standardColors, text } = theme;
+
+  /** @type {ThemeColors} */
+  const colors = rawColors || {};
 
   const backgroundScale = fillColorScale(colors.background || {});
   const neutralScale = fillColorScale(colors.neutral || {});

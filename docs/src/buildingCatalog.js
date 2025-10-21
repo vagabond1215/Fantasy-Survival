@@ -311,8 +311,13 @@ export const buildingCatalog = [
     },
     effects: {
       comfort: 1,
-      supply: { cookedMeals: 2 },
-      demand: { food: -0.5 },
+      supply: {
+        cookedMeals: 1.5,
+        'hearty meal': 1,
+        'bone broth': 0.5,
+        'comfort meal': 0.5
+      },
+      demand: { food: -0.5, grain: -0.2, 'root vegetables': -0.2, salt: -0.1, spices: -0.05 },
       survivability: 1
     },
     components: [
@@ -384,8 +389,15 @@ export const buildingCatalog = [
       craftedGoods: { cord: 9, 'crafted goods': 1 }
     },
     effects: {
-      supply: { preservedFood: 1, hides: 0.5 },
-      demand: { food: -0.2 },
+      supply: {
+        preservedFood: 1,
+        hides: 0.5,
+        'smoked provisions': 1,
+        'preserved vegetables': 0.5,
+        'herbal poultice': 0.3,
+        'aromatic sachet': 0.2
+      },
+      demand: { food: -0.2, salt: -0.2, spices: -0.1, herbs: -0.1 },
       capacity: { storage: 40 }
     },
     components: [

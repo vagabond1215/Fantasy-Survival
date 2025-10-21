@@ -1,3 +1,4 @@
+// @ts-nocheck
 import store from './state.js';
 import { PROFICIENCY_DEFINITIONS } from './proficiencies.js';
 import { setPeople, refreshStats } from './people.js';
