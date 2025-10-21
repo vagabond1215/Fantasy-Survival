@@ -48,6 +48,8 @@ import {
 import { calculateTravelTime, describeTerrainDifficulty } from './movement.js';
 import { performGathering, formatBlockedMessages, getHabitatProspects } from './gathering.js';
 import { getUnlockedRecipes, craftRecipe } from './crafting.js';
+import { recipeGroups } from './data/recipes.js';
+import { getEquipmentDefinition } from './data/equipment.js';
 import { getJobOverview, setJob, setJobWorkday, listJobDefinitions } from './jobs.js';
 import { getCraftTarget, setCraftTarget, listCraftTargets, calculateReservedQuantity } from './craftPlanner.js';
 import {
@@ -58,6 +60,7 @@ import {
   getUnknownLabel
 } from './naturalHistory.js';
 import { saveGame } from './persistence.js';
+import { getTechnologyLabel, listTechnologiesWithStatus } from './technology.js';
 
 const LEGEND_LABELS = {
   water: 'Water',
@@ -138,6 +141,8 @@ let bestiaryDialog = null;
 let bestiaryContent = null;
 let tileInfoPanel = null;
 let tileInfoContent = null;
+let researchSection = null;
+let researchContent = null;
 
 const MASS_NOUNS = new Set(['wood', 'firewood', 'food', 'water']);
 
@@ -371,6 +376,195 @@ function ensureTileInfoPanel(parent) {
     parent.appendChild(tileInfoPanel);
   }
   return tileInfoPanel;
+}
+
+function ensureResearchPanel(parent) {
+  if (!parent) return null;
+  if (!researchSection) {
+    researchSection = document.createElement('section');
+    researchSection.id = 'research-panel';
+    Object.assign(researchSection.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px',
+      border: '1px solid var(--map-border, #ccc)',
+      borderRadius: '12px',
+      padding: '16px',
+      background: 'var(--bg-color, #fff)',
+      minWidth: '0'
+    });
+    const heading = document.createElement('h3');
+    heading.textContent = 'Research & Technologies';
+    heading.style.margin = '0';
+    researchSection.appendChild(heading);
+
+    const blurb = document.createElement('p');
+    blurb.textContent = 'Monitor discoveries, required prerequisites, and the benefits unlocked for your settlement.';
+    blurb.style.margin = '0';
+    blurb.style.fontSize = '13px';
+    blurb.style.opacity = '0.85';
+    researchSection.appendChild(blurb);
+
+    researchContent = document.createElement('div');
+    Object.assign(researchContent.style, {
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '10px'
+    });
+    researchSection.appendChild(researchContent);
+  }
+  if (researchSection.parentElement !== parent) {
+    researchSection.parentElement?.removeChild(researchSection);
+    parent.appendChild(researchSection);
+  }
+  return researchSection;
+}
+
+function renderResearchPanel() {
+  if (!researchContent) return;
+  researchContent.innerHTML = '';
+  const technologies = listTechnologiesWithStatus();
+  if (!technologies.length) {
+    const empty = document.createElement('p');
+    empty.textContent = 'No technologies have been catalogued yet. Advance your settlement to discover new research.';
+    empty.style.margin = '0';
+    researchContent.appendChild(empty);
+    return;
+  }
+
+  technologies.forEach(entry => {
+    const { definition, state, unlocked, available, missingPrerequisites } = entry;
+    const card = document.createElement('article');
+    Object.assign(card.style, {
+      border: '1px solid var(--map-border, #ccc)',
+      borderRadius: '10px',
+      padding: '12px',
+      background: 'var(--menu-bg)',
+      color: 'var(--text-color)',
+      display: 'flex',
+      flexDirection: 'column',
+      gap: '6px'
+    });
+
+    const header = document.createElement('div');
+    Object.assign(header.style, {
+      display: 'flex',
+      alignItems: 'center',
+      justifyContent: 'space-between',
+      gap: '8px',
+      flexWrap: 'wrap'
+    });
+
+    const title = document.createElement('h4');
+    title.textContent = definition?.name || titleizeIdentifier(entry.id);
+    title.style.margin = '0';
+    header.appendChild(title);
+
+    if (definition?.category) {
+      const categoryBadge = document.createElement('span');
+      categoryBadge.textContent = definition.category;
+      Object.assign(categoryBadge.style, {
+        fontSize: '12px',
+        padding: '2px 6px',
+        borderRadius: '999px',
+        background: 'rgba(128, 128, 128, 0.15)'
+      });
+      header.appendChild(categoryBadge);
+    }
+
+    let statusLabel = 'Locked';
+    let statusColor = 'rgba(160, 40, 40, 0.85)';
+    if (unlocked) {
+      statusLabel = 'Researched';
+      statusColor = 'rgba(36, 115, 72, 0.85)';
+    } else if (available) {
+      statusLabel = 'Available to research';
+      statusColor = 'rgba(196, 132, 16, 0.85)';
+    } else if (missingPrerequisites.length) {
+      statusLabel = 'Locked — prerequisites missing';
+      statusColor = 'rgba(160, 40, 40, 0.85)';
+    }
+
+    const statusBadge = document.createElement('span');
+    statusBadge.textContent = statusLabel;
+    Object.assign(statusBadge.style, {
+      fontSize: '12px',
+      padding: '2px 8px',
+      borderRadius: '999px',
+      color: '#fff',
+      background: statusColor
+    });
+    header.appendChild(statusBadge);
+
+    card.appendChild(header);
+
+    if (definition?.description) {
+      const desc = document.createElement('p');
+      desc.textContent = definition.description;
+      desc.style.margin = '0';
+      card.appendChild(desc);
+    }
+
+    const prereqNames = entry.prerequisites.length
+      ? entry.prerequisites.map(id => {
+          const name = getTechnologyLabel(id);
+          return missingPrerequisites.includes(id) ? `${name} (missing)` : `${name}`;
+        })
+      : ['None'];
+    card.appendChild(createInfoLine('Prerequisites', prereqNames.join(', ')));
+
+    if (!unlocked && missingPrerequisites.length) {
+      card.appendChild(createInfoLine('Missing', formatTechnologyList(missingPrerequisites)));
+    }
+
+    if (definition?.cost) {
+      const fragments = [];
+      if (Number.isFinite(definition.cost.research) && definition.cost.research > 0) {
+        fragments.push(`${definition.cost.research} research points`);
+      }
+      const materialEntries = Object.entries(definition.cost.materials || {})
+        .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
+        .map(([name, amount]) => `${amount} ${getResourceLabel(name) || titleizeIdentifier(name)}`);
+      if (materialEntries.length) {
+        fragments.push(`Materials: ${materialEntries.join(', ')}`);
+      }
+      if (fragments.length) {
+        card.appendChild(createInfoLine('Cost', fragments.join(' • ')));
+      }
+    }
+
+    const unlockLines = [];
+    const unlocks = definition?.effects?.unlocks || {};
+    if (unlocks.technologies?.length) {
+      unlockLines.push(`Technologies: ${formatTechnologyList(unlocks.technologies)}`);
+    }
+    if (unlocks.buildings?.length) {
+      const labels = unlocks.buildings.map(id => getBuildingType(id)?.name || titleizeIdentifier(id));
+      unlockLines.push(`Buildings: ${formatList(labels)}`);
+    }
+    if (unlocks.recipes?.length) {
+      const labels = unlocks.recipes.map(id => getRecipeName(id));
+      unlockLines.push(`Recipes: ${formatList(labels)}`);
+    }
+    if (unlocks.equipment?.length) {
+      const labels = unlocks.equipment.map(id => getEquipmentDefinition(id)?.label || titleizeIdentifier(id));
+      unlockLines.push(`Equipment: ${formatList(labels)}`);
+    }
+    if (definition?.effects?.description) {
+      unlockLines.unshift(definition.effects.description);
+    }
+    if (unlockLines.length) {
+      card.appendChild(createInfoLine('Unlocks', unlockLines.join('; ')));
+    }
+
+    if (state?.unlockedAt) {
+      const date = new Date(state.unlockedAt);
+      const stamp = Number.isFinite(date.getTime()) ? date.toLocaleString() : state.unlockedAt;
+      card.appendChild(createInfoLine('Unlocked', unlocked ? stamp : 'Not yet researched'));
+    }
+
+    researchContent.appendChild(card);
+  });
 }
 
 function matchesProjectTile(project, x, y) {
@@ -2730,6 +2924,123 @@ function formatSigned(value = 0) {
   return `${rounded}`;
 }
 
+function formatList(items = []) {
+  const list = (Array.isArray(items) ? items : [items]).filter(item => item !== null && item !== undefined && `${item}`.trim() !== '');
+  if (!list.length) return '';
+  if (list.length === 1) return `${list[0]}`;
+  if (list.length === 2) return `${list[0]} and ${list[1]}`;
+  return `${list.slice(0, -1).join(', ')}, and ${list[list.length - 1]}`;
+}
+
+function titleizeIdentifier(id = '') {
+  return String(id || '')
+    .split(/[-_]/)
+    .filter(Boolean)
+    .map(part => part.charAt(0).toUpperCase() + part.slice(1))
+    .join(' ');
+}
+
+function normalizeUiBuildingRequirement(entry) {
+  if (!entry && entry !== 0) return null;
+  if (typeof entry === 'string' || typeof entry === 'number') {
+    return { id: String(entry), count: 1 };
+  }
+  if (entry && typeof entry === 'object') {
+    const id = entry.id ?? entry.building ?? entry.type;
+    if (!id && id !== 0) return null;
+    const count = Number.isFinite(entry.count)
+      ? Math.max(1, entry.count)
+      : Number.isFinite(entry.required)
+        ? Math.max(1, entry.required)
+        : 1;
+    return { id: String(id), count };
+  }
+  return null;
+}
+
+function arrayify(value) {
+  if (!value && value !== 0) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function formatTechnologyList(ids = []) {
+  const list = (Array.isArray(ids) ? ids : [ids])
+    .filter(id => id || id === 0)
+    .map(id => getTechnologyLabel(id));
+  return formatList(list);
+}
+
+function describeUnlockRequirements(unlock = {}) {
+  if (!unlock) return [];
+  const parts = [];
+  const techs = arrayify(unlock.technologies || []).filter(id => id || id === 0);
+  if (techs.length) {
+    parts.push(`Research ${formatTechnologyList(techs)}`);
+  }
+  const anyTechs = arrayify(unlock.anyTechnology || []).filter(id => id || id === 0);
+  if (anyTechs.length) {
+    parts.push(`Research one of ${formatTechnologyList(anyTechs)}`);
+  }
+  const research = arrayify(unlock.research || []).filter(id => id || id === 0);
+  if (research.length) {
+    const labels = research.map(id => titleizeIdentifier(id));
+    parts.push(`Complete research: ${formatList(labels)}`);
+  }
+  const anyResearch = arrayify(unlock.anyResearch || []).filter(id => id || id === 0);
+  if (anyResearch.length) {
+    const labels = anyResearch.map(id => titleizeIdentifier(id));
+    parts.push(`Complete one of: ${formatList(labels)}`);
+  }
+  const buildings = arrayify(unlock.buildings || [])
+    .map(normalizeUiBuildingRequirement)
+    .filter(Boolean)
+    .map(req => {
+      const label = getBuildingType(req.id)?.name || titleizeIdentifier(req.id);
+      return req.count > 1 ? `${req.count}× ${label}` : label;
+    });
+  if (buildings.length) {
+    parts.push(`Construct ${formatList(buildings)}`);
+  }
+  const anyBuildings = arrayify(unlock.anyBuilding || [])
+    .map(normalizeUiBuildingRequirement)
+    .filter(Boolean)
+    .map(req => {
+      const label = getBuildingType(req.id)?.name || titleizeIdentifier(req.id);
+      return req.count > 1 ? `${req.count}× ${label}` : label;
+    });
+  if (anyBuildings.length) {
+    parts.push(`Construct one of: ${formatList(anyBuildings)}`);
+  }
+  if (unlock.resources && typeof unlock.resources === 'object') {
+    const entries = Object.entries(unlock.resources)
+      .filter(([, amount]) => Number.isFinite(amount) && amount > 0)
+      .map(([name, amount]) => `${amount} ${getResourceLabel(name) || titleizeIdentifier(name)}`);
+    if (entries.length) {
+      parts.push(`Stockpile ${formatList(entries)}`);
+    }
+  }
+  return parts;
+}
+
+const recipeNameIndex = new Map();
+
+function getRecipeName(id) {
+  if (!id && id !== 0) return '';
+  const normalized = String(id);
+  if (!recipeNameIndex.size) {
+    recipeGroups.forEach(group => {
+      (group.recipes || []).forEach(recipe => {
+        const recipeId = String(recipe.id);
+        recipeNameIndex.set(recipeId, recipe.name || titleizeIdentifier(recipeId));
+      });
+    });
+  }
+  if (!recipeNameIndex.has(normalized)) {
+    recipeNameIndex.set(normalized, titleizeIdentifier(normalized));
+  }
+  return recipeNameIndex.get(normalized);
+}
+
 function createInfoLine(label, content) {
   const line = document.createElement('p');
   const strong = document.createElement('strong');
@@ -2814,7 +3125,24 @@ function describeEffects(effects = {}) {
   }
   if (effects.unlocks) {
     const unlocks = Array.isArray(effects.unlocks) ? effects.unlocks : [effects.unlocks];
-    lines.push(`Unlocks: ${unlocks.join(', ')}`);
+    const labels = unlocks
+      .map(entry => {
+        if (!entry && entry !== 0) return null;
+        if (typeof entry === 'string' || typeof entry === 'number') {
+          return getTechnologyLabel(entry) || titleizeIdentifier(entry);
+        }
+        if (entry && typeof entry === 'object') {
+          const techId = entry.technology ?? entry.tech ?? entry.id;
+          if (techId || techId === 0) {
+            return getTechnologyLabel(techId) || titleizeIdentifier(techId);
+          }
+        }
+        return null;
+      })
+      .filter(Boolean);
+    if (labels.length) {
+      lines.push(`Unlocks: ${labels.join(', ')}`);
+    }
   }
   return lines;
 }
@@ -2850,6 +3178,10 @@ function createBuildCard(type, info) {
   card.appendChild(createInfoLine('Full Build', createResourceBadges(type.stats.totalResources)));
   if (type.requirements?.craftedGoods) {
     card.appendChild(createInfoLine('Crafted Goods', createResourceBadges(type.requirements.craftedGoods)));
+  }
+  const requirementLines = describeUnlockRequirements(type.unlock);
+  if (requirementLines.length) {
+    card.appendChild(createInfoLine('Prerequisites', requirementLines.join('; ')));
   }
 
   const effectLines = describeEffects(type.effects);
@@ -3189,7 +3521,59 @@ function renderBuildMenu() {
       const name = `${type.icon ? `${type.icon} ` : ''}${type.name}`;
       const reasons = [];
       if (!info.unlocked) {
-        reasons.push('Prerequisites not yet met');
+        const missing = info.unlockStatus?.missing;
+        if (missing) {
+          if (missing.technologies?.length) {
+            reasons.push(`Research ${formatTechnologyList(missing.technologies)}`);
+          }
+          if (missing.anyTechnology?.length) {
+            reasons.push(`Research one of ${formatTechnologyList(missing.anyTechnology)}`);
+          }
+          if (missing.research?.length) {
+            reasons.push(`Complete research: ${formatList(missing.research.map(id => titleizeIdentifier(id)))}`);
+          }
+          if (missing.anyResearch?.length) {
+            reasons.push(`Complete one of: ${formatList(missing.anyResearch.map(id => titleizeIdentifier(id)))}`);
+          }
+          if (missing.buildings?.length) {
+            missing.buildings.forEach(req => {
+              const target = normalizeUiBuildingRequirement({ id: req.id, count: req.required });
+              const label = target ? getBuildingType(target.id)?.name || titleizeIdentifier(target.id) : titleizeIdentifier(req.id);
+              const required = target ? target.count : req.required || 1;
+              const current = Number.isFinite(req.current) ? req.current : 0;
+              reasons.push(`Construct ${required > 1 ? `${required}× ${label}` : label} (${current}/${required})`);
+            });
+          }
+          if (missing.anyBuilding?.length) {
+            const options = missing.anyBuilding
+              .map(entry => {
+                const req = normalizeUiBuildingRequirement(entry);
+                if (!req) return null;
+                const label = getBuildingType(req.id)?.name || titleizeIdentifier(req.id);
+                const required = req.count;
+                const current = Number.isFinite(entry.current) ? entry.current : 0;
+                return `${required > 1 ? `${required}× ${label}` : label} (${current}/${required})`;
+              })
+              .filter(Boolean);
+            if (options.length) {
+              reasons.push(`Construct one of: ${options.join(' or ')}`);
+            }
+          }
+          if (missing.resources?.length) {
+            missing.resources.forEach(item => {
+              const label = getResourceLabel(item.name) || titleizeIdentifier(item.name);
+              const required = Number.isFinite(item.required) ? item.required : 0;
+              const available = Number.isFinite(item.available) ? item.available : 0;
+              reasons.push(`Stockpile ${label} (${available}/${required})`);
+            });
+          }
+          if (missing.custom) {
+            reasons.push('Fulfil special conditions');
+          }
+        }
+        if (!reasons.length) {
+          reasons.push('Prerequisites not yet met');
+        }
       }
       if (info.unlocked && !info.terrainOk) {
         const tags = type.requirements?.locationTags?.join(', ') || 'suitable terrain';
@@ -3348,6 +3732,7 @@ function render() {
   renderTextMap();
   renderPlayerPanel();
   renderTileInfo();
+  renderResearchPanel();
   renderBuildMenu();
   renderOrders();
   refreshInventoryProjections();
@@ -3912,6 +4297,7 @@ export function initGameUI() {
   }
 
   ensureTileInfoPanel(container);
+  ensureResearchPanel(container);
 
   ensureConstructionModal();
   closeConstructionModal();
