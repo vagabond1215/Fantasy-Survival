@@ -320,6 +320,21 @@ export function countBuildings(typeId, { statuses = null } = {}) {
   return count;
 }
 
+export function hasCompletedBuilding(typeId) {
+  if (!typeId && typeId !== 0) return false;
+  ensureBuildingMap();
+  const normalized = String(typeId).toLowerCase();
+  let found = false;
+  store.buildings.forEach(entry => {
+    if (found) return;
+    if (entry.status !== 'completed') return;
+    if (String(entry.typeId).toLowerCase() === normalized) {
+      found = true;
+    }
+  });
+  return found;
+}
+
 function computeResourceStatus(resources = {}) {
   const missing = [];
   const totals = {};

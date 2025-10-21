@@ -50,6 +50,18 @@ The inventory view is now accessed from the floating menu (`🎒`). The popup li
 `setItemFlow` for every known resource. When adding new orders, ensure the associated
 `metadata` describes the resource effects so that forecasting stays accurate.
 
+### Crafting workstations and hand production
+
+Crafting recipes are organised in `src/data/recipes.js`. Each entry now declares a
+`production` array that lists the supported workstations for that recipe. Hand crafting modes
+(`id: manual`) remain available for simple goods and improvised meals, but they impose
+efficiency penalties (lower output and slower labour). Building-backed stations—such as the
+fire pit, drying rack, workshop benches, or forge bays—provide improved multipliers once the
+relevant structure is completed. `src/crafting.js` evaluates the player’s unlocked buildings
+and automatically applies the best available production mode, while surfacing any missing
+requirements when a recipe is gated. This keeps equipment, meals, and remedies tied directly
+to the infrastructure that enables them.
+
 ### Proficiency system
 
 `src/proficiencies.js` maintains settlement skills (hunting, tracking, fishing,
