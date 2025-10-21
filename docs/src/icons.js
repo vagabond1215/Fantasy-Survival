@@ -15,10 +15,21 @@ const RESOURCE_ICON_MAP = {
   berries: { icon: '🍓', label: 'Wild Berries' },
   pinecones: { icon: '🌰', label: 'Pinecones' },
   'plant fibers': { icon: '🌾', label: 'Plant Fibers' },
+  water: { icon: '💧', label: 'Water' },
+  grain: { icon: '🌾', label: 'Grain' },
+  'root vegetables': { icon: '🥕', label: 'Root Vegetables' },
+  salt: { icon: '🧂', label: 'Salt' },
+  spices: { icon: '🧄', label: 'Spices' },
+  'animal fat': { icon: '🧈', label: 'Animal Fat' },
+  milk: { icon: '🥛', label: 'Milk' },
   cord: { icon: '🪢', label: 'Cord' },
   'sharpened stone': { icon: '🗡️', label: 'Sharpened Stone' },
   'raw ore': { icon: '⛏️', label: 'Raw Ore' }
 };
+
+RESOURCE_ICON_MAP.charcoal = { icon: '⬛', label: 'Charcoal' };
+RESOURCE_ICON_MAP.clay = { icon: '🧱', label: 'Clay' };
+RESOURCE_ICON_MAP.seeds = { icon: '🌱', label: 'Seeds' };
 
 export function getResourceIcon(name) {
   if (!name) return null;

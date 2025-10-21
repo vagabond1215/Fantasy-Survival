@@ -105,6 +105,8 @@ let timeBannerChipsContainer = null;
 let timeBannerActionsContainer = null;
 let startBtn = null;
 let buildOptionsContainer = null;
+let buildCategoryFilters = null;
+let buildCategoryFilter = 'all';
 let projectList = null;
 let completedList = null;
 let lockedList = null;
@@ -2677,18 +2679,51 @@ function addFlowContribution(target, name, amount) {
 function calculateBuildingInventoryFlows() {
   const flows = {};
   const completed = getBuildings({ statuses: ['completed'] });
+  const overview = getJobOverview();
+  const assignmentMap = new Map();
+  overview?.assignments?.forEach(job => {
+    assignmentMap.set(job.id, job.assigned || 0);
+  });
+
+  const jobCapacities = new Map();
   completed.forEach(entry => {
     const type = getBuildingType(entry.typeId);
-    const effects = type?.effects || {};
+    const jobEffects = type?.effects?.jobs;
+    if (!jobEffects) return;
+    Object.entries(jobEffects).forEach(([jobId, capacity]) => {
+      const numeric = Number(capacity) || 0;
+      if (numeric > 0) {
+        jobCapacities.set(jobId, (jobCapacities.get(jobId) || 0) + numeric);
+      }
+    });
+  });
+
+  completed.forEach(entry => {
+    const type = getBuildingType(entry.typeId);
+    if (!type) return;
+    const effects = type.effects || {};
+    let scale = 1;
+    const jobEffects = effects.jobs;
+    if (jobEffects && Object.keys(jobEffects).length) {
+      let minScale = 1;
+      Object.entries(jobEffects).forEach(([jobId]) => {
+        const capacity = jobCapacities.get(jobId) || 0;
+        const assigned = assignmentMap.get(jobId) || 0;
+        const ratio = capacity > 0 ? Math.min(1, assigned / capacity) : 0;
+        minScale = Math.min(minScale, ratio);
+      });
+      scale = minScale;
+    }
     Object.entries(effects.supply || {}).forEach(([name, amount]) => {
-      addFlowContribution(flows, name, amount);
+      addFlowContribution(flows, name, (amount || 0) * scale);
     });
     Object.entries(effects.demand || {}).forEach(([name, amount]) => {
       if (!Number.isFinite(amount) || amount === 0) return;
-      if (amount > 0) {
-        addFlowContribution(flows, name, -amount);
+      const scaled = amount * scale;
+      if (scaled > 0) {
+        addFlowContribution(flows, name, -scaled);
       } else {
-        addFlowContribution(flows, name, Math.abs(amount));
+        addFlowContribution(flows, name, Math.abs(scaled));
       }
     });
   });
@@ -3103,6 +3138,14 @@ function describeEffects(effects = {}) {
   simpleKeys.forEach(([key, formatter]) => {
     if (effects[key]) lines.push(formatter(effects[key]));
   });
+  if (effects.jobs) {
+    const jobLabels = new Map(listJobDefinitions().map(def => [def.id, def.label || titleizeIdentifier(def.id)]));
+    Object.entries(effects.jobs).forEach(([jobId, capacity]) => {
+      if (!Number.isFinite(capacity) || capacity <= 0) return;
+      const label = jobLabels.get(jobId) || titleizeIdentifier(jobId);
+      lines.push(`Supports ${capacity} ${label}`);
+    });
+  }
   if (effects.supply) {
     Object.entries(effects.supply).forEach(([name, amount]) => {
       lines.push(`Supply ${name} ${formatSigned(amount)}`);
@@ -3390,6 +3433,14 @@ function ensureConstructionModal() {
   const buildSection = document.createElement('section');
   buildSection.id = 'build-menu';
 
+  buildCategoryFilters = document.createElement('div');
+  buildCategoryFilters.id = 'build-category-filters';
+  buildCategoryFilters.style.display = 'flex';
+  buildCategoryFilters.style.flexWrap = 'wrap';
+  buildCategoryFilters.style.gap = '8px';
+  buildCategoryFilters.style.margin = '12px 0';
+  buildSection.appendChild(buildCategoryFilters);
+
   buildOptionsContainer = document.createElement('div');
   buildOptionsContainer.id = 'build-options';
   buildOptionsContainer.style.display = 'grid';
@@ -3443,21 +3494,74 @@ function ensureConstructionModal() {
   closeConstructionModal();
 }
 
+function renderBuildFilters(entries) {
+  if (!buildCategoryFilters) return;
+  const categories = new Set();
+  entries.forEach(entry => {
+    const category = entry.type?.category;
+    if (!category) return;
+    categories.add(category);
+  });
+  const categoryList = ['All', ...Array.from(categories).sort((a, b) => a.localeCompare(b))];
+  if (!categoryList.some(label => label.toLowerCase() === buildCategoryFilter)) {
+    buildCategoryFilter = 'all';
+  }
+  buildCategoryFilters.innerHTML = '';
+  categoryList.forEach(label => {
+    const value = label.toLowerCase();
+    const btn = document.createElement('button');
+    btn.type = 'button';
+    btn.textContent = label;
+    btn.style.padding = '4px 12px';
+    btn.style.borderRadius = '999px';
+    btn.style.border = '1px solid var(--map-border)';
+    btn.style.background = 'rgba(0, 0, 0, 0.04)';
+    btn.style.color = 'inherit';
+    btn.style.cursor = 'pointer';
+    btn.style.fontWeight = '600';
+    const isActive = value === buildCategoryFilter;
+    if (isActive) {
+      btn.disabled = true;
+      btn.style.background = 'var(--accent-color, #3b82f6)';
+      btn.style.color = '#fff';
+      btn.style.cursor = 'default';
+    }
+    btn.addEventListener('click', () => {
+      buildCategoryFilter = value;
+      renderBuildMenu();
+    });
+    buildCategoryFilters.appendChild(btn);
+  });
+}
+
 function renderBuildMenu() {
   const projects = getBuildings({ statuses: ['under-construction'] });
 
   if (!buildOptionsContainer || !projectList || !completedList || !lockedList) return;
 
   const entries = getAllBuildingTypes().map(type => ({ type, info: evaluateBuilding(type.id) })).filter(entry => entry.info);
+  renderBuildFilters(entries);
+
+  const normalizedFilter = typeof buildCategoryFilter === 'string' ? buildCategoryFilter : 'all';
+  const matchesFilter = entry => {
+    if (normalizedFilter === 'all') return true;
+    const category = (entry.type?.category || '').toLowerCase();
+    return category === normalizedFilter;
+  };
 
   buildOptionsContainer.innerHTML = '';
   const available = entries.filter(entry => entry.info.unlocked && entry.info.locationOk && entry.info.canBuildMore);
-  if (!available.length) {
+  const filteredAvailable = available.filter(matchesFilter);
+  if (!filteredAvailable.length) {
     const empty = document.createElement('p');
-    empty.textContent = 'No structures are currently available to build.';
+    if (available.length && normalizedFilter !== 'all') {
+      empty.textContent = 'No structures in this category are ready to build yet.';
+    } else {
+      empty.textContent = 'No structures are currently available to build.';
+    }
     buildOptionsContainer.appendChild(empty);
   } else {
-    available.forEach(entry => {
+    filteredAvailable.forEach(entry => {
       const card = createBuildCard(entry.type, entry.info);
       buildOptionsContainer.appendChild(card);
     });
@@ -3510,13 +3614,18 @@ function renderBuildMenu() {
 
   lockedList.innerHTML = '';
   const blocked = entries.filter(entry => !entry.info.unlocked || !entry.info.locationOk || !entry.info.canBuildMore);
-  if (!blocked.length) {
+  const filteredBlocked = blocked.filter(matchesFilter);
+  if (!filteredBlocked.length) {
     const empty = document.createElement('p');
-    empty.textContent = 'All known structures are available.';
+    if (blocked.length && normalizedFilter !== 'all') {
+      empty.textContent = 'Nothing in this category is ready—check prerequisites or staffing.';
+    } else {
+      empty.textContent = 'All known structures are available.';
+    }
     lockedList.appendChild(empty);
   } else {
     const list = document.createElement('ul');
-    blocked.forEach(({ type, info }) => {
+    filteredBlocked.forEach(({ type, info }) => {
       const li = document.createElement('li');
       const name = `${type.icon ? `${type.icon} ` : ''}${type.name}`;
       const reasons = [];

@@ -72,6 +72,226 @@ export const buildingCatalog = [
     ]
   },
   {
+    id: 'crop-field',
+    name: 'Tended Crop Field',
+    icon: '🌾',
+    category: 'Agriculture',
+    description:
+      'Tilled plots bordered by windbreaks and irrigation furrows that turn open ground into dependable harvests.',
+    allowMultiple: true,
+    unlock: {
+      buildings: [{ id: 'fire-pit', count: 1 }],
+      technologies: ['basic-tools']
+    },
+    requirements: {
+      minBuilders: 3,
+      locationTags: ['meadow', 'grassland', 'open'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 12, depth: 18 },
+        accessClearance: { front: 3, back: 2, left: 2, right: 2 }
+      },
+      craftedGoods: { cord: 18, 'crafted goods': 4 }
+    },
+    effects: {
+      supply: { grain: 6, 'root vegetables': 4, herbs: 1 },
+      demand: { 'crafted goods': 0.6 },
+      jobs: { farm: 3 }
+    },
+    components: [
+      {
+        id: 'clearing',
+        name: 'Brush Clearing & Stumping',
+        description: 'Pull stones, roots, and brush then mound field borders against erosion.',
+        laborHours: 10,
+        minBuilders: 3,
+        isCore: true,
+        resources: { firewood: 80, 'small stones': 40, pebbles: 60, 'plant fibers': 24, cord: 8 }
+      },
+      {
+        id: 'furrows',
+        name: 'Tilling & Furrows',
+        description: 'Turn the topsoil, lay drainage trenches, and stake crop rows.',
+        laborHours: 9,
+        minBuilders: 2,
+        resources: { firewood: 36, pebbles: 30, 'plant fibers': 20, cord: 6, 'crafted goods': 2 }
+      },
+      {
+        id: 'irrigation',
+        name: 'Irrigation Channels',
+        description: 'Line feeder ditches with stone and wattle spillways for steady watering.',
+        laborHours: 8,
+        minBuilders: 2,
+        resources: { 'small stones': 50, pebbles: 70, firewood: 24, 'plant fibers': 18, cord: 4 }
+      },
+      {
+        id: 'windbreaks',
+        name: 'Windbreak Fencing',
+        description: 'Plant woven hurdles and saplings along the prevailing wind edge.',
+        laborHours: 6,
+        minBuilders: 2,
+        resources: { firewood: 48, 'plant fibers': 22, cord: 6 }
+      }
+    ],
+    addons: [
+      {
+        id: 'seed-house',
+        name: 'Seed Shelter',
+        description: 'Add a small covered bin to keep seed stores dry and pest free.',
+        effects: { storage: { grain: 80, seeds: 40 } },
+        laborHours: 4,
+        minBuilders: 1,
+        resources: { firewood: 24, 'small stones': 20, 'plant fibers': 12, cord: 4, 'crafted goods': 1 }
+      }
+    ]
+  },
+  {
+    id: 'animal-pen',
+    name: 'Timber Animal Pen',
+    icon: '🐑',
+    category: 'Agriculture',
+    description: 'Fenced paddock with troughs and lean-tos for managing herds or work beasts.',
+    allowMultiple: true,
+    unlock: {
+      buildings: [{ id: 'crop-field', count: 1 }],
+      technologies: ['basic-tools']
+    },
+    requirements: {
+      minBuilders: 3,
+      locationTags: ['meadow', 'grassland', 'open'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 10, depth: 14 },
+        accessClearance: { front: 3, back: 2, left: 2, right: 2 }
+      },
+      craftedGoods: { cord: 22, 'crafted goods': 3 }
+    },
+    effects: {
+      supply: { food: 3, hides: 0.8, 'animal fat': 0.4 },
+      demand: { grain: 1.5, water: 2 },
+      jobs: { herd: 2 }
+    },
+    components: [
+      {
+        id: 'postholes',
+        name: 'Postholes & Stone Footings',
+        description: 'Auger postholes and tamp stone collars to keep the fence upright.',
+        laborHours: 8,
+        minBuilders: 3,
+        isCore: true,
+        resources: { 'small stones': 60, pebbles: 70, firewood: 40, 'plant fibers': 16, cord: 6 }
+      },
+      {
+        id: 'fencing',
+        name: 'Woven Fencing',
+        description: 'Weave rails and saplings into tight hurdles and double gates.',
+        laborHours: 9,
+        minBuilders: 2,
+        resources: { firewood: 96, 'plant fibers': 40, cord: 12 }
+      },
+      {
+        id: 'shelters',
+        name: 'Lean-to Shelters',
+        description: 'Raise timber sheds with thatched roofs for sick bays and shade.',
+        laborHours: 7,
+        minBuilders: 2,
+        resources: { firewood: 84, 'plant fibers': 32, cord: 10, 'crafted goods': 2 }
+      },
+      {
+        id: 'watering',
+        name: 'Troughs & Drainage',
+        description: 'Carve log troughs, stone the muddiest ground, and drain wallows.',
+        laborHours: 5,
+        minBuilders: 1,
+        resources: { firewood: 24, 'small stones': 30, pebbles: 40, 'crafted goods': 1 }
+      }
+    ],
+    addons: [
+      {
+        id: 'milking-bay',
+        name: 'Milking Bay',
+        description: 'Build a narrow chute and stanchions for safer milking.',
+        effects: { supply: { food: 1, milk: 1 } },
+        laborHours: 4,
+        minBuilders: 1,
+        resources: { firewood: 28, 'plant fibers': 14, cord: 4, 'crafted goods': 1 }
+      }
+    ]
+  },
+  {
+    id: 'granary',
+    name: 'Raised Granary',
+    icon: '🏚️',
+    category: 'Storage',
+    description: 'Elevated grain house with ventilation floors that guards stores from damp and vermin.',
+    allowMultiple: true,
+    unlock: {
+      buildings: [{ id: 'crop-field', count: 2 }],
+      technologies: ['basic-tools']
+    },
+    requirements: {
+      minBuilders: 3,
+      locationTags: ['meadow', 'hill', 'open'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 6, depth: 8 },
+        accessClearance: { front: 2.5, back: 2, left: 2, right: 2 }
+      },
+      craftedGoods: { cord: 20, 'crafted goods': 5 }
+    },
+    effects: {
+      survivability: 2,
+      demand: { 'crafted goods': 0.3 },
+      storage: { grain: 400, food: 120, seeds: 80 }
+    },
+    components: [
+      {
+        id: 'footings',
+        name: 'Stone Piers',
+        description: 'Set squat stone pillars and pad stones to lift the floor clear of pests.',
+        laborHours: 7,
+        minBuilders: 3,
+        isCore: true,
+        resources: { 'small stones': 90, pebbles: 100, 'crafted goods': 1 }
+      },
+      {
+        id: 'floor',
+        name: 'Slatted Subfloor',
+        description: 'Lay tight slats and woven reed mats that breathe without spilling grain.',
+        laborHours: 6,
+        minBuilders: 2,
+        resources: { firewood: 70, 'plant fibers': 34, cord: 10, 'crafted goods': 2 }
+      },
+      {
+        id: 'walls',
+        name: 'Boarded Walls',
+        description: 'Raise plank walls with rat guards and shingled ventilation shutters.',
+        laborHours: 7,
+        minBuilders: 2,
+        resources: { firewood: 90, 'plant fibers': 28, cord: 8, 'crafted goods': 1 }
+      },
+      {
+        id: 'roof',
+        name: 'Steep Thatch Roof',
+        description: 'Build a steep pitch roof and ridge vent to shed rain and heat.',
+        laborHours: 6,
+        minBuilders: 2,
+        resources: { firewood: 60, 'plant fibers': 40, cord: 8 }
+      }
+    ],
+    addons: [
+      {
+        id: 'drying-floor',
+        name: 'Drying Loft',
+        description: 'Suspend removable lattice floors for drying herbs and seed heads.',
+        effects: { supply: { preservedFood: 1 }, storage: { herbs: 60 } },
+        laborHours: 4,
+        minBuilders: 1,
+        resources: { firewood: 32, 'plant fibers': 18, cord: 4 }
+      }
+    ]
+  },
+  {
     id: 'fire-pit',
     name: 'Stone Fire Pit',
     icon: '🔥',
@@ -366,6 +586,153 @@ export const buildingCatalog = [
     ]
   },
   {
+    id: 'cookhouse',
+    name: 'Communal Cookhouse',
+    icon: '🍲',
+    category: 'Food Production',
+    description: 'Ventilated kitchen with racks, smoke flues, and work tables for preserving harvests at scale.',
+    allowMultiple: true,
+    unlock: {
+      buildings: [{ id: 'fire-pit', count: 1 }, { id: 'drying-rack', count: 1 }],
+      technologies: ['basic-tools']
+    },
+    requirements: {
+      minBuilders: 3,
+      locationTags: ['river', 'lake', 'shore', 'meadow', 'open'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 6, depth: 10 },
+        accessClearance: { front: 3, back: 2, left: 2, right: 2 }
+      },
+      craftedGoods: { cord: 26, 'crafted goods': 6 }
+    },
+    effects: {
+      supply: { cookedMeals: 4, 'hearty meal': 2, 'comfort meal': 1, preservedFood: 1 },
+      demand: { food: 6, firewood: 3, herbs: 1, salt: 0.6, spices: 0.3 },
+      jobs: { cook: 2 }
+    },
+    components: [
+      {
+        id: 'foundation',
+        name: 'Stone Hearth Floor',
+        description: 'Lay a mortared stone pad with drainage trenches to contain spills.',
+        laborHours: 8,
+        minBuilders: 3,
+        isCore: true,
+        resources: { 'small stones': 120, pebbles: 120, clay: 30 }
+      },
+      {
+        id: 'smokehall',
+        name: 'Smoke Hall Framing',
+        description: 'Raise stout posts and beams with smoke baffles and storage lofts.',
+        laborHours: 9,
+        minBuilders: 3,
+        resources: { firewood: 140, 'plant fibers': 48, cord: 12, 'crafted goods': 3 }
+      },
+      {
+        id: 'prep-benches',
+        name: 'Prep Benches & Racks',
+        description: 'Install butcher blocks, hanging hooks, and sloped drying racks.',
+        laborHours: 7,
+        minBuilders: 2,
+        resources: { firewood: 80, 'plant fibers': 26, cord: 6, 'crafted goods': 2 }
+      },
+      {
+        id: 'chimney',
+        name: 'Chimney & Ventilation',
+        description: 'Build a clay flue, smoke hoods, and shutters to control draft.',
+        laborHours: 6,
+        minBuilders: 2,
+        resources: { clay: 24, 'small stones': 60, pebbles: 80, 'crafted goods': 2 }
+      }
+    ],
+    addons: [
+      {
+        id: 'cellar',
+        name: 'Cold Cellar',
+        description: 'Dig a root cellar with plank shelving beneath the cookhouse.',
+        effects: { storage: { food: 160, preservedFood: 120 }, survivability: 1 },
+        laborHours: 6,
+        minBuilders: 2,
+        resources: { 'small stones': 90, pebbles: 100, firewood: 40, 'crafted goods': 2 }
+      }
+    ]
+  },
+  {
+    id: 'smithy',
+    name: 'Charcoal Smithy',
+    icon: '⚒️',
+    category: 'Production',
+    description: 'Forge house with bellows, anvils, and quenching troughs for shaping bronze and iron.',
+    allowMultiple: true,
+    unlock: {
+      buildings: [{ id: 'workshop', count: 1 }],
+      technologies: ['metalworking-basics']
+    },
+    requirements: {
+      minBuilders: 4,
+      locationTags: ['stone', 'ore', 'cliff', 'ridge'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 7, depth: 9 },
+        accessClearance: { front: 3, back: 2.5, left: 2, right: 2 }
+      },
+      craftedGoods: { cord: 28, 'crafted goods': 8 }
+    },
+    effects: {
+      supply: { 'crafted goods': 3, 'bronze ingot': 1 },
+      demand: { 'raw ore': 2, charcoal: 2, firewood: 1 },
+      jobs: { smith: 2 },
+      storage: { 'raw ore': 160, charcoal: 120 }
+    },
+    components: [
+      {
+        id: 'foundation',
+        name: 'Stone Forge Pad',
+        description: 'Excavate and lay a heatproof stone slab with drainage and slag pit.',
+        laborHours: 9,
+        minBuilders: 4,
+        isCore: true,
+        resources: { 'small stones': 140, pebbles: 160, clay: 40 }
+      },
+      {
+        id: 'forge',
+        name: 'Forge & Chimney',
+        description: 'Brick a double forge, install tuyères, and build a high draft chimney.',
+        laborHours: 10,
+        minBuilders: 3,
+        resources: { clay: 60, 'small stones': 80, pebbles: 120, charcoal: 40, 'crafted goods': 4 }
+      },
+      {
+        id: 'workbay',
+        name: 'Work Bays & Anvils',
+        description: 'Set heavy timbers, hanging racks, quench troughs, and tool chests.',
+        laborHours: 8,
+        minBuilders: 3,
+        resources: { firewood: 120, 'plant fibers': 36, cord: 10, 'crafted goods': 4 }
+      },
+      {
+        id: 'roof',
+        name: 'Ventilated Roof',
+        description: 'Raise a steep roof with smoke shutters and weatherproof shakes.',
+        laborHours: 7,
+        minBuilders: 2,
+        resources: { firewood: 90, 'plant fibers': 30, cord: 8 }
+      }
+    ],
+    addons: [
+      {
+        id: 'bellows',
+        name: 'Twin Bellows',
+        description: 'Install counterweighted bellows and crank shafts for constant airflow.',
+        effects: { supply: { 'crafted goods': 1 } },
+        laborHours: 5,
+        minBuilders: 2,
+        resources: { firewood: 36, 'plant fibers': 18, cord: 6, 'crafted goods': 2 }
+      }
+    ]
+  },
+  {
     id: 'smokehouse',
     name: 'Smokehouse',
     icon: '🍖',
@@ -608,6 +975,79 @@ export const buildingCatalog = [
         laborHours: 3,
         minBuilders: 1,
         resources: { 'small stones': 20, firewood: 24, 'plant fibers': 8, cord: 2 }
+      }
+    ]
+  },
+  {
+    id: 'palisade',
+    name: 'Perimeter Palisade',
+    icon: '🪵',
+    category: 'Defense',
+    description: 'Encircling wall of sharpened logs with fighting walkways and a reinforced gate.',
+    allowMultiple: false,
+    unlock: {
+      buildings: [{ id: 'watchtower', count: 1 }],
+      technologies: ['defense-drills']
+    },
+    requirements: {
+      minBuilders: 5,
+      locationTags: ['meadow', 'forest', 'open'],
+      site: {
+        category: 'cleared',
+        dimensions: { width: 24, depth: 24 },
+        accessClearance: { front: 4, back: 4, left: 4, right: 4 }
+      },
+      craftedGoods: { cord: 60, 'crafted goods': 10 }
+    },
+    effects: {
+      survivability: 4,
+      safety: 3,
+      demand: { firewood: 2, 'crafted goods': 1 }
+    },
+    components: [
+      {
+        id: 'ditch',
+        name: 'Ditch & Berm',
+        description: 'Excavate an outer ditch and throw up an inner berm for the log curtain.',
+        laborHours: 16,
+        minBuilders: 5,
+        isCore: true,
+        resources: { pebbles: 260, 'small stones': 160, firewood: 120 }
+      },
+      {
+        id: 'walls',
+        name: 'Log Curtain',
+        description: 'Set sharpened trunks shoulder to shoulder and bind them with heavy wales.',
+        laborHours: 18,
+        minBuilders: 4,
+        resources: { firewood: 420, 'plant fibers': 120, cord: 36, 'crafted goods': 6 }
+      },
+      {
+        id: 'walkway',
+        name: 'Fighting Walkway',
+        description: 'Lay interior catwalks with railing and ladder access for sentries.',
+        laborHours: 12,
+        minBuilders: 3,
+        resources: { firewood: 180, 'plant fibers': 48, cord: 12, 'crafted goods': 4 }
+      },
+      {
+        id: 'gate',
+        name: 'Reinforced Gatehouse',
+        description: 'Build a double-door gate with drop bar, murder holes, and flanking platforms.',
+        laborHours: 14,
+        minBuilders: 3,
+        resources: { firewood: 220, 'plant fibers': 60, cord: 18, 'small stones': 80, 'crafted goods': 6 }
+      }
+    ],
+    addons: [
+      {
+        id: 'chevaux-de-frise',
+        name: 'Chevaux-de-frise',
+        description: 'Deploy portable spiked barriers outside the gate to break charges.',
+        effects: { safety: 1 },
+        laborHours: 6,
+        minBuilders: 2,
+        resources: { firewood: 120, 'plant fibers': 40, cord: 12 }
       }
     ]
   }

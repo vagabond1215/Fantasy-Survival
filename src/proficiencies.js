@@ -198,7 +198,11 @@ const DEFINITION_MAP = new Map(PROFICIENCY_DEFINITIONS.map(def => [def.id, def])
 const ORDER_PROFICIENCY_MAP = {
   hunting: 'hunting',
   gathering: 'gathering',
+  farming: 'agriculture',
+  herding: 'agriculture',
   crafting: 'crafting',
+  cooking: 'cooking',
+  smithing: 'smithing',
   building: 'construction',
   combat: 'combat'
 };
@@ -206,7 +210,11 @@ const ORDER_PROFICIENCY_MAP = {
 const DEFAULT_ORDER_COMPLEXITY = {
   hunting: 48,
   gathering: 26,
+  farming: 44,
+  herding: 42,
   crafting: 38,
+  cooking: 32,
+  smithing: 58,
   building: 46,
   combat: 60
 };
