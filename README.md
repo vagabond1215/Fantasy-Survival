@@ -2,7 +2,10 @@
 
 Initial scaffold for a fantasy survival text-based builder. The project is
 structured into modular core functions that share a central data store to avoid
-duplicate or inconsistent data. Modules currently include:
+duplicate or inconsistent data. Source files live under the shared `src/`
+directory and are mirrored into `docs/src/` for the GitHub Pages bundle. Run
+`npm run sync-docs` whenever `src/` changes so the mirror stays in lockstep.
+Modules currently include:
 
 - **buildings** – available building types, constructed buildings and buildable
   options tied to unlocked technology.
@@ -16,6 +19,10 @@ duplicate or inconsistent data. Modules currently include:
 - **proficiencies** – character skills with diminishing returns and task metadata support.
 - **technology** – unlocked technologies which gate other features.
 - **time** – day and season progression.
+
+Shared data definitions—such as equipment specs and crafting recipes—now live in
+`src/data/`. Keeping these resources in a central folder ensures UI components,
+gameplay logic, and the documentation mirror all pull from the same records.
 
 The application is a static site and can be served locally via any HTTP server
 that supports ES modules. The default entry point is `index.html` which loads
@@ -108,9 +115,11 @@ To keep every recipe ingredient attainable, new gathering and crafting loops fil
 - Woodcutters can season timber into **seasoned wood** for bows and handles.
 - Smelting recipes transform **raw ore** and fuel into bronze, iron, and steel ingots.
 
-All new recipes live in `src/crafting.js` (and mirrored in `docs/src/crafting.js`) and obey the
-same unlock rules as the equipment tiers they support. This ensures higher-tier equipment and
-armor can be produced without requiring placeholder resources or manual inventory edits.
+All new recipes live in `src/crafting.js` and obey the same unlock rules as the
+equipment tiers they support. After modifying any `src/` file, run `npm run
+sync-docs` to regenerate the `docs/` mirror so GitHub Pages publishes the
+updated bundle. This ensures higher-tier equipment and armor can be produced
+without requiring placeholder resources or manual inventory edits.
 
 ### Population generation and assignments
 
@@ -140,3 +149,8 @@ npm test
 ```
 
 This repository is intended to be hosted on GitHub Pages.
+Use `npm run sync-docs` (powered by `scripts/sync-docs.js`) to copy the shared
+`src/` tree into `docs/src/` after code or data changes. New files should be
+added under `src/` so they are automatically mirrored—check existing modules for
+reusable helpers before creating new ones to comply with the project’s “reuse
+before creating” policy.
