@@ -1,6 +1,6 @@
 // @ts-nocheck
 import store from './state.js';
-import { hasTechnology } from './technology.js';
+import { hasTechnology, unlockTechnology, getTechnology } from './technology.js';
 import { buildingCatalog } from './buildingCatalog.js';
 import { getItem } from './inventory.js';
 import { allLocations, getLocationSiteCapacities } from './location.js';
@@ -256,35 +256,195 @@ function hasResearch(id) {
   return store.research.has(id);
 }
 
-function meetsUnlockConditions(unlock = {}) {
-  if (!unlock) return false;
-  if (unlock.always) return true;
+function arrayify(value) {
+  if (!value && value !== 0) return [];
+  return Array.isArray(value) ? value : [value];
+}
+
+function normalizeBuildingRequirement(entry) {
+  if (!entry && entry !== 0) return null;
+  if (typeof entry === 'string' || typeof entry === 'number') {
+    return { id: String(entry), count: 1 };
+  }
+  if (entry && typeof entry === 'object') {
+    const id = entry.id ?? entry.building ?? entry.type;
+    if (!id && id !== 0) return null;
+    const count = Number.isFinite(entry.count)
+      ? Math.max(1, entry.count)
+      : Number.isFinite(entry.required)
+        ? Math.max(1, entry.required)
+        : 1;
+    return { id: String(id), count };
+  }
+  return null;
+}
+
+function evaluateUnlockRequirements(unlock = {}) {
+  if (!unlock) return { ok: false, missing: null };
+  if (unlock.always) return { ok: true, missing: null };
+
+  let ok = true;
+  const missing = {
+    technologies: [],
+    anyTechnology: [],
+    research: [],
+    anyResearch: [],
+    buildings: [],
+    anyBuilding: [],
+    resources: [],
+    custom: false
+  };
+
   if (unlock.custom && typeof unlock.custom === 'function') {
     try {
-      if (!unlock.custom(store)) return false;
+      if (!unlock.custom(store)) {
+        ok = false;
+        missing.custom = true;
+      }
     } catch (err) {
       console.warn('Building unlock custom check failed', err);
-      return false;
+      ok = false;
+      missing.custom = true;
     }
   }
-  if (unlock.technologies) {
-    const techs = Array.isArray(unlock.technologies) ? unlock.technologies : [unlock.technologies];
-    if (!techs.every(hasTechnology)) return false;
+
+  const requiredTechs = arrayify(unlock.technologies)
+    .map(id => (id || id === 0 ? String(id) : null))
+    .filter(Boolean);
+  if (requiredTechs.length) {
+    const unmet = requiredTechs.filter(id => !hasTechnology(id));
+    if (unmet.length) {
+      ok = false;
+      missing.technologies = [...new Set(unmet)];
+    }
   }
+
+  const optionalTechs = arrayify(unlock.anyTechnology)
+    .map(id => (id || id === 0 ? String(id) : null))
+    .filter(Boolean);
+  if (optionalTechs.length) {
+    const satisfied = optionalTechs.some(id => hasTechnology(id));
+    if (!satisfied) {
+      ok = false;
+      missing.anyTechnology = [...new Set(optionalTechs)];
+    }
+  }
+
+  const requiredResearch = arrayify(unlock.research)
+    .map(id => (id || id === 0 ? String(id) : null))
+    .filter(Boolean);
+  if (requiredResearch.length) {
+    const unmetResearch = requiredResearch.filter(id => !hasResearch(id));
+    if (unmetResearch.length) {
+      ok = false;
+      missing.research = [...new Set(unmetResearch)];
+    }
+  }
+
+  const optionalResearch = arrayify(unlock.anyResearch)
+    .map(id => (id || id === 0 ? String(id) : null))
+    .filter(Boolean);
+  if (optionalResearch.length) {
+    const satisfied = optionalResearch.some(id => hasResearch(id));
+    if (!satisfied) {
+      ok = false;
+      missing.anyResearch = [...new Set(optionalResearch)];
+    }
+  }
+
+  const requiredBuildings = arrayify(unlock.buildings)
+    .map(normalizeBuildingRequirement)
+    .filter(Boolean);
+  if (requiredBuildings.length) {
+    const unmetBuildings = [];
+    requiredBuildings.forEach(req => {
+      const have = countBuildings(req.id, { statuses: ['completed'] });
+      if (have < req.count) {
+        unmetBuildings.push({ id: req.id, required: req.count, current: have });
+      }
+    });
+    if (unmetBuildings.length) {
+      ok = false;
+      missing.buildings = unmetBuildings;
+    }
+  }
+
+  const optionalBuildings = arrayify(unlock.anyBuilding)
+    .map(normalizeBuildingRequirement)
+    .filter(Boolean);
+  if (optionalBuildings.length) {
+    const satisfied = optionalBuildings.some(req => {
+      const have = countBuildings(req.id, { statuses: ['completed'] });
+      return have >= req.count;
+    });
+    if (!satisfied) {
+      ok = false;
+      missing.anyBuilding = optionalBuildings.map(req => ({
+        id: req.id,
+        required: req.count,
+        current: countBuildings(req.id, { statuses: ['completed'] })
+      }));
+    }
+  }
+
   if (unlock.resources) {
-    if (!meetsResourceRequirements(unlock.resources)) return false;
-  }
-  if (unlock.buildings) {
-    const requirements = Array.isArray(unlock.buildings) ? unlock.buildings : [unlock.buildings];
-    if (!requirements.every(req => countBuildings(req.id, { statuses: ['completed'] }) >= (req.count || 1))) {
-      return false;
+    const status = computeResourceStatus(unlock.resources);
+    if (status.missing.length) {
+      ok = false;
+      missing.resources = status.missing.map(entry => ({
+        name: entry.name,
+        required: entry.required,
+        available: entry.available
+      }));
     }
   }
-  if (unlock.research) {
-    const ids = Array.isArray(unlock.research) ? unlock.research : [unlock.research];
-    if (!ids.every(hasResearch)) return false;
+
+  Object.keys(missing).forEach(key => {
+    const value = missing[key];
+    if (Array.isArray(value) && !value.length) {
+      delete missing[key];
+    }
+    if (value === false || value === null) {
+      delete missing[key];
+    }
+  });
+
+  return { ok, missing: Object.keys(missing).length ? missing : null };
+}
+
+function meetsUnlockConditions(unlock = {}) {
+  const status = evaluateUnlockRequirements(unlock);
+  return Boolean(status.ok);
+}
+
+function grantUnlock(id) {
+  if (!id && id !== 0) return;
+  const info = getTechnology(id);
+  if (info?.definition) {
+    unlockTechnology(id);
+  } else {
+    ensureSets();
+    store.research.add(String(id));
   }
-  return true;
+}
+
+function applyBuildingUnlockEffects(type) {
+  const unlocks = type?.effects?.unlocks;
+  if (!unlocks) return;
+  const entries = Array.isArray(unlocks) ? unlocks : [unlocks];
+  entries.forEach(entry => {
+    if (!entry && entry !== 0) return;
+    if (typeof entry === 'string' || typeof entry === 'number') {
+      grantUnlock(entry);
+      return;
+    }
+    if (entry && typeof entry === 'object') {
+      const techId = entry.technology ?? entry.tech ?? entry.id;
+      if (techId || techId === 0) {
+        grantUnlock(techId);
+      }
+    }
+  });
 }
 
 function isUnlocked(type) {
@@ -417,6 +577,7 @@ export function evaluateBuilding(typeId) {
   const resourceStatus = computeResourceStatus(type.stats.coreResources);
   const totalResourceStatus = computeResourceStatus(type.stats.totalResources);
   const craftedStatus = computeResourceStatus(type.requirements?.craftedGoods || {});
+  const unlockStatus = evaluateUnlockRequirements(type.unlock);
   return {
     type,
     unlocked,
@@ -430,7 +591,8 @@ export function evaluateBuilding(typeId) {
     totalResourceStatus,
     siteStatus,
     existing,
-    maxCount
+    maxCount,
+    unlockStatus
   };
 }
 
@@ -561,6 +723,7 @@ export function markBuildingComplete(projectId) {
   ensureBuildingMap();
   const project = store.getItem('buildings', projectId);
   if (!project) return null;
+  const type = getBuildingType(project.typeId);
   const completedAt = timeInfo ? timeInfo() : null;
   const update = {
     id: projectId,
@@ -569,6 +732,9 @@ export function markBuildingComplete(projectId) {
     completedAt
   };
   store.updateItem('buildings', update);
+  if (type) {
+    applyBuildingUnlockEffects(type);
+  }
   refreshBuildingUnlocks();
   return { ...project, ...update };
 }

@@ -2,7 +2,7 @@
 import store from './state.js';
 import { addItem } from './inventory.js';
 import { refreshBuildingUnlocks } from './buildings.js';
-import { unlockTechnology } from './technology.js';
+import { initializeTechnologyRegistry, unlockTechnology } from './technology.js';
 import { generateLocation } from './location.js';
 import { calculateStartingGoods, harvestWood } from './resources.js';
 import { initSetupUI } from './ui.js';
@@ -39,6 +39,8 @@ function startGame(settings = {}) {
   const cfg = difficultySettings[diff];
 
   store.jobs = { gather: 0, hunt: 0, craft: 0, build: 0, guard: 0 };
+  store.technologies = new Map();
+  initializeTechnologyRegistry();
   initializePopulation(cfg.people, { seed: settings.seed });
 
   const startingGoods = calculateStartingGoods(cfg);
