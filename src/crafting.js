@@ -1,6 +1,27 @@
 import { getItem, addItem } from './inventory.js';
 import { getJobs } from './jobs.js';
 import { STURDY_STICK_RESOURCES } from './gathering.js';
+import { getEquipmentDefinition } from './data/equipment.js';
+import { hasTechnology } from './technology.js';
+
+function requireEquipment(id) {
+  const spec = getEquipmentDefinition(id);
+  if (!spec) {
+    throw new Error(`Missing equipment definition for ${id}`);
+  }
+  return spec;
+}
+
+const STONE_KNIFE = requireEquipment('stone knife');
+const WOODEN_HAMMER = requireEquipment('wooden hammer');
+const STONE_HAND_AXE = requireEquipment('stone hand axe');
+const STONE_PICK = requireEquipment('stone pick');
+const BRONZE_AXE = requireEquipment('bronze axe');
+const BRONZE_PICK = requireEquipment('bronze pick');
+const IRON_AXE = requireEquipment('iron axe');
+const IRON_PICK = requireEquipment('iron pick');
+const STEEL_AXE = requireEquipment('steel axe');
+const STEEL_PICK = requireEquipment('steel pick');
 
 const STURDY_STICK_OPTIONS = Array.from(new Set(STURDY_STICK_RESOURCES || [])).filter(Boolean);
 
@@ -14,8 +35,8 @@ const CRAFTING_RECIPES = [
     outputs: { cord: 1 },
     laborHours: 0.5,
     timeHours: 0.5,
-    toolsRequired: ['stone knife'],
-    unlock: { always: true }
+    toolsRequired: [STONE_KNIFE.id],
+    unlock: { technology: STONE_KNIFE.requiredTech || 'basic-tools' }
   },
   {
     id: 'sharpened-stone',
@@ -26,13 +47,73 @@ const CRAFTING_RECIPES = [
     outputs: { 'sharpened stone': 1 },
     laborHours: 0.25,
     timeHours: 0.25,
-    toolsRequired: ['wooden hammer'],
-    unlock: { always: true }
+    toolsRequired: [WOODEN_HAMMER.id],
+    unlock: { technology: WOODEN_HAMMER.requiredTech || 'basic-tools' }
+  },
+  {
+    id: 'prepared-hides',
+    name: 'Prepared Hides',
+    icon: '🧵',
+    description: 'Scrape, cure, and soften hides for armor and advanced crafting.',
+    inputs: { hides: 1, herbs: 1, 'plant fibers': 1 },
+    outputs: { 'prepared hides': 1 },
+    laborHours: 2.5,
+    timeHours: 6,
+    toolsRequired: [STONE_KNIFE.id],
+    unlock: { technology: STONE_KNIFE.requiredTech || 'basic-tools' }
+  },
+  {
+    id: 'seasoned-wood',
+    name: 'Seasoned Wood',
+    icon: '🪑',
+    description: 'Air-dry select timber into balanced hafts and bow staves.',
+    inputs: { firewood: 3 },
+    outputs: { 'seasoned wood': 1 },
+    laborHours: 1,
+    timeHours: 24,
+    toolsRequired: [STONE_HAND_AXE.id],
+    unlock: { technology: STONE_HAND_AXE.requiredTech || 'basic-tools' }
+  },
+  {
+    id: 'bronze-ingot',
+    name: 'Smelt Bronze Ingot',
+    icon: '🔶',
+    description: 'Smelt raw ore in clay crucibles to pour balanced bronze ingots.',
+    inputs: { 'raw ore': 3, firewood: 2 },
+    outputs: { 'bronze ingot': 1 },
+    laborHours: 6,
+    timeHours: 8,
+    toolsRequired: [WOODEN_HAMMER.id],
+    unlock: { technology: BRONZE_AXE.requiredTech || 'bronze-smithing' }
+  },
+  {
+    id: 'iron-ingot',
+    name: 'Smelt Iron Ingot',
+    icon: '⛓️',
+    description: 'Roast ore and hammer blooms into workable iron ingots.',
+    inputs: { 'raw ore': 4, firewood: 3 },
+    outputs: { 'iron ingot': 1 },
+    laborHours: 8,
+    timeHours: 12,
+    toolsRequired: [WOODEN_HAMMER.id],
+    unlock: { technology: IRON_AXE.requiredTech || 'iron-smithing' }
+  },
+  {
+    id: 'steel-ingot',
+    name: 'Forge Steel Ingot',
+    icon: '⚙️',
+    description: 'Carburize iron with additional ore to forge high-grade steel.',
+    inputs: { 'iron ingot': 1, 'raw ore': 3, 'seasoned wood': 1 },
+    outputs: { 'steel ingot': 1 },
+    laborHours: 10,
+    timeHours: 16,
+    toolsRequired: [WOODEN_HAMMER.id],
+    unlock: { technology: STEEL_AXE.requiredTech || 'steel-smithing' }
   },
   {
     id: 'stone-hand-axe',
-    name: 'Stone Hand Axe',
-    icon: '🪓',
+    name: STONE_HAND_AXE.label,
+    icon: STONE_HAND_AXE.icon,
     description: 'Haft a sharpened stone blade onto a seasoned branch for chopping timber.',
     inputs: {
       cord: 1,
@@ -43,11 +124,151 @@ const CRAFTING_RECIPES = [
         quantity: 1
       }
     },
-    outputs: { 'stone hand axe': 1 },
+    outputs: { [STONE_HAND_AXE.id]: 1 },
     laborHours: 2,
     timeHours: 2,
-    toolsRequired: ['stone knife', 'wooden hammer'],
-    unlock: { always: true }
+    toolsRequired: [STONE_KNIFE.id, WOODEN_HAMMER.id],
+    unlock: { technology: STONE_HAND_AXE.requiredTech || 'basic-tools' }
+  },
+  {
+    id: 'stone-pick',
+    name: STONE_PICK.label,
+    icon: STONE_PICK.icon,
+    description: 'Chip a pointed stone and lash it to a haft for prying ore from seams.',
+    inputs: {
+      cord: 1,
+      'sharpened stone': 2,
+      'sturdy haft stick': {
+        label: 'sturdy haft stick',
+        options: STURDY_STICK_OPTIONS.length ? STURDY_STICK_OPTIONS : ['sturdy haft stick'],
+        quantity: 1
+      }
+    },
+    outputs: { [STONE_PICK.id]: 1 },
+    laborHours: 2.5,
+    timeHours: 2.5,
+    toolsRequired: [STONE_KNIFE.id, WOODEN_HAMMER.id],
+    unlock: { technology: STONE_PICK.requiredTech || 'basic-tools' }
+  },
+  {
+    id: 'bronze-axe',
+    name: BRONZE_AXE.label,
+    icon: BRONZE_AXE.icon,
+    description: 'Forge a bronze axe head and bind it to a resilient haft for advanced lumbering.',
+    inputs: {
+      'bronze ingot': 2,
+      cord: 1,
+      'sturdy haft stick': {
+        label: 'sturdy haft stick',
+        options: STURDY_STICK_OPTIONS.length ? STURDY_STICK_OPTIONS : ['sturdy haft stick'],
+        quantity: 1
+      }
+    },
+    outputs: { [BRONZE_AXE.id]: 1 },
+    laborHours: 6,
+    timeHours: 6,
+    toolsRequired: [WOODEN_HAMMER.id],
+    unlock: { technology: BRONZE_AXE.requiredTech || 'bronze-smithing' }
+  },
+  {
+    id: 'bronze-pick',
+    name: BRONZE_PICK.label,
+    icon: BRONZE_PICK.icon,
+    description: 'Cast and temper a bronze pick for sturdier mining expeditions.',
+    inputs: {
+      'bronze ingot': 2,
+      cord: 1,
+      'sturdy haft stick': {
+        label: 'sturdy haft stick',
+        options: STURDY_STICK_OPTIONS.length ? STURDY_STICK_OPTIONS : ['sturdy haft stick'],
+        quantity: 1
+      }
+    },
+    outputs: { [BRONZE_PICK.id]: 1 },
+    laborHours: 6,
+    timeHours: 6,
+    toolsRequired: [WOODEN_HAMMER.id],
+    unlock: { technology: BRONZE_PICK.requiredTech || 'bronze-smithing' }
+  },
+  {
+    id: 'iron-axe',
+    name: IRON_AXE.label,
+    icon: IRON_AXE.icon,
+    description: 'Shape wrought iron into a balanced axe capable of felling great trees.',
+    inputs: {
+      'iron ingot': 2,
+      cord: 1,
+      'sturdy haft stick': {
+        label: 'sturdy haft stick',
+        options: STURDY_STICK_OPTIONS.length ? STURDY_STICK_OPTIONS : ['sturdy haft stick'],
+        quantity: 1
+      }
+    },
+    outputs: { [IRON_AXE.id]: 1 },
+    laborHours: 8,
+    timeHours: 8,
+    toolsRequired: [WOODEN_HAMMER.id],
+    unlock: { technology: IRON_AXE.requiredTech || 'iron-smithing' }
+  },
+  {
+    id: 'iron-pick',
+    name: IRON_PICK.label,
+    icon: IRON_PICK.icon,
+    description: 'Forge an iron pickaxe able to bite through dense stone and ore.',
+    inputs: {
+      'iron ingot': 2,
+      cord: 1,
+      'sturdy haft stick': {
+        label: 'sturdy haft stick',
+        options: STURDY_STICK_OPTIONS.length ? STURDY_STICK_OPTIONS : ['sturdy haft stick'],
+        quantity: 1
+      }
+    },
+    outputs: { [IRON_PICK.id]: 1 },
+    laborHours: 8,
+    timeHours: 8,
+    toolsRequired: [WOODEN_HAMMER.id],
+    unlock: { technology: IRON_PICK.requiredTech || 'iron-smithing' }
+  },
+  {
+    id: 'steel-axe',
+    name: STEEL_AXE.label,
+    icon: STEEL_AXE.icon,
+    description: 'Quench a steel axe head and mount it for master-level forestry.',
+    inputs: {
+      'steel ingot': 2,
+      cord: 1,
+      'sturdy haft stick': {
+        label: 'sturdy haft stick',
+        options: STURDY_STICK_OPTIONS.length ? STURDY_STICK_OPTIONS : ['sturdy haft stick'],
+        quantity: 1
+      }
+    },
+    outputs: { [STEEL_AXE.id]: 1 },
+    laborHours: 12,
+    timeHours: 12,
+    toolsRequired: [WOODEN_HAMMER.id],
+    unlock: { technology: STEEL_AXE.requiredTech || 'steel-smithing' }
+  },
+  {
+    id: 'steel-pick',
+    name: STEEL_PICK.label,
+    icon: STEEL_PICK.icon,
+    description: 'Temper a steel pick to shatter the hardest stone without dulling.',
+    inputs: {
+      'steel ingot': 2,
+      cord: 1,
+      'sturdy haft stick': {
+        label: 'sturdy haft stick',
+        options: STURDY_STICK_OPTIONS.length ? STURDY_STICK_OPTIONS : ['sturdy haft stick'],
+        quantity: 1
+      }
+    },
+    outputs: { [STEEL_PICK.id]: 1 },
+    laborHours: 12,
+    timeHours: 12,
+    toolsRequired: [WOODEN_HAMMER.id],
+    unlock: { technology: STEEL_PICK.requiredTech || 'steel-smithing' }
   }
 ];
 
@@ -57,8 +278,18 @@ function recipeById(id) {
 
 function isUnlocked(recipe) {
   if (!recipe?.unlock) return false;
-  if (recipe.unlock.always) return true;
-  return true;
+  const unlock = recipe.unlock;
+  if (unlock.always) return true;
+  if (unlock.technology) {
+    return hasTechnology(unlock.technology);
+  }
+  if (Array.isArray(unlock.technologies) && unlock.technologies.length) {
+    return unlock.technologies.every(id => hasTechnology(id));
+  }
+  if (Array.isArray(unlock.anyTechnology) && unlock.anyTechnology.length) {
+    return unlock.anyTechnology.some(id => hasTechnology(id));
+  }
+  return false;
 }
 
 function safeQuantity(value, fallback = 0) {
