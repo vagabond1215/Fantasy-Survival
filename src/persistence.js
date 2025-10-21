@@ -2,6 +2,7 @@ import store from './state.js';
 import { refreshStats } from './people.js';
 import { computeCenteredStart, DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, generateColorMap } from './map.js';
 import { refreshBuildingUnlocks } from './buildings.js';
+import { initializeTechnologyRegistry } from './technology.js';
 
 const SAVE_KEY = 'fantasy-survival-save';
 
@@ -22,6 +23,7 @@ export function loadGame() {
     const data = localStorage.getItem(SAVE_KEY);
     if (!data) return false;
     store.deserialize(JSON.parse(data));
+    initializeTechnologyRegistry();
     for (const loc of store.locations.values()) {
       if (!loc.map || !loc.map.tiles) {
         loc.map = generateColorMap(loc.biome);
