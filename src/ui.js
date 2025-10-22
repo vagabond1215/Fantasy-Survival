@@ -20,10 +20,10 @@ import {
 } from './theme.js';
 
 const seasons = [
-  { id: 'Thawbound', label: 'Thawbound', hint: 'emergent thaw' },
-  { id: 'Sunheight', label: 'Sunheight', hint: 'high sun' },
-  { id: 'Emberwane', label: 'Emberwane', hint: 'fading ember' },
-  { id: 'Frostshroud', label: 'Frostshroud', hint: 'deep chill' }
+  { id: 'Thawbound', label: 'Spring', icon: '🌱' },
+  { id: 'Sunheight', label: 'Summer', icon: '☀️' },
+  { id: 'Emberwane', label: 'Autumn', icon: '🍂' },
+  { id: 'Frostshroud', label: 'Winter', icon: '❄️' }
 ];
 
 const difficultyFlavors = {
@@ -1168,11 +1168,14 @@ export function initSetupUI(onStart) {
   seasons.forEach((season, index) => {
     const button = document.createElement('button');
     button.type = 'button';
-    button.className = 'seg';
+    button.className = 'seg seg--icon';
     button.dataset.season = season.id;
-    button.innerHTML = season.hint
-      ? `${season.label} <span class="hint">${season.hint}</span>`
-      : season.label;
+    const label = season.label || season.id;
+    if (label) {
+      button.setAttribute('aria-label', label);
+      button.title = label;
+    }
+    button.textContent = season.icon || label;
     button.addEventListener('click', () => {
       setActive(seasonButtons, button);
       applySelection('season', season.id);

@@ -167,3 +167,24 @@ describe('setup step navigation', () => {
     expect(document.activeElement).toBe(buttons[2]);
   });
 });
+
+describe('season selection buttons', () => {
+  it('renders icon-only buttons with accessible metadata', () => {
+    initSetupUI(() => {});
+    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('#season-seg button'));
+    const expected = [
+      { id: 'Thawbound', label: 'Spring', icon: '🌱' },
+      { id: 'Sunheight', label: 'Summer', icon: '☀️' },
+      { id: 'Emberwane', label: 'Autumn', icon: '🍂' },
+      { id: 'Frostshroud', label: 'Winter', icon: '❄️' }
+    ];
+    expect(buttons).toHaveLength(expected.length);
+    buttons.forEach((button, index) => {
+      const { id, label, icon } = expected[index];
+      expect(button.dataset.season).toBe(id);
+      expect(button.textContent).toBe(icon);
+      expect(button.getAttribute('aria-label')).toBe(label);
+      expect(button.getAttribute('title')).toBe(label);
+    });
+  });
+});
