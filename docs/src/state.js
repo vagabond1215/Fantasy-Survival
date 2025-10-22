@@ -61,6 +61,7 @@ class DataStore {
     this.jobDaily = {};
     this.buildQueue = 0;
     this.haulQueue = 0;
+    this.worldSettings = null;
   }
 
   addItem(collection, item) {
@@ -126,7 +127,8 @@ class DataStore {
         [...entries]
       ]),
       jobSettings: this.jobSettings,
-      jobDaily: this.jobDaily
+      jobDaily: this.jobDaily,
+      worldSettings: this.worldSettings
     };
   }
 
@@ -185,6 +187,7 @@ class DataStore {
     this.gatherNodes = new Map(data.gatherNodes || []);
     this.jobSettings = data.jobSettings || {};
     this.jobDaily = data.jobDaily || {};
+    this.worldSettings = data.worldSettings || null;
     const faunaEntries = Array.isArray(data.discoveredFauna)
       ? data.discoveredFauna
       : Object.entries(data.discoveredFauna || {});
