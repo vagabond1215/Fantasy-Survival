@@ -5,6 +5,15 @@ structured into modular core functions that share a central data store to avoid
 duplicate or inconsistent data. Source files live under the shared `src/`
 directory and are mirrored into `docs/src/` for the GitHub Pages bundle. Run
 `npm run sync-docs` whenever `src/` changes so the mirror stays in lockstep.
+The in-game “New Settlement” experience now guides players through a multi-step
+Game Creation flow. A progress header surfaces each step—selecting the seed and
+biome, defining starting settlers, and tuning challenge settings—so players can
+see where they are and what remains. Difficulty presets sit alongside an
+“Advanced parameters” drawer that exposes granular world-generation options
+(threat escalation rate, resource richness, weather severity, and similar
+modifiers). Configure these sliders before confirming the final step to carry
+your preferred difficulty rules into the new world.
+
 Modules currently include:
 
 - **buildings** – available building types, constructed buildings and buildable
