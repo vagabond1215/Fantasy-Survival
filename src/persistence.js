@@ -25,8 +25,27 @@ export function loadGame() {
     store.deserialize(JSON.parse(data));
     initializeTechnologyRegistry();
     for (const loc of store.locations.values()) {
+      let storedWorld = loc.worldSettings;
+      if (!storedWorld && loc.map?.worldSettings) {
+        storedWorld = loc.map.worldSettings;
+      }
+
       if (!loc.map || !loc.map.tiles) {
-        loc.map = generateColorMap(loc.biome);
+        loc.map = generateColorMap(
+          loc.biome,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          undefined,
+          store.time.season,
+          undefined,
+          undefined,
+          storedWorld
+        );
+        if (loc.map?.worldSettings && !loc.worldSettings) {
+          loc.worldSettings = loc.map.worldSettings;
+        }
         continue;
       }
 
@@ -53,8 +72,13 @@ export function loadGame() {
           height,
           loc.map.season ?? store.time.season,
           loc.map.waterLevel,
-          loc.map.viewport
+          loc.map.viewport,
+          storedWorld
         );
+      }
+
+      if (!loc.worldSettings && loc.map?.worldSettings) {
+        loc.worldSettings = loc.map.worldSettings;
       }
     }
     refreshStats();

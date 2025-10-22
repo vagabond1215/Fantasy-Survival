@@ -3759,6 +3759,7 @@ function ensureSeasonalMap() {
   const t = timeInfo();
   if (lastSeason && lastSeason === t.season) return;
   const map = loc.map;
+  const worldSettings = loc.worldSettings || map.worldSettings;
   const newMap = generateColorMap(
     loc.biome,
     map.seed,
@@ -3768,9 +3769,13 @@ function ensureSeasonalMap() {
     map.tiles.length,
     t.season,
     map.waterLevel,
-    map.viewport
+    map.viewport,
+    worldSettings
   );
   loc.map = { ...map, ...newMap };
+  if (!loc.worldSettings && loc.map?.worldSettings) {
+    loc.worldSettings = loc.map.worldSettings;
+  }
   lastSeason = t.season;
   renderTextMap();
 }
@@ -4322,6 +4327,7 @@ export function initGameUI() {
   const player = loc ? ensurePlayerState(loc.id) : ensurePlayerState();
   if (loc?.map?.tiles) {
     if (loc.map.season !== store.time.season) {
+      const worldSettings = loc.worldSettings || loc.map?.worldSettings;
       const newMap = generateColorMap(
         loc.biome,
         loc.map.seed,
@@ -4331,9 +4337,13 @@ export function initGameUI() {
         loc.map.tiles.length,
         store.time.season,
         loc.map.waterLevel,
-        loc.map.viewport
+        loc.map.viewport,
+        worldSettings
       );
       loc.map = { ...loc.map, ...newMap };
+      if (!loc.worldSettings && loc.map?.worldSettings) {
+        loc.worldSettings = loc.map.worldSettings;
+      }
     }
     const mapSection = document.createElement('section');
     mapSection.id = 'map-section';
@@ -4363,6 +4373,7 @@ export function initGameUI() {
       fetchMap: ({ xStart, yStart, width, height, seed, season, viewport }) => {
         const baseSeed = seed ?? loc.map?.seed ?? Date.now();
         const baseSeason = season ?? store.time.season;
+        const activeWorld = loc.worldSettings || loc.map?.worldSettings;
         return generateColorMap(
           loc.biome,
           baseSeed,
@@ -4372,7 +4383,8 @@ export function initGameUI() {
           height,
           baseSeason,
           loc.map?.waterLevel,
-          viewport
+          viewport,
+          activeWorld
         );
       },
       onMapUpdate: updated => {

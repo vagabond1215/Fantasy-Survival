@@ -198,6 +198,145 @@ body.landing-active .create-step:focus-visible {
   outline-offset: 3px;
 }
 
+body.landing-active .difficulty-panel {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+body.landing-active .difficulty-panel__header {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: center;
+  justify-content: space-between;
+}
+
+body.landing-active .difficulty-panel__preset-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 200px;
+}
+
+body.landing-active .difficulty-panel__preset-label {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+body.landing-active .difficulty-panel__preset {
+  appearance: none;
+  border-radius: 12px;
+  border: 1px solid var(--seg-border);
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--background-glass-light) 68%, transparent);
+  color: inherit;
+  font: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-highlight) 20%, transparent);
+}
+
+body.landing-active .difficulty-panel__preset:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary-light) 70%, transparent);
+  outline-offset: 2px;
+}
+
+body.landing-active .difficulty-score {
+  padding: 6px 16px;
+  border-radius: 999px;
+  background: color-mix(in srgb, var(--glass-primary) 65%, transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-highlight) 45%, transparent);
+  font-weight: 600;
+  letter-spacing: 0.04em;
+}
+
+body.landing-active .difficulty-parameters {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
+body.landing-active .difficulty-param {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  padding: 12px;
+  border-radius: 16px;
+  background: color-mix(in srgb, var(--glass-secondary) 55%, transparent);
+  border: 1px solid color-mix(in srgb, var(--glass-highlight) 25%, transparent);
+}
+
+body.landing-active .difficulty-param__header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
+body.landing-active .difficulty-param__label {
+  font-weight: 600;
+  font-size: 0.95rem;
+}
+
+body.landing-active .difficulty-param__number {
+  width: 68px;
+  padding: 4px 8px;
+  border-radius: 10px;
+  border: 1px solid var(--seg-border);
+  background: color-mix(in srgb, var(--background-glass-light) 55%, transparent);
+  color: inherit;
+  font: inherit;
+  text-align: right;
+}
+
+body.landing-active .difficulty-param__number:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary) 65%, transparent);
+  outline-offset: 2px;
+}
+
+body.landing-active .difficulty-param__slider {
+  width: 100%;
+  accent-color: var(--color-primary);
+}
+
+body.landing-active .difficulty-param__hint {
+  font-size: 0.78rem;
+  color: var(--text-muted);
+}
+
+body.landing-active .difficulty-advanced {
+  border-radius: 18px;
+  border: 1px solid color-mix(in srgb, var(--glass-highlight) 22%, transparent);
+  background: color-mix(in srgb, var(--glass-primary) 35%, transparent);
+  padding: 0 14px 14px;
+}
+
+body.landing-active .difficulty-advanced__summary {
+  cursor: pointer;
+  list-style: none;
+  padding: 14px 0;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+body.landing-active .difficulty-advanced__summary::-webkit-details-marker {
+  display: none;
+}
+
+body.landing-active .difficulty-advanced[open] .difficulty-advanced__summary {
+  border-bottom: 1px solid color-mix(in srgb, var(--glass-highlight) 20%, transparent);
+  margin-bottom: 10px;
+}
+
+body.landing-active .difficulty-advanced__content {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 14px;
+}
+
 body.landing-active .create-step.is-locked {
   cursor: not-allowed;
   opacity: 0.65;

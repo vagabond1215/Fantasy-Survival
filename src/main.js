@@ -36,14 +36,17 @@ function removeLandingTheme() {
 
 function startGame(settings = {}) {
   const diff = settings.difficulty || 'normal';
-  const cfg = difficultySettings[diff];
+  const preset = difficultySettings[diff] || difficultySettings.normal;
+  const startCfg = preset.start;
+  const worldParameters = settings.world || preset.world;
+  // MIGRATION: startGame now expects settings.world to include world generation parameters.
 
   store.jobs = { gather: 0, hunt: 0, craft: 0, build: 0, guard: 0 };
   store.technologies = new Map();
   initializeTechnologyRegistry();
-  initializePopulation(cfg.people, { seed: settings.seed });
+  initializePopulation(startCfg.people, { seed: settings.seed });
 
-  const startingGoods = calculateStartingGoods(cfg);
+  const startingGoods = calculateStartingGoods(startCfg);
   Object.entries(startingGoods).forEach(([item, qty]) => addItem(item, qty));
 
   store.time.day = 1;
@@ -61,9 +64,9 @@ function startGame(settings = {}) {
   }
   resetToDawn();
   if (settings.biome) {
-    generateLocation('loc1', settings.biome, store.time.season, settings.seed);
+    generateLocation('loc1', settings.biome, store.time.season, settings.seed, worldParameters);
   } else if (store.locations.size === 0) {
-    generateLocation('loc1', 'temperate-deciduous', store.time.season, settings.seed);
+    generateLocation('loc1', 'temperate-deciduous', store.time.season, settings.seed, worldParameters);
   }
 
   const spawn = settings.spawn || {};
@@ -78,6 +81,7 @@ function startGame(settings = {}) {
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
   refreshBuildingUnlocks();
   store.difficulty = diff;
+  store.worldSettings = worldParameters;
   store.craftTargets = new Map();
   store.buildQueue = 0;
   store.haulQueue = 0;
