@@ -7,6 +7,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 ### Added
+- Redesigned Game Creation flow with step-by-step progress, difficulty customization,
+  and advanced world-generation parameters.
 - Build tooling based on Vite with scripts for development, builds, linting, formatting, testing, type-checking, and link verification.
 - TypeScript configuration for JavaScript projects with `// @ts-check` enabled in browser and Node entry points.
 - Repository standards files: `.editorconfig`, `CONTRIBUTING.md`, and `CHANGELOG.md`.
