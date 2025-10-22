@@ -52,15 +52,40 @@ function ensureSiteCapacities(location) {
   return location;
 }
 
-export function generateLocation(id, biome, season = store.time.season, seed = Date.now()) {
+export function generateLocation(
+  id,
+  biome,
+  season = store.time.season,
+  seed = Date.now(),
+  worldSettings = null
+) {
   const features = getBiome(biome)?.features || [];
   const pointsOfInterest = generatePointsOfInterest(biome);
   const width = DEFAULT_MAP_WIDTH;
   const height = DEFAULT_MAP_HEIGHT;
   const { xStart, yStart } = computeCenteredStart(width, height);
-  const map = generateColorMap(biome, seed, xStart, yStart, width, height, season);
+  const map = generateColorMap(
+    biome,
+    seed,
+    xStart,
+    yStart,
+    width,
+    height,
+    season,
+    undefined,
+    undefined,
+    worldSettings
+  );
   const siteCapacities = computeSiteCapacities(map);
-  const location = { id, biome, features, pointsOfInterest, map, siteCapacities };
+  const location = {
+    id,
+    biome,
+    features,
+    pointsOfInterest,
+    map,
+    siteCapacities,
+    worldSettings: map.worldSettings
+  };
   store.addItem('locations', location);
   return location;
 }

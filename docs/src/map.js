@@ -1,6 +1,7 @@
 // @ts-nocheck
 import { getBiome } from './biomes.js';
 import store from './state.js';
+import { resolveWorldParameters } from './difficulty.js';
 
 export const GRID_DISTANCE_METERS = 100;
 
@@ -72,6 +73,13 @@ export function coordinateRandom(seed, x, y, salt = '') {
   return coordRand(seed, x, y, salt);
 }
 
+function clamp(value, min, max) {
+  if (!Number.isFinite(value)) return min;
+  if (value < min) return min;
+  if (value > max) return max;
+  return value;
+}
+
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
@@ -123,7 +131,8 @@ export function generateColorMap(
   height = width,
   season = store.time.season,
   waterLevelOverride,
-  viewport = null
+  viewport = null,
+  worldSettings = null
 ) {
   const mapWidth = Math.max(1, Math.trunc(width));
   const mapHeight = Math.max(1, Math.trunc(height ?? width ?? DEFAULT_MAP_WIDTH));
@@ -131,15 +140,98 @@ export function generateColorMap(
   let effectiveXStart = Number.isFinite(xStart) ? Math.trunc(xStart) : defaultX;
   let effectiveYStart = Number.isFinite(yStart) ? Math.trunc(yStart) : defaultY;
   const biome = getBiome(biomeId);
-  const openLand = biome?.openLand ?? 0.5;
+  const world = resolveWorldParameters(worldSettings || {});
+  const adv = world.advanced || {};
   const waterFeature = biome && hasWaterFeature(biome.features);
+
+  const rainfallBias = (world.rainfall - 50) / 100;
+  const temperatureBias = (world.temperature - 50) / 100;
+  const mountainsBias = (world.mountains - 50) / 100;
+  const waterBias = (world.waterTable - 50) / 100;
+  const riversBias = (world.rivers100 - 50) / 100;
+  const lakesBias = (world.lakes100 - 50) / 100;
+
+  let openLand = biome?.openLand ?? 0.5;
+  openLand += temperatureBias * 0.18;
+  openLand -= rainfallBias * 0.22;
+  openLand -= Math.max(0, mountainsBias) * 0.12;
+  openLand = clamp(openLand, 0.1, 0.9);
+
+  const vegScaleBase = clamp(20 + openLand * 80, 10, 140);
+  const vegScale = clamp(
+    vegScaleBase + (((adv.vegetationScale ?? 50) - 50) / 50) * 25,
+    8,
+    160
+  );
+
+  const baseElevation = biome?.elevation?.base ?? 0.5;
+  const baseVariance = biome?.elevation?.variance ?? 0.5;
+  const baseScale = biome?.elevation?.scale ?? 50;
+
+  const elevationOptions = {
+    base: clamp(
+      baseElevation +
+        waterBias * -0.12 +
+        rainfallBias * -0.08 +
+        mountainsBias * 0.05 +
+        (((adv.elevationBase ?? 50) - 50) / 100) * 0.3,
+      0.05,
+      0.95
+    ),
+    variance: clamp(
+      baseVariance +
+        mountainsBias * 0.45 +
+        (((adv.elevationVariance ?? 50) - 50) / 100) * 0.5,
+      0.05,
+      1.5
+    ),
+    scale: clamp(
+      baseScale +
+        mountainsBias * 40 +
+        (((adv.elevationScale ?? 50) - 50) / 100) * 70,
+      12,
+      200
+    )
+  };
+
+  const baseWaterLevel = waterLevelOverride ?? biome?.elevation?.waterLevel ?? 0.3;
+  const waterLevel = clamp(
+    baseWaterLevel +
+      waterBias * 0.18 +
+      rainfallBias * 0.12 +
+      Math.max(riversBias, 0) * 0.12 +
+      Math.max(lakesBias, 0) * 0.16 -
+      Math.max(mountainsBias, 0) * 0.06,
+    0.05,
+    0.85
+  );
+
+  const oreThresholdBase = clamp(0.95 - (world.oreDensity / 100) * 0.35, 0.55, 0.98);
+  const oreThreshold = clamp(
+    oreThresholdBase - (((adv.oreThresholdOffset ?? 50) - 50) / 100) * 0.2,
+    0.5,
+    0.98
+  );
+  const oreScale = clamp(10 + ((adv.oreNoiseScale ?? 50) / 100) * 24, 6, 40);
+
+  const hydroBaseChance =
+    Math.max(0, world.rivers100 - 40) * 0.0016 + Math.max(0, world.lakes100 - 30) * 0.0014;
+  const hydroModifier = 1 - Math.max(0, mountainsBias) * 0.35;
+  const extraHydrologyChance = Math.max(0, hydroBaseChance * hydroModifier);
+
+  const guaranteedWaterRadius = clamp(
+    Math.round(
+      14 +
+        (world.rivers100 + world.lakes100) / 12 +
+        (((adv.waterGuaranteeRadius ?? 50) - 50) / 100) * 20
+    ),
+    6,
+    54
+  );
+
   const tiles = [];
   const terrainTypes = [];
   const elevations = [];
-  const waterLevel = waterLevelOverride ?? biome?.elevation?.waterLevel ?? 0.3;
-  // scale for vegetation pattern: more open land -> larger contiguous clearings
-  const vegScale = 20 + openLand * 80;
-  const guaranteedWaterRadius = 18;
 
   for (let y = 0; y < mapHeight; y++) {
     const row = [];
@@ -148,15 +240,24 @@ export function generateColorMap(
     for (let x = 0; x < mapWidth; x++) {
       const gx = effectiveXStart + x;
       const gy = effectiveYStart + y;
-      const elevation = getElevation(seed, gx, gy, biome?.elevation);
+      const elevation = getElevation(seed, gx, gy, elevationOptions);
       eRow.push(elevation);
       let type;
       if (waterFeature && elevation < waterLevel) {
         type = 'water';
       } else {
-        type = vegetationNoise(seed, gx, gy, vegScale) < openLand ? 'open' : 'forest';
-        const oreVal = oreNoise(seed, gx, gy, 12);
-        if (oreVal > 0.85 && elevation >= waterLevel) type = 'ore';
+        const vegNoise = vegetationNoise(seed, gx, gy, vegScale);
+        type = vegNoise < openLand ? 'open' : 'forest';
+        if (type !== 'water' && elevation >= waterLevel && extraHydrologyChance > 0) {
+          const hydroRoll = coordRand(seed, gx, gy, 'hydro');
+          if (hydroRoll < extraHydrologyChance) {
+            type = 'water';
+          }
+        }
+        if (type !== 'water') {
+          const oreVal = oreNoise(seed, gx, gy, oreScale);
+          if (oreVal > oreThreshold && elevation >= waterLevel) type = 'ore';
+        }
       }
 
       const symbol = TERRAIN_SYMBOLS[type] || '?';
@@ -289,6 +390,7 @@ export function generateColorMap(
     elevations,
     season,
     waterLevel,
+    worldSettings: world,
     viewport: viewportDetails
   };
 }

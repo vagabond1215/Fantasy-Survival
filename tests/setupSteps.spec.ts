@@ -20,16 +20,71 @@ vi.mock('../src/biomes.js', () => ({
   })
 }));
 
-vi.mock('../src/difficulty.js', () => ({
-  difficulties: [
+vi.mock('../src/difficulty.js', () => {
+  const difficulties = [
     { id: 'easy', name: 'Easy', summary: 'Lenient' },
-    { id: 'normal', name: 'Normal', summary: 'Balanced' }
-  ],
-  difficultySettings: {
-    easy: {},
-    normal: {}
-  }
-}));
+    { id: 'normal', name: 'Normal', summary: 'Balanced' },
+    { id: 'hard', name: 'Hard', summary: 'Severe' }
+  ];
+
+  const defaultWorldParameters = {
+    oreDensity: 50,
+    waterTable: 50,
+    temperature: 50,
+    rainfall: 50,
+    mountains: 50,
+    rivers100: 50,
+    lakes100: 50,
+    advanced: {
+      elevationBase: 50,
+      elevationVariance: 50,
+      elevationScale: 50,
+      vegetationScale: 50,
+      oreNoiseScale: 50,
+      oreThresholdOffset: 50,
+      waterGuaranteeRadius: 50
+    }
+  };
+
+  const resolveWorldParameters = (partial: any = {}) => ({
+    ...defaultWorldParameters,
+    ...partial,
+    advanced: {
+      ...defaultWorldParameters.advanced,
+      ...(partial.advanced || {})
+    }
+  });
+
+  const difficultySettings = {
+    easy: {
+      start: { people: 8, foodDays: 6, firewoodDays: 6, tools: {} },
+      world: resolveWorldParameters({ oreDensity: 60, waterTable: 60 })
+    },
+    normal: {
+      start: { people: 6, foodDays: 3, firewoodDays: 3, tools: {} },
+      world: resolveWorldParameters({})
+    },
+    hard: {
+      start: { people: 4, foodDays: 1, firewoodDays: 1, tools: {} },
+      world: resolveWorldParameters({ oreDensity: 40, mountains: 65 })
+    },
+    custom: {
+      start: { people: 6, foodDays: 3, firewoodDays: 3, tools: {} },
+      world: resolveWorldParameters({})
+    }
+  };
+
+  const getDifficultyPreset = (id: string) => difficultySettings[id] || difficultySettings.normal;
+
+  return {
+    difficulties,
+    difficultySettings,
+    defaultWorldParameters,
+    resolveWorldParameters,
+    difficultyScore: () => 50,
+    getDifficultyPreset
+  };
+});
 
 const mockMap = {
   xStart: 0,
