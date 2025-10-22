@@ -91,6 +91,10 @@ function startGame(settings = {}) {
   saveGame();
   const setupDiv = document.getElementById('setup');
   if (setupDiv) setupDiv.style.display = 'none';
+  const createSteps = document.querySelector('.create-steps');
+  const createStepContent = document.getElementById('create-step-content');
+  if (createSteps instanceof HTMLElement) createSteps.style.display = 'none';
+  if (createStepContent instanceof HTMLElement) createStepContent.style.display = 'none';
   removeLandingTheme();
   initGameUI();
 }
@@ -111,6 +115,10 @@ function init() {
   } else {
     const setupDiv = document.getElementById('setup');
     if (setupDiv) setupDiv.style.display = 'none';
+    const createSteps = document.querySelector('.create-steps');
+    const createStepContent = document.getElementById('create-step-content');
+    if (createSteps instanceof HTMLElement) createSteps.style.display = 'none';
+    if (createStepContent instanceof HTMLElement) createStepContent.style.display = 'none';
     removeLandingTheme();
     initGameUI();
   }

@@ -76,113 +76,302 @@ function getBiomeSwatch(id) {
 }
 
 export function initSetupUI(onStart) {
-  const container = document.getElementById('setup') || document.body;
-  container.innerHTML = '';
+  const rootCandidate = document.getElementById('content');
+  const placeholder = document.getElementById('setup');
+  const contentRoot = rootCandidate || placeholder || document.body;
+
+  if (placeholder && contentRoot !== placeholder && placeholder.parentElement) {
+    placeholder.parentElement.removeChild(placeholder);
+  } else if (placeholder) {
+    placeholder.innerHTML = '';
+  }
+
+  const existingNav = contentRoot.querySelector('.create-steps');
+  if (existingNav?.parentElement === contentRoot) {
+    existingNav.parentElement.removeChild(existingNav);
+  }
+  const existingSection = contentRoot.querySelector('#create-step-content');
+  if (existingSection?.parentElement === contentRoot) {
+    existingSection.parentElement.removeChild(existingSection);
+  }
 
   document.body.classList.add('landing-active');
 
+  const gameMount = contentRoot.querySelector('#game');
+  const insertionPoint = gameMount && contentRoot.contains(gameMount) ? gameMount : null;
+
+  // MIGRATION: Setup UI now mounts navigation and content directly inside #content.
   const template = document.createElement('template');
   template.innerHTML = `
-    <div class="wrap">
-      <div class="setup">
-        <div class="card hero">
-          <div>
-            <div class="brand">Fantasy Survival</div>
-            <div class="sub">Settle a harsh land. Thrive through seasons. Adapt or vanish.</div>
+    <nav class="create-steps" aria-label="World creation steps">
+      <ol class="create-steps__list" id="create-step-nav"></ol>
+      <div class="hero-settings">
+        <button
+          id="landing-settings-btn"
+          type="button"
+          class="hero-settings__trigger"
+          aria-haspopup="true"
+          aria-expanded="false"
+          aria-label="Settings"
+          title="Settings"
+        >
+          ⚙️
+        </button>
+        <div
+          id="landing-settings-panel"
+          class="hero-settings__panel"
+          role="dialog"
+          aria-hidden="true"
+          aria-labelledby="landing-settings-title"
+        >
+          <div class="hero-settings__header">
+            <div class="badge badge--ok">Alpha</div>
+            <div class="hero-settings__title" id="landing-settings-title">Settings</div>
           </div>
-          <div class="hero-settings">
-            <button
-              id="landing-settings-btn"
-              type="button"
-              class="hero-settings__trigger"
-              aria-haspopup="true"
-              aria-expanded="false"
-              aria-label="Settings"
-              title="Settings"
-            >
-              ⚙️
-            </button>
-            <div
-              id="landing-settings-panel"
-              class="hero-settings__panel"
-              role="dialog"
-              aria-hidden="true"
-              aria-labelledby="landing-settings-title"
-            >
-              <div class="hero-settings__header">
-                <div class="badge badge--ok">Alpha</div>
-                <div class="hero-settings__title" id="landing-settings-title">Settings</div>
-              </div>
           <div class="hero-settings__section">
             <div class="hero-settings__section-title">Theme</div>
             <div class="hero-settings__theme-row" id="landing-theme-grid"></div>
           </div>
+        </div>
+      </div>
+    </nav>
+    <section id="create-step-content" aria-live="polite">
+      <div class="setup">
+        <div class="card hero">
+          <div class="sub">Settle a harsh land. Thrive through seasons. Adapt or vanish.</div>
+        </div>
+        <div class="step-group" data-step-group="seed">
+          <div class="card section">
+            <div class="section__title">World Seed</div>
+            <div class="seed-row">
+              <input id="seed-input" class="input" placeholder="Enter seed or leave blank for random" autocomplete="off">
+              <button id="seed-apply" type="button" class="btn btn--ghost">Apply</button>
+              <button id="seed-rand" type="button" class="btn btn--ghost" aria-label="Randomize seed">🎲 Random</button>
             </div>
           </div>
         </div>
-
-        <div class="card section" id="biome-card">
-          <div class="section__title">Biome</div>
-          <div class="grid" id="biome-grid"></div>
-          <div class="mini-map" id="biome-mini-map" aria-hidden="true"></div>
-          <div class="sub" id="biome-details"></div>
-        </div>
-
-        <div class="card section">
-          <div class="section__title">Starting Season</div>
-          <div class="segment" id="season-seg"></div>
-        </div>
-
-        <div class="card section">
-          <div class="section__title">Difficulty</div>
-          <div class="segment" id="difficulty-seg"></div>
-          <div class="difficulty-tip" id="difficulty-tip"></div>
-        </div>
-
-        <div class="card section">
-          <div class="section__title">World Seed</div>
-          <div class="seed-row">
-            <input id="seed-input" class="input" placeholder="Enter seed or leave blank for random" autocomplete="off">
-            <button id="seed-apply" type="button" class="btn btn--ghost">Apply</button>
-            <button id="seed-rand" type="button" class="btn btn--ghost" aria-label="Randomize seed">🎲 Random</button>
+        <div class="step-group" data-step-group="biome">
+          <div class="card section" id="biome-card">
+            <div class="section__title">Biome</div>
+            <div class="grid" id="biome-grid"></div>
+            <div class="mini-map" id="biome-mini-map" aria-hidden="true"></div>
+            <div class="sub" id="biome-details"></div>
           </div>
         </div>
-
-        <div class="card section map-section">
-          <p class="map-tip" id="map-tip">Explore the terrain and click to choose a spawn point.</p>
-          <div id="map-preview" class="map-preview" aria-label="World map preview"></div>
-          <p class="sub" id="spawn-info"></p>
+        <div class="step-group" data-step-group="season">
+          <div class="card section">
+            <div class="section__title">Starting Season</div>
+            <div class="segment" id="season-seg"></div>
+          </div>
         </div>
-
-        <div class="card cta-row">
-          <button id="randomize-all" type="button" class="btn">Randomize All</button>
-          <div class="spacer" aria-hidden="true"></div>
-          <button id="start-btn" type="button" class="btn btn--primary">Start Game</button>
+        <div class="step-group" data-step-group="difficulty">
+          <div class="card section">
+            <div class="section__title">Difficulty</div>
+            <div class="segment" id="difficulty-seg"></div>
+            <div class="difficulty-tip" id="difficulty-tip"></div>
+          </div>
+        </div>
+        <div class="step-group" data-step-group="preview">
+          <div class="card section map-section">
+            <p class="map-tip" id="map-tip">Explore the terrain and click to choose a spawn point.</p>
+            <div id="map-preview" class="map-preview" aria-label="World map preview"></div>
+            <p class="sub" id="spawn-info"></p>
+          </div>
+          <div class="card cta-row">
+            <button id="randomize-all" type="button" class="btn">Randomize All</button>
+            <div class="spacer" aria-hidden="true"></div>
+            <button id="start-btn" type="button" class="btn btn--primary">Start Game</button>
+          </div>
         </div>
       </div>
-    </div>
+    </section>
   `;
 
-  const wrap = template.content.firstElementChild;
-  container.appendChild(wrap);
+  const fragment = template.content;
+  contentRoot.insertBefore(fragment, insertionPoint);
 
-  const biomeGrid = wrap.querySelector('#biome-grid');
-  const biomeDetails = wrap.querySelector('#biome-details');
-  const biomeMiniMap = wrap.querySelector('#biome-mini-map');
-  const seasonSeg = wrap.querySelector('#season-seg');
-  const difficultySeg = wrap.querySelector('#difficulty-seg');
-  const difficultyTip = wrap.querySelector('#difficulty-tip');
-  const seedInput = wrap.querySelector('#seed-input');
-  const seedApplyBtn = wrap.querySelector('#seed-apply');
-  const seedRandomBtn = wrap.querySelector('#seed-rand');
-  const mapPreview = wrap.querySelector('#map-preview');
-  const spawnInfo = wrap.querySelector('#spawn-info');
-  const randomizeAllBtn = wrap.querySelector('#randomize-all');
-  const startBtn = wrap.querySelector('#start-btn');
-  const landingSettingsTrigger = wrap.querySelector('#landing-settings-btn');
-  const landingSettingsPanel = wrap.querySelector('#landing-settings-panel');
-  const heroSettings = wrap.querySelector('.hero-settings');
+  const navRoot = contentRoot.querySelector('.create-steps');
+  const stepContent = contentRoot.querySelector('#create-step-content');
+  const setupRoot = stepContent?.querySelector('.setup');
+  if (!navRoot || !stepContent || !setupRoot) {
+    throw new Error('Unable to initialize setup UI layout.');
+  }
+  navRoot.hidden = false;
+  stepContent.hidden = false;
+  navRoot.style.display = '';
+  stepContent.style.display = '';
+
+  const stepNavList = navRoot.querySelector('#create-step-nav');
+  if (!stepNavList) {
+    throw new Error('Missing create step navigation container.');
+  }
+
+  const stepGroups = new Map();
+  setupRoot.querySelectorAll('[data-step-group]').forEach(group => {
+    const id = group.getAttribute('data-step-group');
+    if (!id) return;
+    if (!group.id) {
+      group.id = `create-step-${id}`;
+    }
+    group.hidden = true;
+    group.setAttribute('aria-hidden', 'true');
+    stepGroups.set(id, group);
+  });
+
+  const heroSettings = navRoot.querySelector('.hero-settings');
+  const landingSettingsTrigger = navRoot.querySelector('#landing-settings-btn');
+  const landingSettingsPanel = navRoot.querySelector('#landing-settings-panel');
   const landingThemeContainer = landingSettingsPanel?.querySelector('#landing-theme-grid');
+
+  const biomeGrid = setupRoot.querySelector('#biome-grid');
+  const biomeDetails = setupRoot.querySelector('#biome-details');
+  const biomeMiniMap = setupRoot.querySelector('#biome-mini-map');
+  const seasonSeg = setupRoot.querySelector('#season-seg');
+  const difficultySeg = setupRoot.querySelector('#difficulty-seg');
+  const difficultyTip = setupRoot.querySelector('#difficulty-tip');
+  const seedInput = setupRoot.querySelector('#seed-input');
+  const seedApplyBtn = setupRoot.querySelector('#seed-apply');
+  const seedRandomBtn = setupRoot.querySelector('#seed-rand');
+  const mapPreview = setupRoot.querySelector('#map-preview');
+  const spawnInfo = setupRoot.querySelector('#spawn-info');
+  const randomizeAllBtn = setupRoot.querySelector('#randomize-all');
+  const startBtn = setupRoot.querySelector('#start-btn');
+
+  const stepButtons = new Map();
+  let stepsConfig = [];
+  let currentStepId = '';
+
+  function findStepIndex(stepId) {
+    if (!stepId) return -1;
+    return stepsConfig.findIndex(step => step.id === stepId);
+  }
+
+  function findFirstIncompleteStep() {
+    return stepsConfig.find(step => !step.isComplete?.());
+  }
+
+  function canActivateStep(stepId) {
+    const targetIndex = findStepIndex(stepId);
+    if (targetIndex === -1) return false;
+    for (let index = 0; index < targetIndex; index += 1) {
+      const step = stepsConfig[index];
+      if (!step.isComplete?.()) {
+        return false;
+      }
+    }
+    return true;
+  }
+
+  function handleStepKeydown(event, stepId) {
+    const key = event.key;
+    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(key)) {
+      return;
+    }
+    const index = findStepIndex(stepId);
+    if (index === -1) return;
+    event.preventDefault();
+    let targetIndex = index;
+    if (key === 'ArrowLeft' || key === 'ArrowUp') {
+      targetIndex = Math.max(0, index - 1);
+    } else if (key === 'ArrowRight' || key === 'ArrowDown') {
+      targetIndex = Math.min(stepsConfig.length - 1, index + 1);
+    } else if (key === 'Home') {
+      targetIndex = 0;
+    } else if (key === 'End') {
+      targetIndex = stepsConfig.length - 1;
+    }
+    const target = stepsConfig[targetIndex];
+    if (target) {
+      const button = stepButtons.get(target.id);
+      button?.focus();
+    }
+  }
+
+  function updateStepStates(options = {}) {
+    if (!stepsConfig.length) return;
+    const { focusCurrent = false } = options;
+    if (!canActivateStep(currentStepId)) {
+      const fallback = findFirstIncompleteStep();
+      if (fallback) {
+        currentStepId = fallback.id;
+      }
+    }
+    stepsConfig.forEach(step => {
+      const button = stepButtons.get(step.id);
+      const group = step.group || stepGroups.get(step.id);
+      const isComplete = Boolean(step.isComplete?.());
+      const isCurrent = step.id === currentStepId;
+      const isLocked = !isCurrent && !isComplete && !canActivateStep(step.id);
+      if (button) {
+        button.classList.toggle('is-current', isCurrent);
+        button.classList.toggle('is-complete', isComplete);
+        button.classList.toggle('is-locked', isLocked);
+        if (isCurrent) {
+          button.setAttribute('aria-current', 'step');
+        } else {
+          button.removeAttribute('aria-current');
+        }
+      }
+      if (group) {
+        group.classList.toggle('is-active', isCurrent);
+        group.classList.toggle('is-complete', isComplete);
+        group.hidden = !isCurrent;
+        group.setAttribute('aria-hidden', isCurrent ? 'false' : 'true');
+      }
+    });
+    if (focusCurrent && currentStepId) {
+      stepButtons.get(currentStepId)?.focus();
+    }
+  }
+
+  function requestStep(stepId, options = {}) {
+    if (!stepId || !stepsConfig.length) return;
+    const { focusNav = true } = options;
+    if (stepId === currentStepId) {
+      updateStepStates({ focusCurrent: focusNav });
+      return;
+    }
+    if (!canActivateStep(stepId)) {
+      const fallback = findFirstIncompleteStep();
+      if (fallback) {
+        currentStepId = fallback.id;
+        updateStepStates({ focusCurrent: focusNav });
+      }
+      return;
+    }
+    currentStepId = stepId;
+    updateStepStates({ focusCurrent: focusNav });
+  }
+
+  function renderStepNav() {
+    stepButtons.clear();
+    if (!stepNavList) return;
+    stepNavList.innerHTML = '';
+    stepsConfig.forEach((step, index) => {
+      const item = document.createElement('li');
+      item.className = 'create-steps__item';
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'create-step';
+      button.dataset.stepId = step.id;
+      if (step.group?.id) {
+        button.setAttribute('aria-controls', step.group.id);
+      }
+      button.innerHTML = `
+        <span class="step-dot" aria-hidden="true">${index + 1}</span>
+        <span class="step-label">${step.label}</span>
+      `;
+      button.addEventListener('click', () => {
+        requestStep(step.id, { focusNav: false });
+      });
+      button.addEventListener('keydown', event => {
+        handleStepKeydown(event, step.id);
+      });
+      item.appendChild(button);
+      stepNavList.appendChild(item);
+      stepButtons.set(step.id, button);
+    });
+  }
   let syncLandingAppearance = () => {};
 
   const availableThemes = getAvailableThemes();
@@ -361,6 +550,43 @@ export function initSetupUI(onStart) {
   let pendingSpawn = null;
   const spawnMarkerId = 'setup-spawn-marker';
 
+  stepsConfig = [
+    {
+      id: 'seed',
+      label: 'World Seed',
+      group: stepGroups.get('seed'),
+      isComplete: () => Boolean(mapSeed)
+    },
+    {
+      id: 'biome',
+      label: 'Biome',
+      group: stepGroups.get('biome'),
+      isComplete: () => Boolean(selectedBiome)
+    },
+    {
+      id: 'season',
+      label: 'Start Season',
+      group: stepGroups.get('season'),
+      isComplete: () => Boolean(selectedSeason)
+    },
+    {
+      id: 'difficulty',
+      label: 'Difficulty',
+      group: stepGroups.get('difficulty'),
+      isComplete: () => Boolean(selectedDifficulty)
+    },
+    {
+      id: 'preview',
+      label: 'Preview & Create',
+      group: stepGroups.get('preview'),
+      isComplete: () => Boolean(mapData)
+    }
+  ];
+
+  renderStepNav();
+
+  currentStepId = stepsConfig[0]?.id || '';
+
   const legendEntries = [
     { type: 'open', label: 'Open Land' },
     { type: 'forest', label: 'Forest' },
@@ -374,6 +600,7 @@ export function initSetupUI(onStart) {
   }, {});
 
   seedInput.value = mapSeed;
+  updateStepStates();
 
   function resolveBackgroundColor(element, depth = 0, maxDepth = 20) {
     if (!element || depth > maxDepth) return null;
@@ -838,6 +1065,7 @@ export function initSetupUI(onStart) {
     }
     updateSpawnMarker();
     updateSpawnInfo();
+    updateStepStates();
   }
 
   function renderMapPreview() {
@@ -875,6 +1103,7 @@ export function initSetupUI(onStart) {
       updateSpawnInfo();
     }
     renderMapPreview();
+    updateStepStates();
   }
 
   function applySelection(key, value) {
@@ -905,6 +1134,7 @@ export function initSetupUI(onStart) {
       default:
         break;
     }
+    updateStepStates();
   }
 
   mapView = createMapView(mapPreview, {
