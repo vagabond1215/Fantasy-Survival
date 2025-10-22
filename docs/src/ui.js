@@ -36,17 +36,6 @@ const DARK_TILE_BASE_COLOR = '#7d7f81';
 const DARK_TILE_HOVER_LIFT = 0.08;
 const DARK_TILE_ACTIVE_SHADE = 0.16;
 
-const BIOME_SWATCHES = [
-  'linear-gradient(135deg, rgba(96, 115, 255, 0.45), rgba(136, 69, 255, 0.18))',
-  'linear-gradient(135deg, rgba(92, 214, 255, 0.45), rgba(73, 116, 255, 0.2))',
-  'linear-gradient(135deg, rgba(255, 191, 113, 0.45), rgba(255, 137, 191, 0.2))',
-  'linear-gradient(135deg, rgba(96, 255, 182, 0.45), rgba(60, 145, 255, 0.18))',
-  'linear-gradient(135deg, rgba(255, 120, 120, 0.45), rgba(255, 215, 132, 0.18))',
-  'linear-gradient(135deg, rgba(150, 107, 255, 0.45), rgba(255, 158, 243, 0.18))',
-  'linear-gradient(135deg, rgba(132, 232, 255, 0.45), rgba(170, 122, 255, 0.18))',
-  'linear-gradient(135deg, rgba(255, 165, 92, 0.45), rgba(109, 227, 243, 0.18))'
-];
-
 function formatThemeLabel(id, fallback = '') {
   if (!id || typeof id !== 'string') {
     return fallback;
@@ -63,16 +52,6 @@ function createSeed() {
     return crypto.getRandomValues(new Uint32Array(1))[0].toString(36);
   }
   return Math.trunc(Date.now() * Math.random()).toString(36);
-}
-
-function getBiomeSwatch(id) {
-  if (!id) return BIOME_SWATCHES[0];
-  let hash = 0;
-  for (let i = 0; i < id.length; i += 1) {
-    hash = (hash * 31 + id.charCodeAt(i)) & 0xffffffff;
-  }
-  const index = Math.abs(hash) % BIOME_SWATCHES.length;
-  return BIOME_SWATCHES[index];
 }
 
 export function initSetupUI(onStart) {
@@ -154,7 +133,6 @@ export function initSetupUI(onStart) {
           <div class="card section" id="biome-card">
             <div class="section__title">Biome</div>
             <div class="grid" id="biome-grid"></div>
-            <div class="mini-map" id="biome-mini-map" aria-hidden="true"></div>
             <div class="sub" id="biome-details"></div>
           </div>
         </div>
@@ -225,7 +203,6 @@ export function initSetupUI(onStart) {
 
   const biomeGrid = setupRoot.querySelector('#biome-grid');
   const biomeDetails = setupRoot.querySelector('#biome-details');
-  const biomeMiniMap = setupRoot.querySelector('#biome-mini-map');
   const seasonSeg = setupRoot.querySelector('#season-seg');
   const difficultySeg = setupRoot.querySelector('#difficulty-seg');
   const difficultyTip = setupRoot.querySelector('#difficulty-tip');
@@ -742,6 +719,7 @@ export function initSetupUI(onStart) {
   }
 
   function updateBiomeDetails() {
+    if (!biomeDetails) return;
     const biome = getBiome(selectedBiome);
     if (!biome) {
       biomeDetails.textContent = '';
@@ -749,10 +727,6 @@ export function initSetupUI(onStart) {
     }
     const features = biome.features?.length ? `Features: ${biome.features.join(', ')}.` : '';
     biomeDetails.textContent = `${biome.name}${biome.description ? ` – ${biome.description}` : ''} ${features}`.trim();
-  }
-
-  function updateBiomePreview() {
-    biomeMiniMap.style.background = getBiomeSwatch(selectedBiome);
   }
 
   function updateDifficultyInfo() {
@@ -1113,7 +1087,6 @@ export function initSetupUI(onStart) {
         if (value === selectedBiome) return;
         selectedBiome = value;
         updateBiomeDetails();
-        updateBiomePreview();
         generatePreview();
         break;
       case 'season':
@@ -1264,7 +1237,6 @@ export function initSetupUI(onStart) {
   selectSeason(selectedSeason);
   selectDifficulty(selectedDifficulty);
   updateBiomeDetails();
-  updateBiomePreview();
   updateDifficultyInfo();
   selectSeed(mapSeed);
 
