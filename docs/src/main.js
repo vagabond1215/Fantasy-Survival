@@ -93,8 +93,8 @@ function startGame(settings = {}) {
   if (setupDiv) setupDiv.style.display = 'none';
   const createSteps = document.querySelector('.create-steps');
   const createStepContent = document.getElementById('create-step-content');
-  if (createSteps) createSteps.style.display = 'none';
-  if (createStepContent) createStepContent.style.display = 'none';
+  if (createSteps instanceof HTMLElement) createSteps.style.display = 'none';
+  if (createStepContent instanceof HTMLElement) createStepContent.style.display = 'none';
   removeLandingTheme();
   initGameUI();
 }
@@ -117,8 +117,8 @@ function init() {
     if (setupDiv) setupDiv.style.display = 'none';
     const createSteps = document.querySelector('.create-steps');
     const createStepContent = document.getElementById('create-step-content');
-    if (createSteps) createSteps.style.display = 'none';
-    if (createStepContent) createStepContent.style.display = 'none';
+    if (createSteps instanceof HTMLElement) createSteps.style.display = 'none';
+    if (createStepContent instanceof HTMLElement) createStepContent.style.display = 'none';
     removeLandingTheme();
     initGameUI();
   }
