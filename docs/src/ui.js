@@ -16,6 +16,7 @@ import {
   TERRAIN_COLORS
 } from './map.js';
 import { createMapView } from './mapView.js';
+import { ensureSanityCheckToasts } from './notifications.js';
 import {
   getAvailableThemes,
   getTheme,
@@ -25,6 +26,11 @@ import {
   setTheme,
   setThemeAppearance
 } from './theme.js';
+import {
+  getWorldConfig,
+  onWorldConfigChange,
+  updateWorldConfig
+} from './state.js';
 
 const seasons = [
   { id: 'Thawbound', label: 'Spring', icon: '🌱' },
@@ -39,6 +45,8 @@ const difficultyFlavors = {
   hard: 'brutal',
   custom: 'tailored'
 };
+
+const PREVIEW_MAP_SIZE = 128;
 
 const DARK_TILE_BASE_COLOR = '#7d7f81';
 const DARK_TILE_HOVER_LIFT = 0.08;
@@ -178,6 +186,20 @@ const ADVANCED_WORLD_PARAMETERS = [
 
 const ALL_WORLD_PARAMETERS = [...PRIMARY_WORLD_PARAMETERS, ...ADVANCED_WORLD_PARAMETERS];
 
+const PARAMETER_CATEGORIES = [
+  {
+    id: 'water',
+    label: 'Water',
+    parameters: ['waterTable', 'rivers100', 'lakes100', 'advanced.waterGuaranteeRadius']
+  },
+  { id: 'ore', label: 'Ore', parameters: ['oreDensity', 'advanced.oreNoiseScale', 'advanced.oreThresholdOffset'] },
+  { id: 'fauna', label: 'Fauna', parameters: ['advanced.elevationVariance'] },
+  { id: 'flora', label: 'Flora', parameters: ['rainfall', 'advanced.vegetationScale'] },
+  { id: 'climate', label: 'Climate', parameters: ['temperature', 'advanced.elevationBase'] },
+  { id: 'events', label: 'Events', parameters: ['mountains'] },
+  { id: 'misc', label: 'Misc', parameters: ['advanced.elevationScale'] }
+];
+
 function clampParameter(value, min = 0, max = 100) {
   const numeric = Number(value);
   if (!Number.isFinite(numeric)) return min;
@@ -237,6 +259,7 @@ function createSeed() {
 }
 
 export function initSetupUI(onStart) {
+  ensureSanityCheckToasts();
   const rootCandidate = document.getElementById('content');
   const placeholder = document.getElementById('setup');
   const contentRoot = rootCandidate || placeholder || document.body;
@@ -264,75 +287,110 @@ export function initSetupUI(onStart) {
   // MIGRATION: Setup UI now mounts navigation and content directly inside #content.
   const template = document.createElement('template');
   template.innerHTML = `
-    <nav class="create-steps" aria-label="World creation steps">
-      <ol class="create-steps__list" id="create-step-nav"></ol>
-      <div class="hero-settings">
+    <header class="setup-appbar" role="banner">
+      <div class="setup-appbar__title">World Setup</div>
+      <div class="setup-appbar__actions">
         <button
-          id="landing-settings-btn"
+          id="difficulty-toggle"
           type="button"
-          class="hero-settings__trigger"
+          class="setup-appbar__action"
           aria-haspopup="true"
           aria-expanded="false"
-          aria-label="Settings"
-          title="Settings"
+          aria-controls="difficulty-drawer"
         >
-          ⚙️
+          Difficulty
         </button>
-        <div
-          id="landing-settings-panel"
-          class="hero-settings__panel"
-          role="dialog"
-          aria-hidden="true"
-          aria-labelledby="landing-settings-title"
-        >
-          <div class="hero-settings__header">
-            <div class="badge badge--ok">Alpha</div>
-            <div class="hero-settings__title" id="landing-settings-title">Settings</div>
-          </div>
-          <div class="hero-settings__section">
-            <div class="hero-settings__section-title">Theme</div>
-            <div class="hero-settings__theme-row" id="landing-theme-grid"></div>
-          </div>
-        </div>
-      </div>
-    </nav>
-    <section id="create-step-content" aria-live="polite">
-      <div class="setup">
-        <div class="card hero">
-          <div class="sub">Settle a harsh land. Thrive through seasons. Adapt or vanish.</div>
-        </div>
-        <div class="step-group" data-step-group="seed">
-          <div class="card section">
-            <div class="section__title">World Seed</div>
-            <div class="seed-row">
-              <input id="seed-input" class="input" placeholder="Enter seed or leave blank for random" autocomplete="off">
-              <button id="seed-apply" type="button" class="btn btn--ghost">Apply</button>
-              <button id="seed-rand" type="button" class="btn btn--ghost" aria-label="Randomize seed">🎲 Random</button>
+        <div class="hero-settings">
+          <button
+            id="landing-settings-btn"
+            type="button"
+            class="hero-settings__trigger"
+            aria-haspopup="true"
+            aria-expanded="false"
+            aria-label="Settings"
+            title="Settings"
+          >
+            ⚙️
+          </button>
+          <div
+            id="landing-settings-panel"
+            class="hero-settings__panel"
+            role="dialog"
+            aria-hidden="true"
+            aria-labelledby="landing-settings-title"
+          >
+            <div class="hero-settings__header">
+              <div class="badge badge--ok">Alpha</div>
+              <div class="hero-settings__title" id="landing-settings-title">Settings</div>
+            </div>
+            <div class="hero-settings__section">
+              <div class="hero-settings__section-title">Theme</div>
+              <div class="hero-settings__theme-row" id="landing-theme-grid"></div>
             </div>
           </div>
         </div>
-        <div class="step-group" data-step-group="biome">
+      </div>
+    </header>
+    <aside
+      id="difficulty-drawer"
+      class="difficulty-drawer"
+      role="dialog"
+      aria-modal="false"
+      aria-hidden="true"
+      aria-labelledby="difficulty-drawer-title"
+    >
+      <div class="difficulty-drawer__header">
+        <h2 class="difficulty-drawer__title" id="difficulty-drawer-title">Difficulty</h2>
+        <div class="difficulty-drawer__meta">
+          <div class="difficulty-score" id="difficulty-score" role="status" aria-live="polite"></div>
+          <div class="difficulty-tip" id="difficulty-tip"></div>
+        </div>
+        <button
+          id="difficulty-close"
+          type="button"
+          class="difficulty-drawer__close"
+          aria-label="Close difficulty settings"
+        >
+          ✕
+        </button>
+      </div>
+      <div class="difficulty-drawer__body">
+        <div class="difficulty-drawer__preset-field">
+          <label class="difficulty-drawer__preset-label" for="difficulty-preset">Preset</label>
+          <select id="difficulty-preset" class="difficulty-drawer__preset"></select>
+        </div>
+        <div
+          class="difficulty-drawer__tabs"
+          role="tablist"
+          aria-label="Difficulty parameter categories"
+          data-role="difficulty-tabs"
+        ></div>
+        <div class="difficulty-drawer__panels" data-role="difficulty-panels"></div>
+      </div>
+    </aside>
+    <section id="create-step-content" aria-live="polite">
+      <div class="setup">
+        <div class="setup__column setup__column--primary">
+          <div class="card hero">
+            <div class="sub">Settle a harsh land. Thrive through seasons. Adapt or vanish.</div>
+          </div>
           <div class="card section" id="biome-card">
+            <div class="section__title">Starting Season</div>
+            <div class="segment" id="season-seg"></div>
             <div class="section__title">Biome</div>
             <div class="grid" id="biome-grid"></div>
             <div class="sub" id="biome-details"></div>
           </div>
         </div>
-        <div class="step-group" data-step-group="season">
-          <div class="card section">
-            <div class="section__title">Starting Season</div>
-            <div class="segment" id="season-seg"></div>
-          </div>
-        </div>
-        <div class="step-group" data-step-group="difficulty">
-          <div class="card section">
-            <div class="section__title">Difficulty</div>
-            <div class="segment" id="difficulty-seg"></div>
-            <div class="difficulty-tip" id="difficulty-tip"></div>
-          </div>
-        </div>
-        <div class="step-group" data-step-group="preview">
+        <div class="setup__column setup__column--preview">
           <div class="card section map-section">
+            <div class="map-seed">
+              <label class="map-seed__label" for="seed-input">World Seed</label>
+              <div class="seed-row">
+                <input id="seed-input" class="input" placeholder="Enter seed or leave blank for random" autocomplete="off">
+                <button id="seed-rand" type="button" class="btn btn--ghost" aria-label="Randomize seed">🎲 Random</button>
+              </div>
+            </div>
             <p class="map-tip" id="map-tip">Explore the terrain and click to choose a spawn point.</p>
             <div id="map-preview" class="map-preview" aria-label="World map preview"></div>
             <p class="sub" id="spawn-info"></p>
@@ -350,187 +408,44 @@ export function initSetupUI(onStart) {
   const fragment = template.content;
   contentRoot.insertBefore(fragment, insertionPoint);
 
-  const navRoot = contentRoot.querySelector('.create-steps');
   const stepContent = contentRoot.querySelector('#create-step-content');
   const setupRoot = stepContent?.querySelector('.setup');
-  if (!navRoot || !stepContent || !setupRoot) {
+  const appBar = contentRoot.querySelector('.setup-appbar');
+  const difficultyDrawer = contentRoot.querySelector('#difficulty-drawer');
+  const difficultyToggle = contentRoot.querySelector('#difficulty-toggle');
+  const difficultyCloseBtn = difficultyDrawer?.querySelector('#difficulty-close');
+  const difficultyTabsRoot = difficultyDrawer?.querySelector('[data-role="difficulty-tabs"]');
+  const difficultyPanelsRoot = difficultyDrawer?.querySelector('[data-role="difficulty-panels"]');
+  const difficultyTip = difficultyDrawer?.querySelector('#difficulty-tip');
+  const difficultyScoreBadge = difficultyDrawer?.querySelector('#difficulty-score');
+  const presetSelect = difficultyDrawer?.querySelector('#difficulty-preset');
+
+  if (!stepContent || !setupRoot || !appBar || !difficultyDrawer || !difficultyToggle || !difficultyTabsRoot || !difficultyPanelsRoot) {
     throw new Error('Unable to initialize setup UI layout.');
   }
-  navRoot.hidden = false;
+
   stepContent.hidden = false;
-  navRoot.style.display = '';
   stepContent.style.display = '';
 
-  const stepNavList = navRoot.querySelector('#create-step-nav');
-  if (!stepNavList) {
-    throw new Error('Missing create step navigation container.');
-  }
-
-  const stepGroups = new Map();
-  setupRoot.querySelectorAll('[data-step-group]').forEach(group => {
-    const id = group.getAttribute('data-step-group');
-    if (!id) return;
-    if (!group.id) {
-      group.id = `create-step-${id}`;
-    }
-    group.hidden = true;
-    group.setAttribute('aria-hidden', 'true');
-    stepGroups.set(id, group);
-  });
-
-  const heroSettings = navRoot.querySelector('.hero-settings');
-  const landingSettingsTrigger = navRoot.querySelector('#landing-settings-btn');
-  const landingSettingsPanel = navRoot.querySelector('#landing-settings-panel');
+  const heroSettings = appBar.querySelector('.hero-settings');
+  const landingSettingsTrigger = heroSettings?.querySelector('#landing-settings-btn');
+  const landingSettingsPanel = heroSettings?.querySelector('#landing-settings-panel');
   const landingThemeContainer = landingSettingsPanel?.querySelector('#landing-theme-grid');
 
   const biomeGrid = setupRoot.querySelector('#biome-grid');
   const biomeDetails = setupRoot.querySelector('#biome-details');
   const seasonSeg = setupRoot.querySelector('#season-seg');
-  const difficultySeg = setupRoot.querySelector('#difficulty-seg');
-  const difficultyTip = setupRoot.querySelector('#difficulty-tip');
   const seedInput = setupRoot.querySelector('#seed-input');
-  const seedApplyBtn = setupRoot.querySelector('#seed-apply');
   const seedRandomBtn = setupRoot.querySelector('#seed-rand');
   const mapPreview = setupRoot.querySelector('#map-preview');
   const spawnInfo = setupRoot.querySelector('#spawn-info');
   const randomizeAllBtn = setupRoot.querySelector('#randomize-all');
   const startBtn = setupRoot.querySelector('#start-btn');
 
-  const stepButtons = new Map();
-  let stepsConfig = [];
-  let currentStepId = '';
-
-  function findStepIndex(stepId) {
-    if (!stepId) return -1;
-    return stepsConfig.findIndex(step => step.id === stepId);
+  if (!biomeGrid || !biomeDetails || !seasonSeg || !seedInput || !seedRandomBtn || !mapPreview || !spawnInfo || !randomizeAllBtn || !startBtn) {
+    throw new Error('Missing setup UI elements.');
   }
 
-  function findFirstIncompleteStep() {
-    return stepsConfig.find(step => !step.isComplete?.());
-  }
-
-  function canActivateStep(stepId) {
-    const targetIndex = findStepIndex(stepId);
-    if (targetIndex === -1) return false;
-    for (let index = 0; index < targetIndex; index += 1) {
-      const step = stepsConfig[index];
-      if (!step.isComplete?.()) {
-        return false;
-      }
-    }
-    return true;
-  }
-
-  function handleStepKeydown(event, stepId) {
-    const key = event.key;
-    if (!['ArrowLeft', 'ArrowRight', 'ArrowUp', 'ArrowDown', 'Home', 'End'].includes(key)) {
-      return;
-    }
-    const index = findStepIndex(stepId);
-    if (index === -1) return;
-    event.preventDefault();
-    let targetIndex = index;
-    if (key === 'ArrowLeft' || key === 'ArrowUp') {
-      targetIndex = Math.max(0, index - 1);
-    } else if (key === 'ArrowRight' || key === 'ArrowDown') {
-      targetIndex = Math.min(stepsConfig.length - 1, index + 1);
-    } else if (key === 'Home') {
-      targetIndex = 0;
-    } else if (key === 'End') {
-      targetIndex = stepsConfig.length - 1;
-    }
-    const target = stepsConfig[targetIndex];
-    if (target) {
-      const button = stepButtons.get(target.id);
-      button?.focus();
-    }
-  }
-
-  function updateStepStates(options = {}) {
-    if (!stepsConfig.length) return;
-    const { focusCurrent = false } = options;
-    if (!canActivateStep(currentStepId)) {
-      const fallback = findFirstIncompleteStep();
-      if (fallback) {
-        currentStepId = fallback.id;
-      }
-    }
-    stepsConfig.forEach(step => {
-      const button = stepButtons.get(step.id);
-      const group = step.group || stepGroups.get(step.id);
-      const isComplete = Boolean(step.isComplete?.());
-      const isCurrent = step.id === currentStepId;
-      const isLocked = !isCurrent && !isComplete && !canActivateStep(step.id);
-      if (button) {
-        button.classList.toggle('is-current', isCurrent);
-        button.classList.toggle('is-complete', isComplete);
-        button.classList.toggle('is-locked', isLocked);
-        if (isCurrent) {
-          button.setAttribute('aria-current', 'step');
-        } else {
-          button.removeAttribute('aria-current');
-        }
-      }
-      if (group) {
-        group.classList.toggle('is-active', isCurrent);
-        group.classList.toggle('is-complete', isComplete);
-        group.hidden = !isCurrent;
-        group.setAttribute('aria-hidden', isCurrent ? 'false' : 'true');
-      }
-    });
-    if (focusCurrent && currentStepId) {
-      stepButtons.get(currentStepId)?.focus();
-    }
-  }
-
-  function requestStep(stepId, options = {}) {
-    if (!stepId || !stepsConfig.length) return;
-    const { focusNav = true } = options;
-    if (stepId === currentStepId) {
-      updateStepStates({ focusCurrent: focusNav });
-      return;
-    }
-    if (!canActivateStep(stepId)) {
-      const fallback = findFirstIncompleteStep();
-      if (fallback) {
-        currentStepId = fallback.id;
-        updateStepStates({ focusCurrent: focusNav });
-      }
-      return;
-    }
-    currentStepId = stepId;
-    updateStepStates({ focusCurrent: focusNav });
-  }
-
-  function renderStepNav() {
-    stepButtons.clear();
-    if (!stepNavList) return;
-    stepNavList.innerHTML = '';
-    stepsConfig.forEach((step, index) => {
-      const item = document.createElement('li');
-      item.className = 'create-steps__item';
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'create-step';
-      button.dataset.stepId = step.id;
-      if (step.group?.id) {
-        button.setAttribute('aria-controls', step.group.id);
-      }
-      button.innerHTML = `
-        <span class="step-dot" aria-hidden="true">${index + 1}</span>
-        <span class="step-label">${step.label}</span>
-      `;
-      button.addEventListener('click', () => {
-        requestStep(step.id, { focusNav: false });
-      });
-      button.addEventListener('keydown', event => {
-        handleStepKeydown(event, step.id);
-      });
-      item.appendChild(button);
-      stepNavList.appendChild(item);
-      stepButtons.set(step.id, button);
-    });
-  }
   let syncLandingAppearance = () => {};
 
   const availableThemes = getAvailableThemes();
@@ -682,6 +597,10 @@ export function initSetupUI(onStart) {
   const biomeTiles = [];
   const seasonButtons = [];
   const parameterControls = new Map();
+  const categoryTabs = new Map();
+  const categoryPanels = new Map();
+
+  let activeCategoryId = PARAMETER_CATEGORIES[0]?.id || null;
 
   let currentThemeInfo = getThemeDefinition();
 
@@ -698,57 +617,42 @@ export function initSetupUI(onStart) {
   const defaultSeason = seasons[0];
   const defaultDifficulty = difficulties.find(d => d.id === 'normal') || difficulties[0];
 
+  const parameterDefinitionsById = new Map(ALL_WORLD_PARAMETERS.map(def => [def.id, def]));
+
   let selectedBiome = defaultBiome?.id || '';
   let selectedSeason = defaultSeason?.id || '';
   let selectedDifficulty = defaultDifficulty?.id || '';
   let worldParameters = cloneWorldParameters(getDifficultyPreset(selectedDifficulty)?.world || defaultWorldParameters);
-  let presetSelect = null;
-  let difficultyScoreBadge = null;
-  let worldPreviewTimer = null;
   let mapSeed = createSeed();
   let mapData = null;
   let mapView = null;
   let spawnCoords = null;
   let spawnPrompt = null;
   let pendingSpawn = null;
+  let worldPreviewTimer = null;
+  let seedUpdateTimer = null;
   const spawnMarkerId = 'setup-spawn-marker';
+  const worldConfigDebounceDelay = 180;
+  const seedDispatchDelay = 200;
 
-  stepsConfig = [
-    {
-      id: 'seed',
-      label: 'World Seed',
-      group: stepGroups.get('seed'),
-      isComplete: () => Boolean(mapSeed)
-    },
-    {
-      id: 'biome',
-      label: 'Biome',
-      group: stepGroups.get('biome'),
-      isComplete: () => Boolean(selectedBiome)
-    },
-    {
-      id: 'season',
-      label: 'Start Season',
-      group: stepGroups.get('season'),
-      isComplete: () => Boolean(selectedSeason)
-    },
-    {
-      id: 'difficulty',
-      label: 'Difficulty',
-      group: stepGroups.get('difficulty'),
-      isComplete: () => Boolean(selectedDifficulty)
-    },
-    {
-      id: 'preview',
-      label: 'Preview & Create',
-      group: stepGroups.get('preview'),
-      isComplete: () => Boolean(mapData)
-    }
-  ];
-
-  renderStepNav();
-
-  currentStepId = stepsConfig[0]?.id || '';
+  const existingConfig = getWorldConfig();
+  if (existingConfig?.biome) {
+    selectedBiome = existingConfig.biome;
+  }
+  if (existingConfig?.season) {
+    selectedSeason = existingConfig.season;
+  }
+  if (existingConfig?.difficulty) {
+    selectedDifficulty = difficulties.some(item => item.id === existingConfig.difficulty)
+      ? existingConfig.difficulty
+      : 'custom';
+  }
+  if (existingConfig?.worldParameters) {
+    worldParameters = cloneWorldParameters(existingConfig.worldParameters);
+  }
+  if (existingConfig?.seed) {
+    mapSeed = String(existingConfig.seed);
+  }
 
   const legendEntries = [
     { type: 'open', label: 'Open Land' },
@@ -763,7 +667,6 @@ export function initSetupUI(onStart) {
   }, {});
 
   seedInput.value = mapSeed;
-  updateStepStates();
 
   function resolveBackgroundColor(element, depth = 0, maxDepth = 20) {
     if (!element || depth > maxDepth) return null;
@@ -902,191 +805,6 @@ export function initSetupUI(onStart) {
     if (activeColor) {
       button.style.setProperty('--tile-active-bg', formatColor(activeColor));
     }
-  }
-
-  function updateBiomeDetails() {
-    if (!biomeDetails) return;
-    const biome = getBiome(selectedBiome);
-    if (!biome) {
-      biomeDetails.textContent = '';
-      return;
-    }
-    const features = biome.features?.length ? `Features: ${biome.features.join(', ')}.` : '';
-    biomeDetails.textContent = `${biome.name}${biome.description ? ` – ${biome.description}` : ''} ${features}`.trim();
-  }
-
-  function updateDifficultyInfo() {
-    if (!difficultyTip) return;
-    if (!selectedDifficulty) {
-      difficultyTip.textContent = '';
-      return;
-    }
-    const preset = getDifficultyPreset(selectedDifficulty);
-    const name =
-      difficulties.find(d => d.id === selectedDifficulty)?.name ||
-      (selectedDifficulty === 'custom' ? 'Custom' : selectedDifficulty);
-    if (preset?.start) {
-      const { people = 0, foodDays = 0, firewoodDays = 0 } = preset.start;
-      difficultyTip.textContent = `${name}: ${people} settlers, ${foodDays} days of food, ${firewoodDays} days of firewood.`;
-    } else {
-      difficultyTip.textContent = name;
-    }
-  }
-
-  function updateDifficultyScore() {
-    if (!difficultyScoreBadge) return;
-    const score = difficultyScore(worldParameters);
-    difficultyScoreBadge.textContent = `Score: ${score}`;
-    difficultyScoreBadge.dataset.score = String(score);
-  }
-
-  function scheduleWorldPreview() {
-    if (worldPreviewTimer) {
-      clearTimeout(worldPreviewTimer);
-    }
-    worldPreviewTimer = setTimeout(() => {
-      worldPreviewTimer = null;
-      generatePreview();
-    }, 160);
-  }
-
-  function syncWorldControls() {
-    parameterControls.forEach(control => {
-      const value = getPathValue(worldParameters, control.path);
-      control.update(value);
-    });
-  }
-
-  function setPreset(id, options = {}) {
-    const { preserveWorld = false, world, skipPreview = false } = options;
-    const nextId = difficultySettings[id] ? id : 'custom';
-    selectedDifficulty = nextId;
-    if (presetSelect && presetSelect.value !== nextId) {
-      presetSelect.value = nextId;
-    }
-
-    if (world) {
-      worldParameters = cloneWorldParameters(world);
-    } else if (nextId === 'custom' && preserveWorld) {
-      worldParameters = cloneWorldParameters(worldParameters);
-    } else {
-      worldParameters = cloneWorldParameters(getDifficultyPreset(nextId).world);
-    }
-
-    syncWorldControls();
-    updateDifficultyInfo();
-    updateDifficultyScore();
-    if (!skipPreview) {
-      generatePreview();
-    }
-  }
-
-  function handleWorldParameterChange(control, rawValue) {
-    const { def } = control;
-    const value = clampParameter(rawValue, def.min, def.max);
-    const next = cloneWorldParameters(worldParameters);
-    setPathValue(next, def.path, value);
-    worldParameters = resolveWorldParameters(next);
-    setPreset('custom', { preserveWorld: true, skipPreview: true });
-    scheduleWorldPreview();
-  }
-
-  function createDifficultyControl(def) {
-    const key = parameterKeyFromPath(def.path);
-    const wrapper = document.createElement('div');
-    wrapper.className = 'difficulty-param';
-
-    const header = document.createElement('div');
-    header.className = 'difficulty-param__header';
-
-    const label = document.createElement('label');
-    label.className = 'difficulty-param__label';
-    const sliderId = `difficulty-slider-${key}`;
-    label.setAttribute('for', sliderId);
-    label.textContent = def.label;
-
-    const number = document.createElement('input');
-    number.type = 'number';
-    number.inputMode = 'numeric';
-    number.min = String(def.min);
-    number.max = String(def.max);
-    number.step = String(def.step ?? 1);
-    number.className = 'difficulty-param__number';
-
-    const slider = document.createElement('input');
-    slider.type = 'range';
-    slider.id = sliderId;
-    slider.min = String(def.min);
-    slider.max = String(def.max);
-    slider.step = String(def.step ?? 1);
-    slider.className = 'difficulty-param__slider';
-
-    const hintId = `difficulty-hint-${key}`;
-    let hintElement = null;
-    if (def.hint) {
-      hintElement = document.createElement('div');
-      hintElement.className = 'difficulty-param__hint';
-      hintElement.id = hintId;
-      hintElement.textContent = def.hint;
-      slider.setAttribute('aria-describedby', hintId);
-      number.setAttribute('aria-describedby', hintId);
-    }
-
-    let isSyncing = false;
-
-    const control = {
-      def,
-      path: def.path,
-      element: wrapper,
-      update(nextValue) {
-        const normalized = clampParameter(nextValue, def.min, def.max);
-        const stringValue = String(normalized);
-        isSyncing = true;
-        slider.value = stringValue;
-        number.value = stringValue;
-        isSyncing = false;
-      }
-    };
-
-    const onChange = value => {
-      if (isSyncing) return;
-      handleWorldParameterChange(control, value);
-    };
-
-    slider.addEventListener('input', () => {
-      onChange(Number(slider.value));
-    });
-    number.addEventListener('change', () => {
-      onChange(Number(number.value));
-    });
-    number.addEventListener('input', () => {
-      if (isSyncing) return;
-      if (number.value === '') return;
-      onChange(Number(number.value));
-    });
-
-    header.appendChild(label);
-    header.appendChild(number);
-    wrapper.appendChild(header);
-    wrapper.appendChild(slider);
-    if (hintElement) {
-      wrapper.appendChild(hintElement);
-    }
-
-    control.update(getPathValue(worldParameters, def.path));
-    parameterControls.set(parameterKeyFromPath(def.path), control);
-    return control;
-  }
-
-  function randomizeWorldParameters() {
-    const next = cloneWorldParameters(defaultWorldParameters);
-    ALL_WORLD_PARAMETERS.forEach(def => {
-      const span = def.max - def.min;
-      const randomValue = def.min + Math.round(Math.random() * span);
-      setPathValue(next, def.path, clampParameter(randomValue, def.min, def.max));
-    });
-    worldParameters = resolveWorldParameters(next);
-    setPreset('custom');
   }
 
   function hideSpawnPrompt() {
@@ -1295,6 +1013,87 @@ export function initSetupUI(onStart) {
     return { x: nearest.x, y: nearest.y, terrain: fallbackTerrain || null, relocated: true };
   }
 
+  function setSpawnCoords(coords = {}, options = {}) {
+    if (!coords) return;
+    const safe = sanitizeSpawnCoords(coords);
+    if (!safe) return;
+    spawnCoords = { x: safe.x, y: safe.y };
+    if (!options.silent) {
+      hideSpawnPrompt();
+    }
+    updateSpawnMarker();
+    updateSpawnInfo();
+  }
+
+  function updateSpawnMarker() {
+    if (!mapView || typeof mapView.setMarkers !== 'function') return;
+    const markers = spawnCoords
+      ? [
+          {
+            id: spawnMarkerId,
+            x: spawnCoords.x,
+            y: spawnCoords.y,
+            icon: '',
+            className: 'map-marker--spawn map-marker--spawn-outline',
+            label: 'Chosen spawn location',
+            emphasis: true
+          }
+        ]
+      : [];
+    mapView.setMarkers(markers);
+  }
+
+  function updateSpawnInfo() {
+    if (!spawnInfo) return;
+    if (!spawnCoords) {
+      spawnInfo.hidden = false;
+      spawnInfo.textContent = 'Click the map to choose your starting position.';
+      return;
+    }
+    spawnInfo.textContent = '';
+    spawnInfo.hidden = true;
+  }
+
+  function renderMapPreview() {
+    if (!mapData || !mapView) return;
+    hideSpawnPrompt();
+    mapView.setMap(mapData, {
+      biomeId: selectedBiome,
+      seed: mapData?.seed ?? mapSeed,
+      season: mapData?.season ?? selectedSeason
+    });
+    updateSpawnMarker();
+    updateSpawnInfo();
+  }
+
+  function generatePreview() {
+    if (!selectedBiome || !mapPreview) return;
+    const width = PREVIEW_MAP_SIZE;
+    const height = PREVIEW_MAP_SIZE;
+    const { xStart, yStart } = computeCenteredStart(width, height);
+    mapData = generateColorMap(
+      selectedBiome,
+      mapSeed,
+      xStart,
+      yStart,
+      width,
+      height,
+      selectedSeason,
+      undefined,
+      undefined,
+      worldParameters
+    );
+    const defaultSpawn = computeDefaultSpawn(mapData);
+    if (defaultSpawn) {
+      setSpawnCoords(defaultSpawn, { silent: true });
+    } else {
+      spawnCoords = null;
+      updateSpawnMarker();
+      updateSpawnInfo();
+    }
+    renderMapPreview();
+  }
+
   function attachSetupLegend() {
     if (!mapView?.elements?.controls) return;
     const controlsRoot = mapView.elements.controls;
@@ -1346,117 +1145,177 @@ export function initSetupUI(onStart) {
     navGrid.insertAdjacentElement('afterend', legend);
   }
 
-  function updateSpawnMarker() {
-    if (!mapView || typeof mapView.setMarkers !== 'function') return;
-    const markers = spawnCoords
-      ? [
-          {
-            id: spawnMarkerId,
-            x: spawnCoords.x,
-            y: spawnCoords.y,
-            icon: '',
-            className: 'map-marker--spawn map-marker--spawn-outline',
-            label: 'Chosen spawn location',
-            emphasis: true
-          }
-        ]
-      : [];
-    mapView.setMarkers(markers);
-  }
-
-  function updateSpawnInfo() {
-    if (!spawnInfo) return;
-    if (!spawnCoords) {
-      spawnInfo.hidden = false;
-      spawnInfo.textContent = 'Click the map to choose your starting position.';
-      return;
-    }
-    spawnInfo.textContent = '';
-    spawnInfo.hidden = true;
-  }
-
-  function setSpawnCoords(coords = {}, options = {}) {
-    if (!coords) return;
-    const safe = sanitizeSpawnCoords(coords);
-    if (!safe) return;
-    spawnCoords = { x: safe.x, y: safe.y };
-    if (!options.silent) {
-      hideSpawnPrompt();
-    }
-    updateSpawnMarker();
-    updateSpawnInfo();
-    updateStepStates();
-  }
-
-  function renderMapPreview() {
-    if (!mapData || !mapView) return;
-    hideSpawnPrompt();
-    mapView.setMap(mapData, {
-      biomeId: selectedBiome,
-      seed: mapData?.seed ?? mapSeed,
-      season: mapData?.season ?? selectedSeason
+  function activateDifficultyCategory(categoryId) {
+    if (!categoryId || !categoryTabs.has(categoryId)) return;
+    categoryTabs.forEach((tab, id) => {
+      const isActive = id === categoryId;
+      tab.classList.toggle('is-active', isActive);
+      tab.setAttribute('aria-selected', String(isActive));
+      tab.tabIndex = isActive ? 0 : -1;
     });
-    updateSpawnMarker();
-    updateSpawnInfo();
+    categoryPanels.forEach((panel, id) => {
+      const isActive = id === categoryId;
+      panel.hidden = !isActive;
+      panel.setAttribute('aria-hidden', String(!isActive));
+    });
+    activeCategoryId = categoryId;
   }
 
-  function generatePreview() {
-    if (!selectedBiome || !mapPreview) return;
-    const width = DEFAULT_MAP_WIDTH;
-    const height = DEFAULT_MAP_HEIGHT;
-    const { xStart, yStart } = computeCenteredStart(width, height);
-    mapData = generateColorMap(
-      selectedBiome,
-      mapSeed,
-      xStart,
-      yStart,
-      width,
-      height,
-      selectedSeason,
-      undefined,
-      undefined,
-      worldParameters
-    );
-    const defaultSpawn = computeDefaultSpawn(mapData);
-    if (defaultSpawn) {
-      setSpawnCoords(defaultSpawn, { silent: true });
-    } else {
-      spawnCoords = null;
-      updateSpawnMarker();
-      updateSpawnInfo();
+  function initializeDifficultyDrawer() {
+    if (!difficultyTabsRoot || !difficultyPanelsRoot) return;
+    const categories = PARAMETER_CATEGORIES.filter(category => Array.isArray(category.parameters) && category.parameters.length);
+
+    categoryTabs.clear();
+    categoryPanels.clear();
+    parameterControls.clear();
+
+    difficultyTabsRoot.innerHTML = '';
+    difficultyPanelsRoot.innerHTML = '';
+
+    if (presetSelect) {
+      presetSelect.innerHTML = '';
+      const presetOptions = [...difficulties, { id: 'custom', name: 'Custom' }];
+      presetOptions.forEach(option => {
+        const opt = document.createElement('option');
+        opt.value = option.id;
+        const flavor = difficultyFlavors[option.id];
+        opt.textContent = flavor ? `${option.name} — ${flavor}` : option.name;
+        presetSelect.appendChild(opt);
+      });
+      presetSelect.addEventListener('change', () => {
+        setPreset(presetSelect.value);
+      });
     }
-    renderMapPreview();
-    updateStepStates();
+
+    categories.forEach(category => {
+      const tabId = `difficulty-tab-${category.id}`;
+      const panelId = `difficulty-panel-${category.id}`;
+
+      const tab = document.createElement('button');
+      tab.type = 'button';
+      tab.className = 'difficulty-drawer__tab';
+      tab.id = tabId;
+      tab.dataset.categoryId = category.id;
+      tab.setAttribute('role', 'tab');
+      tab.setAttribute('aria-controls', panelId);
+      tab.setAttribute('aria-selected', 'false');
+      tab.tabIndex = -1;
+      tab.textContent = category.label;
+
+      tab.addEventListener('click', () => {
+        activateDifficultyCategory(category.id);
+        tab.focus();
+      });
+
+      tab.addEventListener('keydown', event => {
+        if (!categories.length) return;
+        const currentIndex = categories.findIndex(item => item.id === category.id);
+        if (currentIndex < 0) return;
+        if (event.key === 'ArrowRight' || event.key === 'ArrowDown') {
+          event.preventDefault();
+          const nextCategory = categories[(currentIndex + 1) % categories.length];
+          activateDifficultyCategory(nextCategory.id);
+          categoryTabs.get(nextCategory.id)?.focus();
+        } else if (event.key === 'ArrowLeft' || event.key === 'ArrowUp') {
+          event.preventDefault();
+          const prevCategory = categories[(currentIndex - 1 + categories.length) % categories.length];
+          activateDifficultyCategory(prevCategory.id);
+          categoryTabs.get(prevCategory.id)?.focus();
+        } else if (event.key === 'Home') {
+          event.preventDefault();
+          const firstCategory = categories[0];
+          activateDifficultyCategory(firstCategory.id);
+          categoryTabs.get(firstCategory.id)?.focus();
+        } else if (event.key === 'End') {
+          event.preventDefault();
+          const lastCategory = categories[categories.length - 1];
+          activateDifficultyCategory(lastCategory.id);
+          categoryTabs.get(lastCategory.id)?.focus();
+        }
+      });
+
+      const panel = document.createElement('div');
+      panel.id = panelId;
+      panel.className = 'difficulty-drawer__panel';
+      panel.dataset.categoryId = category.id;
+      panel.setAttribute('role', 'tabpanel');
+      panel.setAttribute('aria-labelledby', tabId);
+      panel.setAttribute('aria-hidden', 'true');
+      panel.hidden = true;
+
+      category.parameters.forEach(parameterId => {
+        const def = parameterDefinitionsById.get(parameterId);
+        if (!def) return;
+        const control = createDifficultyControl(def);
+        if (control?.element) {
+          panel.appendChild(control.element);
+        }
+      });
+
+      difficultyTabsRoot.appendChild(tab);
+      difficultyPanelsRoot.appendChild(panel);
+      categoryTabs.set(category.id, tab);
+      categoryPanels.set(category.id, panel);
+    });
+
+    const initialCategory =
+      (activeCategoryId && categoryTabs.has(activeCategoryId) && activeCategoryId) || categories[0]?.id || null;
+    if (initialCategory) {
+      activateDifficultyCategory(initialCategory);
+    }
+    if (presetSelect && selectedDifficulty) {
+      presetSelect.value = selectedDifficulty;
+    }
   }
 
-  function applySelection(key, value) {
-    if (!value) return;
-    switch (key) {
-      case 'biome':
-        if (value === selectedBiome) return;
-        selectedBiome = value;
-        updateBiomeDetails();
-        generatePreview();
-        break;
-      case 'season':
-        if (value === selectedSeason) return;
-        selectedSeason = value;
-        generatePreview();
-        break;
-      case 'diff':
-        if (value === selectedDifficulty) return;
-        setPreset(value);
-        break;
-      case 'seed':
-        mapSeed = value;
-        seedInput.value = mapSeed;
-        generatePreview();
-        break;
-      default:
-        break;
-    }
-    updateStepStates();
+  function renderSeasonButtons() {
+    if (!seasonSeg) return;
+    seasonSeg.innerHTML = '';
+    seasonButtons.length = 0;
+    seasons.forEach(season => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'seg seg--icon';
+      button.dataset.season = season.id;
+      const label = season.label || season.id;
+      if (label) {
+        button.setAttribute('aria-label', label);
+        button.title = label;
+      }
+      button.textContent = season.icon || label;
+      button.addEventListener('click', () => {
+        updateWorldConfig({ season: season.id });
+      });
+      seasonButtons.push(button);
+      seasonSeg.appendChild(button);
+    });
   }
+
+  function renderBiomeTiles() {
+    if (!biomeGrid) return;
+    biomeGrid.innerHTML = '';
+    biomeTiles.length = 0;
+    biomes.forEach(biome => {
+      const button = document.createElement('button');
+      button.type = 'button';
+      button.className = 'tile col-4';
+      button.dataset.biome = biome.id;
+      button.innerHTML = `
+        <div class="tile__name">${biome.name}</div>
+        <div class="tile__desc">${biome.description || ''}</div>
+      `;
+      button.addEventListener('click', () => {
+        updateWorldConfig({ biome: biome.id });
+      });
+      biomeTiles.push(button);
+      biomeGrid.appendChild(button);
+      applyTileBackground(button);
+    });
+  }
+
+  renderSeasonButtons();
+  renderBiomeTiles();
+  initializeDifficultyDrawer();
 
   mapView = createMapView(mapPreview, {
     legendLabels: legendLabelMap,
@@ -1464,6 +1323,8 @@ export function initSetupUI(onStart) {
     showLegend: false,
     idPrefix: 'setup-map',
     useTerrainColors: true,
+    bufferMargin: 8,
+    minZoom: 0.4,
     fetchMap: ({ xStart, yStart, width, height, seed, season, viewport }) => {
       const biomeId = selectedBiome;
       const nextSeed = seed ?? mapSeed;
@@ -1493,115 +1354,244 @@ export function initSetupUI(onStart) {
 
   attachSetupLegend();
 
-  biomes.forEach((biome, index) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'tile col-4';
-    button.dataset.biome = biome.id;
-    button.innerHTML = `
-      <div class="tile__name">${biome.name}</div>
-      <div class="tile__desc">${biome.description || ''}</div>
-    `;
-    button.addEventListener('click', () => {
-      setActive(biomeTiles, button);
-      applySelection('biome', biome.id);
+  difficultyToggle.addEventListener('click', () => {
+    if (difficultyDrawer?.classList.contains('is-open')) {
+      closeDifficultyDrawer();
+    } else {
+      openDifficultyDrawer();
+    }
+  });
+
+  difficultyCloseBtn?.addEventListener('click', () => {
+    closeDifficultyDrawer();
+    difficultyToggle?.focus();
+  });
+
+  syncBiomeSelection(selectedBiome);
+  syncSeasonSelection(selectedSeason);
+  syncDifficultySelection(selectedDifficulty);
+  updateBiomeDetails();
+  updateDifficultyInfo();
+  updateDifficultyScore();
+
+  const handleDifficultyKeydown = event => {
+    if (event.key !== 'Escape') return;
+    if (!difficultyDrawer || difficultyDrawer.getAttribute('aria-hidden') === 'true') return;
+    event.preventDefault();
+    closeDifficultyDrawer();
+    difficultyToggle?.focus();
+  };
+
+  function openDifficultyDrawer() {
+    if (!difficultyDrawer || !difficultyToggle) return;
+    if (difficultyDrawer.classList.contains('is-open')) return;
+    difficultyDrawer.classList.add('is-open');
+    difficultyDrawer.setAttribute('aria-hidden', 'false');
+    difficultyToggle.setAttribute('aria-expanded', 'true');
+    document.addEventListener('keydown', handleDifficultyKeydown);
+  }
+
+  function closeDifficultyDrawer() {
+    if (!difficultyDrawer || !difficultyToggle) return;
+    if (!difficultyDrawer.classList.contains('is-open')) return;
+    difficultyDrawer.classList.remove('is-open');
+    difficultyDrawer.setAttribute('aria-hidden', 'true');
+    difficultyToggle.setAttribute('aria-expanded', 'false');
+    document.removeEventListener('keydown', handleDifficultyKeydown);
+  }
+
+  function updateBiomeDetails() {
+    if (!biomeDetails) return;
+    const biome = getBiome(selectedBiome);
+    if (!biome) {
+      biomeDetails.textContent = '';
+      return;
+    }
+    const features = biome.features?.length ? `Features: ${biome.features.join(', ')}.` : '';
+    biomeDetails.textContent = `${biome.name}${biome.description ? ` – ${biome.description}` : ''} ${features}`.trim();
+  }
+
+  function updateDifficultyInfo() {
+    if (!difficultyTip) return;
+    if (!selectedDifficulty) {
+      difficultyTip.textContent = '';
+      difficultyToggle?.setAttribute('aria-label', 'Difficulty');
+      return;
+    }
+    const preset = getDifficultyPreset(selectedDifficulty);
+    const name =
+      difficulties.find(d => d.id === selectedDifficulty)?.name ||
+      (selectedDifficulty === 'custom' ? 'Custom' : selectedDifficulty);
+    if (preset?.start) {
+      const { people = 0, foodDays = 0, firewoodDays = 0 } = preset.start;
+      difficultyTip.textContent = `${name}: ${people} settlers, ${foodDays} days of food, ${firewoodDays} days of firewood.`;
+    } else {
+      difficultyTip.textContent = name;
+    }
+    difficultyToggle?.setAttribute('aria-label', `Adjust difficulty (current: ${name})`);
+  }
+
+  function updateDifficultyScore() {
+    if (!difficultyScoreBadge) return;
+    const score = difficultyScore(worldParameters);
+    difficultyScoreBadge.textContent = `Score: ${score}`;
+    difficultyScoreBadge.dataset.score = String(score);
+  }
+
+  function scheduleWorldPreview() {
+    if (worldPreviewTimer) {
+      clearTimeout(worldPreviewTimer);
+    }
+    worldPreviewTimer = setTimeout(() => {
+      worldPreviewTimer = null;
+      generatePreview();
+    }, worldConfigDebounceDelay);
+  }
+
+  function syncWorldControls() {
+    parameterControls.forEach(control => {
+      const value = getPathValue(worldParameters, control.path);
+      control.update(value);
     });
-    if (!selectedBiome && index === 0) {
-      selectedBiome = biome.id;
-    }
-    biomeTiles.push(button);
-    biomeGrid.appendChild(button);
-    applyTileBackground(button);
-  });
+  }
 
-  seasons.forEach((season, index) => {
-    const button = document.createElement('button');
-    button.type = 'button';
-    button.className = 'seg seg--icon';
-    button.dataset.season = season.id;
-    const label = season.label || season.id;
-    if (label) {
-      button.setAttribute('aria-label', label);
-      button.title = label;
+  function setPreset(id, options = {}) {
+    const { preserveWorld = false, world } = options;
+    const nextId = difficultySettings[id] ? id : 'custom';
+    let nextWorld;
+    if (world) {
+      nextWorld = cloneWorldParameters(world);
+    } else if (nextId === 'custom' && preserveWorld) {
+      nextWorld = cloneWorldParameters(worldParameters);
+    } else {
+      nextWorld = cloneWorldParameters(getDifficultyPreset(nextId).world);
     }
-    button.textContent = season.icon || label;
-    button.addEventListener('click', () => {
-      setActive(seasonButtons, button);
-      applySelection('season', season.id);
+    const resolved = resolveWorldParameters(nextWorld);
+    selectedDifficulty = nextId;
+    worldParameters = resolved;
+    if (presetSelect && presetSelect.value !== nextId) {
+      presetSelect.value = nextId;
+    }
+    updateWorldConfig({
+      difficulty: nextId,
+      worldParameters: resolved
     });
-    if (!selectedSeason && index === 0) {
-      selectedSeason = season.id;
+  }
+
+  function handleWorldParameterChange(control, rawValue) {
+    const { def } = control;
+    const value = clampParameter(rawValue, def.min, def.max);
+    const next = cloneWorldParameters(worldParameters);
+    setPathValue(next, def.path, value);
+    const resolved = resolveWorldParameters(next);
+    worldParameters = resolved;
+    selectedDifficulty = 'custom';
+    if (presetSelect && presetSelect.value !== 'custom') {
+      presetSelect.value = 'custom';
     }
-    seasonButtons.push(button);
-    seasonSeg.appendChild(button);
-  });
+    control.update(value);
+    updateWorldConfig({
+      difficulty: 'custom',
+      worldParameters: resolved
+    });
+  }
 
-  const difficultyPanel = document.createElement('div');
-  difficultyPanel.className = 'difficulty-panel';
+  function createDifficultyControl(def) {
+    const key = parameterKeyFromPath(def.path);
+    const wrapper = document.createElement('div');
+    wrapper.className = 'difficulty-param';
 
-  const difficultyHeader = document.createElement('div');
-  difficultyHeader.className = 'difficulty-panel__header';
+    const header = document.createElement('div');
+    header.className = 'difficulty-param__header';
 
-  const presetField = document.createElement('div');
-  presetField.className = 'difficulty-panel__preset-field';
+    const label = document.createElement('label');
+    label.className = 'difficulty-param__label';
+    const sliderId = `difficulty-slider-${key}`;
+    label.setAttribute('for', sliderId);
+    label.textContent = def.label;
 
-  const presetLabel = document.createElement('label');
-  presetLabel.className = 'difficulty-panel__preset-label';
-  presetLabel.textContent = 'Preset';
+    const number = document.createElement('input');
+    number.type = 'number';
+    number.inputMode = 'numeric';
+    number.min = String(def.min);
+    number.max = String(def.max);
+    number.step = String(def.step ?? 1);
+    number.className = 'difficulty-param__number';
 
-  presetSelect = document.createElement('select');
-  presetSelect.className = 'difficulty-panel__preset';
-  presetSelect.id = 'difficulty-preset';
-  presetLabel.setAttribute('for', presetSelect.id);
+    const slider = document.createElement('input');
+    slider.type = 'range';
+    slider.id = sliderId;
+    slider.min = String(def.min);
+    slider.max = String(def.max);
+    slider.step = String(def.step ?? 1);
+    slider.className = 'difficulty-param__slider';
 
-  const presetOptions = [...difficulties, { id: 'custom', name: 'Custom' }];
-  presetOptions.forEach(option => {
-    const opt = document.createElement('option');
-    opt.value = option.id;
-    const flavor = difficultyFlavors[option.id];
-    opt.textContent = flavor ? `${option.name} — ${flavor}` : option.name;
-    presetSelect.appendChild(opt);
-  });
+    const hintId = `difficulty-hint-${key}`;
+    let hintElement = null;
+    if (def.hint) {
+      hintElement = document.createElement('div');
+      hintElement.className = 'difficulty-param__hint';
+      hintElement.id = hintId;
+      hintElement.textContent = def.hint;
+      slider.setAttribute('aria-describedby', hintId);
+      number.setAttribute('aria-describedby', hintId);
+    }
 
-  presetSelect.addEventListener('change', () => {
-    setPreset(presetSelect.value);
-  });
+    let isSyncing = false;
 
-  presetField.appendChild(presetLabel);
-  presetField.appendChild(presetSelect);
+    const control = {
+      def,
+      path: def.path,
+      element: wrapper,
+      update(nextValue) {
+        const normalized = clampParameter(nextValue, def.min, def.max);
+        const stringValue = String(normalized);
+        isSyncing = true;
+        slider.value = stringValue;
+        number.value = stringValue;
+        isSyncing = false;
+      }
+    };
 
-  difficultyScoreBadge = document.createElement('div');
-  difficultyScoreBadge.className = 'difficulty-score';
-  difficultyScoreBadge.textContent = 'Score: --';
+    const onChange = value => {
+      if (isSyncing) return;
+      handleWorldParameterChange(control, value);
+    };
 
-  difficultyHeader.appendChild(presetField);
-  difficultyHeader.appendChild(difficultyScoreBadge);
+    slider.addEventListener('input', () => {
+      onChange(Number(slider.value));
+    });
+    number.addEventListener('change', () => {
+      onChange(Number(number.value));
+    });
+    number.addEventListener('input', () => {
+      if (isSyncing) return;
+      if (number.value === '') return;
+      onChange(Number(number.value));
+    });
 
-  const primaryGrid = document.createElement('div');
-  primaryGrid.className = 'difficulty-parameters';
-  PRIMARY_WORLD_PARAMETERS.forEach(def => {
-    const control = createDifficultyControl(def);
-    primaryGrid.appendChild(control.element);
-  });
+    header.appendChild(label);
+    header.appendChild(number);
+    wrapper.appendChild(header);
+    wrapper.appendChild(slider);
+    if (hintElement) {
+      wrapper.appendChild(hintElement);
+    }
 
-  const advancedDetails = document.createElement('details');
-  advancedDetails.className = 'difficulty-advanced';
-  const advancedSummary = document.createElement('summary');
-  advancedSummary.className = 'difficulty-advanced__summary';
-  advancedSummary.textContent = 'Advanced';
-  const advancedContent = document.createElement('div');
-  advancedContent.className = 'difficulty-advanced__content';
-  ADVANCED_WORLD_PARAMETERS.forEach(def => {
-    const control = createDifficultyControl(def);
-    advancedContent.appendChild(control.element);
-  });
-  advancedDetails.appendChild(advancedSummary);
-  advancedDetails.appendChild(advancedContent);
+    control.update(getPathValue(worldParameters, def.path));
+    parameterControls.set(parameterKeyFromPath(def.path), control);
+    return control;
+  }
 
-  difficultyPanel.appendChild(difficultyHeader);
-  difficultyPanel.appendChild(primaryGrid);
-  difficultyPanel.appendChild(advancedDetails);
-  difficultySeg.appendChild(difficultyPanel);
+  function randomizeWorldParameters() {
+    const next = cloneWorldParameters(defaultWorldParameters);
+    ALL_WORLD_PARAMETERS.forEach(def => {
+      const span = def.max - def.min;
+      const randomValue = def.min + Math.round(Math.random() * span);
+      setPathValue(next, def.path, clampParameter(randomValue, def.min, def.max));
+    });
+    return resolveWorldParameters(next);
+  }
 
   if (!selectedDifficulty) {
     selectedDifficulty = defaultDifficulty?.id || 'custom';
@@ -1609,95 +1599,178 @@ export function initSetupUI(onStart) {
   if (presetSelect) {
     presetSelect.value = selectedDifficulty;
   }
-  setPreset(selectedDifficulty, { skipPreview: true });
 
   onThemeChange(() => {
     biomeTiles.forEach(applyTileBackground);
   });
 
-  function selectBiome(id) {
-    const tile = biomeTiles.find(item => item.dataset.biome === id) || biomeTiles[0];
-    if (!tile) return;
-    setActive(biomeTiles, tile);
-    applySelection('biome', tile.dataset.biome);
+  function syncBiomeSelection(id) {
+    const tile = biomeTiles.find(item => item.dataset.biome === id);
+    if (tile) {
+      setActive(biomeTiles, tile);
+    }
   }
 
-  function selectSeason(id) {
-    const seg = seasonButtons.find(item => item.dataset.season === id) || seasonButtons[0];
-    if (!seg) return;
-    setActive(seasonButtons, seg);
-    applySelection('season', seg.dataset.season);
+  function syncSeasonSelection(id) {
+    const seg = seasonButtons.find(item => item.dataset.season === id);
+    if (seg) {
+      setActive(seasonButtons, seg);
+    }
   }
 
-  function selectDifficulty(id) {
-    setPreset(id);
+  function syncDifficultySelection(id) {
+    if (!presetSelect || !id) return;
+    if (presetSelect.value !== id) {
+      presetSelect.value = id;
+    }
   }
 
-  function selectSeed(seed) {
-    applySelection('seed', seed);
+  function syncSeedInput(value) {
+    if (typeof value === 'string' && seedInput.value !== value) {
+      seedInput.value = value;
+    }
   }
 
-  selectBiome(selectedBiome);
-  selectSeason(selectedSeason);
-  selectDifficulty(selectedDifficulty);
-  updateBiomeDetails();
-  updateDifficultyInfo();
-  selectSeed(mapSeed);
+  function dispatchSeedChange(value, options = {}) {
+    const { immediate = false } = options;
+    if (seedUpdateTimer) {
+      clearTimeout(seedUpdateTimer);
+      seedUpdateTimer = null;
+    }
+    const trimmed = typeof value === 'string' ? value.trim() : String(value ?? '');
+    if (immediate) {
+      const nextSeed = trimmed || createSeed();
+      mapSeed = nextSeed;
+      seedInput.value = nextSeed;
+      updateWorldConfig({ seed: nextSeed });
+      return;
+    }
+    if (!trimmed) {
+      return;
+    }
+    seedUpdateTimer = setTimeout(() => {
+      seedUpdateTimer = null;
+      mapSeed = trimmed;
+      updateWorldConfig({ seed: trimmed });
+    }, seedDispatchDelay);
+  }
 
-  seedApplyBtn.addEventListener('click', () => {
-    const value = seedInput.value.trim();
-    selectSeed(value || createSeed());
+  function handleWorldConfigUpdate(config = {}) {
+    const { biome, season, difficulty, seed, worldParameters: nextWorld } = config;
+    if (biome) {
+      selectedBiome = biome;
+      syncBiomeSelection(biome);
+      updateBiomeDetails();
+    }
+    if (season) {
+      selectedSeason = season;
+      syncSeasonSelection(season);
+    }
+    if (difficulty) {
+      selectedDifficulty = difficulty;
+      syncDifficultySelection(difficulty);
+    }
+    if (typeof seed === 'string' && seed && seed !== mapSeed) {
+      mapSeed = seed;
+      syncSeedInput(seed);
+    }
+    if (nextWorld) {
+      worldParameters = cloneWorldParameters(nextWorld);
+      syncWorldControls();
+    }
+    updateDifficultyInfo();
+    updateDifficultyScore();
+    scheduleWorldPreview();
+  }
+
+  onWorldConfigChange(handleWorldConfigUpdate, { immediate: true });
+
+  updateWorldConfig(
+    {
+      biome: selectedBiome,
+      season: selectedSeason,
+      difficulty: selectedDifficulty,
+      seed: mapSeed,
+      worldParameters
+    },
+    { force: true }
+  );
+
+  seedInput.addEventListener('input', () => {
+    const value = seedInput.value;
+    if (value.trim()) {
+      dispatchSeedChange(value);
+    }
   });
 
-  seedRandomBtn.addEventListener('click', () => {
-    const seed = createSeed();
-    selectSeed(seed);
+  seedInput.addEventListener('change', () => {
+    dispatchSeedChange(seedInput.value, { immediate: true });
   });
 
   seedInput.addEventListener('keydown', event => {
     if (event.key === 'Enter') {
       event.preventDefault();
-      seedApplyBtn.click();
+      dispatchSeedChange(seedInput.value, { immediate: true });
     }
+  });
+
+  seedRandomBtn.addEventListener('click', () => {
+    dispatchSeedChange(createSeed(), { immediate: true });
   });
 
   randomizeAllBtn.addEventListener('click', () => {
     if (biomeTiles.length) {
       const pick = biomeTiles[Math.floor(Math.random() * biomeTiles.length)];
+      selectedBiome = pick.dataset.biome;
       setActive(biomeTiles, pick);
-      applySelection('biome', pick.dataset.biome);
+      updateBiomeDetails();
     }
 
     if (seasonButtons.length) {
       const pick = seasonButtons[Math.floor(Math.random() * seasonButtons.length)];
+      selectedSeason = pick.dataset.season;
       setActive(seasonButtons, pick);
-      applySelection('season', pick.dataset.season);
     }
 
-    if (presetSelect) {
-      const presetIds = [...difficulties.map(item => item.id), 'custom'];
-      const choice = presetIds[Math.floor(Math.random() * presetIds.length)];
-      if (choice === 'custom') {
-        randomizeWorldParameters();
-      } else {
-        setPreset(choice);
-      }
-    }
+    const presetIds = [...difficulties.map(item => item.id), 'custom'];
+    const choice = presetIds[Math.floor(Math.random() * presetIds.length)];
+    selectedDifficulty = difficultySettings[choice] ? choice : 'custom';
+    syncDifficultySelection(selectedDifficulty);
 
-    selectSeed(createSeed());
-  });
-
-  startBtn.addEventListener('click', () => {
-    const seed = seedInput.value.trim();
-    if (seed && seed !== mapSeed) {
-      selectSeed(seed);
+    let nextWorld;
+    if (selectedDifficulty === 'custom') {
+      nextWorld = randomizeWorldParameters();
+    } else {
+      nextWorld = cloneWorldParameters(getDifficultyPreset(selectedDifficulty).world);
     }
-    onStart({
+    worldParameters = resolveWorldParameters(nextWorld);
+    syncWorldControls();
+
+    const nextSeed = createSeed();
+    seedInput.value = nextSeed;
+    mapSeed = nextSeed;
+
+    updateWorldConfig({
       biome: selectedBiome,
       season: selectedSeason,
       difficulty: selectedDifficulty,
-      seed: mapSeed,
-      world: cloneWorldParameters(worldParameters),
+      seed: nextSeed,
+      worldParameters
+    });
+  });
+
+  startBtn.addEventListener('click', () => {
+    const seedValue = seedInput.value.trim();
+    if (seedValue && seedValue !== mapSeed) {
+      dispatchSeedChange(seedValue, { immediate: true });
+    }
+    const snapshot = getWorldConfig();
+    onStart({
+      biome: snapshot.biome || selectedBiome,
+      season: snapshot.season || selectedSeason,
+      difficulty: snapshot.difficulty || selectedDifficulty,
+      seed: snapshot.seed || mapSeed,
+      world: cloneWorldParameters(snapshot.worldParameters || worldParameters),
       spawn: spawnCoords ? { ...spawnCoords } : null
     });
   });

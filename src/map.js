@@ -2,6 +2,7 @@
 import { getBiome } from './biomes.js';
 import store from './state.js';
 import { resolveWorldParameters } from './difficulty.js';
+import { notifySanityCheck } from './notifications.js';
 
 export const GRID_DISTANCE_METERS = 100;
 
@@ -82,6 +83,344 @@ function clamp(value, min, max) {
 
 function lerp(a, b, t) {
   return a + (b - a) * t;
+}
+
+function createSanityRng(seedKey = 'default') {
+  const seeded = xmur3(`${seedKey}:sanity-check`);
+  return mulberry32(seeded());
+}
+
+export function scanRadius(
+  terrainTypes,
+  startX,
+  startY,
+  centerX = 0,
+  centerY = 0,
+  radius = 100
+) {
+  if (!Array.isArray(terrainTypes) || terrainTypes.length === 0) {
+    return {
+      total: 0,
+      land: 0,
+      water: 0,
+      ore: 0,
+      usable: 0
+    };
+  }
+
+  const radiusSq = radius * radius;
+  const stats = { total: 0, land: 0, water: 0, ore: 0, usable: 0 };
+
+  for (let row = 0; row < terrainTypes.length; row++) {
+    const rowData = terrainTypes[row];
+    if (!rowData) continue;
+    const worldY = startY + row;
+    const dy = worldY - centerY;
+    if (dy * dy > radiusSq) continue;
+    for (let col = 0; col < rowData.length; col++) {
+      const type = rowData[col];
+      if (!type) continue;
+      const worldX = startX + col;
+      const dx = worldX - centerX;
+      if (dx * dx + dy * dy > radiusSq) continue;
+      stats.total++;
+      if (type === 'water') {
+        stats.water++;
+        continue;
+      }
+      stats.land++;
+      if (type === 'ore') {
+        stats.ore++;
+      } else {
+        stats.usable++;
+      }
+    }
+  }
+
+  return stats;
+}
+
+export function validateStartingArea(
+  terrainTypes,
+  startX,
+  startY,
+  centerX = 0,
+  centerY = 0,
+  radius = 100,
+  thresholds = { minLand: 0.5, maxOre: 0.4 }
+) {
+  const stats = scanRadius(terrainTypes, startX, startY, centerX, centerY, radius);
+  const total = Math.max(1, stats.total);
+  const usableLand = Math.max(1, stats.usable);
+  const landRatio = clamp(stats.land / total, 0, 1);
+  const oreRatio = clamp(stats.ore / usableLand, 0, 1);
+  const minLand = Number.isFinite(thresholds?.minLand) ? thresholds.minLand : 0.5;
+  const maxOre = Number.isFinite(thresholds?.maxOre) ? thresholds.maxOre : 0.4;
+  return {
+    stats,
+    landRatio,
+    oreRatio,
+    meetsLand: landRatio >= minLand,
+    meetsOre: oreRatio <= maxOre
+  };
+}
+
+function collectTilesWithinRadius(
+  terrainTypes,
+  startX,
+  startY,
+  radius,
+  centerX,
+  centerY,
+  matchType
+) {
+  if (!Array.isArray(terrainTypes) || terrainTypes.length === 0) return [];
+  const radiusSq = radius * radius;
+  const tiles = [];
+
+  for (let row = 0; row < terrainTypes.length; row++) {
+    const rowData = terrainTypes[row];
+    if (!rowData) continue;
+    const worldY = startY + row;
+    const dy = worldY - centerY;
+    if (dy * dy > radiusSq) continue;
+    for (let col = 0; col < rowData.length; col++) {
+      const type = rowData[col];
+      if (!type || type !== matchType) continue;
+      const worldX = startX + col;
+      const dx = worldX - centerX;
+      if (dx * dx + dy * dy > radiusSq) continue;
+      tiles.push({ row, col, worldX, worldY, distance: Math.hypot(dx, dy) });
+    }
+  }
+
+  return tiles;
+}
+
+function shuffleDeterministic(items, rng) {
+  const arr = items.slice();
+  for (let i = arr.length - 1; i > 0; i--) {
+    const j = Math.floor(rng() * (i + 1));
+    [arr[i], arr[j]] = [arr[j], arr[i]];
+  }
+  return arr;
+}
+
+function formatDistance(dx, dy) {
+  const dist = Math.round(Math.hypot(dx, dy));
+  return dist;
+}
+
+export function findValidSpawn(
+  terrainTypes,
+  startX,
+  startY,
+  radius = 100,
+  thresholds = { minLand: 0.5, maxOre: 0.4 },
+  options = {}
+) {
+  if (!Array.isArray(terrainTypes) || terrainTypes.length === 0) return null;
+  const centerX = options?.centerX ?? 0;
+  const centerY = options?.centerY ?? 0;
+  const limit = clamp(Math.trunc(options?.limit ?? 200), 1, 2000);
+  const candidates = [];
+
+  for (let row = 0; row < terrainTypes.length; row++) {
+    const rowData = terrainTypes[row];
+    if (!rowData) continue;
+    for (let col = 0; col < rowData.length; col++) {
+      const type = rowData[col];
+      if (!type || type === 'water') continue;
+      const worldX = startX + col;
+      const worldY = startY + row;
+      const distance = Math.hypot(worldX - centerX, worldY - centerY);
+      candidates.push({ row, col, worldX, worldY, distance });
+    }
+  }
+
+  candidates.sort((a, b) => {
+    if (a.distance !== b.distance) return a.distance - b.distance;
+    if (a.worldY !== b.worldY) return a.worldY - b.worldY;
+    return a.worldX - b.worldX;
+  });
+
+  let best = null;
+  const capped = Math.min(limit, candidates.length);
+  for (let i = 0; i < capped; i++) {
+    const candidate = candidates[i];
+    const validation = validateStartingArea(
+      terrainTypes,
+      startX,
+      startY,
+      candidate.worldX,
+      candidate.worldY,
+      radius,
+      thresholds
+    );
+    const score = validation.landRatio - validation.oreRatio * 0.2;
+    const entry = { ...candidate, validation, score };
+    if (validation.meetsLand && validation.meetsOre) {
+      return entry;
+    }
+    if (!best || entry.score > best.score) {
+      best = entry;
+    }
+  }
+
+  return best;
+}
+
+function convertWaterToLand(context, radius, thresholds, validation, rng) {
+  const { terrainTypes, tiles, effectiveXStart, effectiveYStart } = context;
+  const stats = validation?.stats;
+  if (!stats || !stats.total) return 0;
+  const targetLand = Math.ceil(clamp(thresholds.minLand ?? 0.5, 0, 1) * stats.total);
+  const deficit = targetLand - stats.land;
+  if (deficit <= 0) return 0;
+  const candidates = collectTilesWithinRadius(
+    terrainTypes,
+    effectiveXStart,
+    effectiveYStart,
+    radius,
+    0,
+    0,
+    'water'
+  );
+  if (!candidates.length) return 0;
+  const toConvert = Math.min(deficit, candidates.length);
+  const selection = shuffleDeterministic(candidates, rng).slice(0, toConvert);
+  selection.forEach(tile => {
+    terrainTypes[tile.row][tile.col] = 'open';
+    if (tiles?.[tile.row]) {
+      tiles[tile.row][tile.col] = TERRAIN_SYMBOLS.open;
+    }
+  });
+  return selection.length;
+}
+
+function softenOreDeposits(context, radius, thresholds, validation, rng) {
+  const { terrainTypes, tiles, effectiveXStart, effectiveYStart } = context;
+  const stats = validation?.stats;
+  if (!stats) return 0;
+  const usable = Math.max(1, stats.usable);
+  const maxOre = Math.floor(clamp(thresholds.maxOre ?? 0.4, 0, 1) * usable);
+  const excess = stats.ore - maxOre;
+  if (excess <= 0) return 0;
+  const candidates = collectTilesWithinRadius(
+    terrainTypes,
+    effectiveXStart,
+    effectiveYStart,
+    radius,
+    0,
+    0,
+    'ore'
+  );
+  if (!candidates.length) return 0;
+  const toConvert = Math.min(Math.max(1, excess), candidates.length);
+  const selection = shuffleDeterministic(candidates, rng).slice(0, toConvert);
+  selection.forEach(tile => {
+    terrainTypes[tile.row][tile.col] = 'open';
+    if (tiles?.[tile.row]) {
+      tiles[tile.row][tile.col] = TERRAIN_SYMBOLS.open;
+    }
+  });
+  return selection.length;
+}
+
+export function applySanityChecks(context, options = {}) {
+  if (!context || typeof context !== 'object') {
+    return { adjustments: [], validation: null };
+  }
+
+  const thresholds = {
+    minLand: 0.5,
+    maxOre: 0.4,
+    ...(options?.thresholds || {})
+  };
+  const radius = Number.isFinite(options?.radius) ? Math.max(1, Math.trunc(options.radius)) : 100;
+  const maxAttempts = clamp(Number.isFinite(options?.maxAttempts) ? Math.trunc(options.maxAttempts) : 5, 0, 10);
+  const seedKey = options?.seed ?? options?.fallbackSeed ?? 'default';
+  const rng = createSanityRng(seedKey);
+  const adjustments = [];
+
+  const validate = () =>
+    validateStartingArea(
+      context.terrainTypes,
+      context.effectiveXStart,
+      context.effectiveYStart,
+      0,
+      0,
+      radius,
+      thresholds
+    );
+
+  let validation = validate();
+  let attempts = 0;
+
+  while (
+    attempts < maxAttempts &&
+    validation &&
+    (!validation.meetsLand || !validation.meetsOre)
+  ) {
+    attempts++;
+    let changed = false;
+
+    if (!validation.meetsLand) {
+      const converted = convertWaterToLand(context, radius, thresholds, validation, rng);
+      if (converted > 0) {
+        adjustments.push(
+          converted === 1
+            ? 'Drained a nearby water tile to create stable footing.'
+            : `Drained ${converted} nearby water tiles to create stable footing.`
+        );
+        changed = true;
+      }
+    }
+
+    if (!changed && !validation.meetsOre) {
+      const softened = softenOreDeposits(context, radius, thresholds, validation, rng);
+      if (softened > 0) {
+        adjustments.push(
+          softened === 1
+            ? 'Reduced a rich ore pocket to keep the landing viable.'
+            : `Reduced ${softened} ore pockets to keep the landing viable.`
+        );
+        changed = true;
+      }
+    }
+
+    if (!changed) {
+      const fallback = findValidSpawn(
+        context.terrainTypes,
+        context.effectiveXStart,
+        context.effectiveYStart,
+        radius,
+        thresholds,
+        { limit: 400 }
+      );
+      if (fallback && (fallback.worldX !== 0 || fallback.worldY !== 0)) {
+        context.effectiveXStart -= fallback.worldX;
+        context.effectiveYStart -= fallback.worldY;
+        context.originShiftX = (context.originShiftX || 0) + fallback.worldX;
+        context.originShiftY = (context.originShiftY || 0) + fallback.worldY;
+        const distance = formatDistance(fallback.worldX, fallback.worldY);
+        adjustments.push(
+          distance > 0
+            ? `Relocated the spawn ${distance} tiles toward balanced terrain.`
+            : 'Relocated the spawn toward balanced terrain.'
+        );
+        changed = true;
+      }
+    }
+
+    if (!changed) {
+      break;
+    }
+
+    validation = validate();
+  }
+
+  return { adjustments, validation };
 }
 
 function noise2D(seed, x, y, scale, salt) {
@@ -346,6 +685,43 @@ export function generateColorMap(
     const { localX, localY } = bestWaterCandidate;
     terrainTypes[localY][localX] = 'water';
     tiles[localY][localX] = TERRAIN_SYMBOLS.water;
+  }
+
+  const sanityContext = {
+    terrainTypes,
+    tiles,
+    effectiveXStart,
+    effectiveYStart,
+    originShiftX,
+    originShiftY
+  };
+  const sanitySeed = worldSettings?.seed ?? seed;
+  const { adjustments: sanityAdjustments, validation: sanityValidation } = applySanityChecks(
+    sanityContext,
+    {
+      radius: 100,
+      maxAttempts: 5,
+      seed: sanitySeed,
+      fallbackSeed: seed
+    }
+  );
+
+  effectiveXStart = sanityContext.effectiveXStart;
+  effectiveYStart = sanityContext.effectiveYStart;
+  originShiftX = sanityContext.originShiftX;
+  originShiftY = sanityContext.originShiftY;
+
+  if (sanityAdjustments.length) {
+    const ratioSummary = sanityValidation
+      ? ` (land ${Math.round(sanityValidation.landRatio * 100)}% • ore ${Math.round(
+          sanityValidation.oreRatio * 100
+        )}% of usable land)`
+      : '';
+    const detail = sanityAdjustments.join(' ');
+    notifySanityCheck(`Adjusted landing zone for fairness: ${detail}${ratioSummary}`, {
+      adjustments: sanityAdjustments,
+      validation: sanityValidation
+    });
   }
 
   const flagColIndex = -effectiveXStart;

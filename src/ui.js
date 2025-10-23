@@ -16,6 +16,7 @@ import {
   TERRAIN_COLORS
 } from './map.js';
 import { createMapView } from './mapView.js';
+import { ensureSanityCheckToasts } from './notifications.js';
 import {
   getAvailableThemes,
   getTheme,
@@ -258,6 +259,7 @@ function createSeed() {
 }
 
 export function initSetupUI(onStart) {
+  ensureSanityCheckToasts();
   const rootCandidate = document.getElementById('content');
   const placeholder = document.getElementById('setup');
   const contentRoot = rootCandidate || placeholder || document.body;
