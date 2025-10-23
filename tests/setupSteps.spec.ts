@@ -1,5 +1,6 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initSetupUI } from '../src/ui.js';
+import { resetWorldConfig } from '../src/state.js';
 
 vi.mock('../src/biomes.js', () => ({
   biomes: [
@@ -184,42 +185,46 @@ beforeEach(() => {
       return array;
     }
   } as unknown as Crypto);
+  resetWorldConfig();
 });
 
-describe('setup step navigation', () => {
-  it('renders ordered steps and updates aria-current when navigating', () => {
+describe('setup layout', () => {
+  it('renders season controls above the biome grid without step navigation', () => {
     initSetupUI(() => {});
-    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('.create-step'));
-    expect(buttons).toHaveLength(5);
-    expect(buttons[0].classList.contains('is-current')).toBe(true);
-    expect(buttons[0].getAttribute('aria-current')).toBe('step');
-    expect(buttons[0].classList.contains('is-complete')).toBe(true);
-    expect(buttons[1].hasAttribute('aria-current')).toBe(false);
+    expect(document.querySelectorAll('.create-step')).toHaveLength(0);
 
-    buttons[1].click();
-    expect(buttons[1].classList.contains('is-current')).toBe(true);
-    expect(buttons[1].getAttribute('aria-current')).toBe('step');
-    expect(buttons[0].classList.contains('is-current')).toBe(false);
-    expect(buttons[0].classList.contains('is-complete')).toBe(true);
-
-    const previewGroup = document.querySelector<HTMLElement>('[data-step-group="preview"]');
-    expect(previewGroup?.hidden).toBe(true);
-
-    const finalButton = buttons[4];
-    finalButton.click();
-    expect(finalButton.classList.contains('is-current')).toBe(true);
-    expect(finalButton.getAttribute('aria-current')).toBe('step');
-    expect(previewGroup?.hidden).toBe(false);
+    const biomeCard = document.querySelector<HTMLElement>('#biome-card');
+    const seasonSeg = biomeCard?.querySelector<HTMLElement>('#season-seg');
+    const biomeGrid = biomeCard?.querySelector<HTMLElement>('#biome-grid');
+    expect(seasonSeg).toBeTruthy();
+    expect(biomeGrid).toBeTruthy();
+    if (seasonSeg && biomeGrid) {
+      const position = seasonSeg.compareDocumentPosition(biomeGrid);
+      expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
+    }
   });
 
-  it('supports arrow key focus movement across step controls', () => {
+  it('toggles the difficulty drawer with appropriate aria attributes', () => {
     initSetupUI(() => {});
-    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('.create-step'));
-    const second = buttons[1];
-    second.focus();
-    const event = new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true });
-    second.dispatchEvent(event);
-    expect(document.activeElement).toBe(buttons[2]);
+    const toggle = document.querySelector<HTMLButtonElement>('#difficulty-toggle');
+    const drawer = document.querySelector<HTMLElement>('#difficulty-drawer');
+    const close = drawer?.querySelector<HTMLButtonElement>('#difficulty-close');
+    expect(toggle).toBeTruthy();
+    expect(drawer).toBeTruthy();
+    expect(close).toBeTruthy();
+    if (!toggle || !drawer || !close) return;
+
+    expect(toggle.getAttribute('aria-controls')).toBe('difficulty-drawer');
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(drawer.getAttribute('aria-hidden')).toBe('true');
+
+    toggle.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe('true');
+    expect(drawer.getAttribute('aria-hidden')).toBe('false');
+
+    close.click();
+    expect(toggle.getAttribute('aria-expanded')).toBe('false');
+    expect(drawer.getAttribute('aria-hidden')).toBe('true');
   });
 });
 

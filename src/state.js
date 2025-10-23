@@ -209,5 +209,137 @@ class DataStore {
   }
 }
 
+export const WORLD_CONFIG_CHANGED = 'WORLD_CONFIG_CHANGED';
+
+const worldConfigState = {
+  biome: null,
+  season: null,
+  seed: null,
+  difficulty: null,
+  worldParameters: null
+};
+
+const worldConfigListeners = new Set();
+
+function cloneWorldConfigParameters(params) {
+  if (!params || typeof params !== 'object') return null;
+  const { advanced, ...rest } = params;
+  return {
+    ...rest,
+    advanced: advanced && typeof advanced === 'object' ? { ...advanced } : advanced ?? null
+  };
+}
+
+function areWorldParametersEqual(a, b) {
+  if (a === b) return true;
+  if (!a || !b) return !a && !b;
+  const keys = new Set([...Object.keys(a), ...Object.keys(b)]);
+  for (const key of keys) {
+    if (key === 'advanced') continue;
+    if ((a[key] ?? null) !== (b[key] ?? null)) {
+      return false;
+    }
+  }
+  const advA = a.advanced && typeof a.advanced === 'object' ? a.advanced : {};
+  const advB = b.advanced && typeof b.advanced === 'object' ? b.advanced : {};
+  const advKeys = new Set([...Object.keys(advA), ...Object.keys(advB)]);
+  for (const key of advKeys) {
+    if ((advA[key] ?? null) !== (advB[key] ?? null)) {
+      return false;
+    }
+  }
+  return true;
+}
+
+export function getWorldConfig() {
+  return {
+    biome: worldConfigState.biome,
+    season: worldConfigState.season,
+    seed: worldConfigState.seed,
+    difficulty: worldConfigState.difficulty,
+    worldParameters: worldConfigState.worldParameters
+      ? cloneWorldConfigParameters(worldConfigState.worldParameters)
+      : null
+  };
+}
+
+function emitWorldConfigChanged() {
+  const snapshot = getWorldConfig();
+  worldConfigListeners.forEach(listener => {
+    try {
+      listener(snapshot);
+    } catch (error) {
+      console.error('Error in world config listener', error);
+    }
+  });
+  if (typeof document !== 'undefined' && typeof document.dispatchEvent === 'function') {
+    document.dispatchEvent(new CustomEvent(WORLD_CONFIG_CHANGED, { detail: snapshot }));
+  }
+}
+
+export function onWorldConfigChange(listener, options = {}) {
+  if (typeof listener !== 'function') return () => {};
+  worldConfigListeners.add(listener);
+  if (options?.immediate) {
+    try {
+      listener(getWorldConfig());
+    } catch (error) {
+      console.error('Error in immediate world config listener', error);
+    }
+  }
+  return () => worldConfigListeners.delete(listener);
+}
+
+export function updateWorldConfig(partial = {}, options = {}) {
+  if (!partial || typeof partial !== 'object') {
+    return getWorldConfig();
+  }
+  const { silent = false, force = false } = options;
+  let changed = false;
+
+  if ('biome' in partial && partial.biome !== worldConfigState.biome) {
+    worldConfigState.biome = partial.biome ?? null;
+    changed = true;
+  }
+  if ('season' in partial && partial.season !== worldConfigState.season) {
+    worldConfigState.season = partial.season ?? null;
+    changed = true;
+  }
+  if ('seed' in partial && partial.seed !== worldConfigState.seed) {
+    worldConfigState.seed = partial.seed ?? null;
+    changed = true;
+  }
+  if ('difficulty' in partial && partial.difficulty !== worldConfigState.difficulty) {
+    worldConfigState.difficulty = partial.difficulty ?? null;
+    changed = true;
+  }
+  if ('worldParameters' in partial) {
+    const nextWorld = partial.worldParameters
+      ? cloneWorldConfigParameters(partial.worldParameters)
+      : null;
+    if (!areWorldParametersEqual(worldConfigState.worldParameters, nextWorld)) {
+      worldConfigState.worldParameters = nextWorld;
+      changed = true;
+    }
+  }
+
+  if ((changed || force) && !silent) {
+    emitWorldConfigChanged();
+  }
+  return getWorldConfig();
+}
+
+export function resetWorldConfig(next = {}) {
+  worldConfigState.biome = next.biome ?? null;
+  worldConfigState.season = next.season ?? null;
+  worldConfigState.seed = next.seed ?? null;
+  worldConfigState.difficulty = next.difficulty ?? null;
+  worldConfigState.worldParameters = next.worldParameters
+    ? cloneWorldConfigParameters(next.worldParameters)
+    : null;
+  emitWorldConfigChanged();
+  return getWorldConfig();
+}
+
 const store = new DataStore();
 export default store;
