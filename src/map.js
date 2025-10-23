@@ -587,7 +587,7 @@ export function generateColorMap(
       } else {
         const vegNoise = vegetationNoise(seed, gx, gy, vegScale);
         type = vegNoise < openLand ? 'open' : 'forest';
-        if (type !== 'water' && elevation >= waterLevel && extraHydrologyChance > 0) {
+        if (type !== 'water' && elevation >= waterLevel && extraHydrologyChance > 0 && waterFeature) {
           const hydroRoll = coordRand(seed, gx, gy, 'hydro');
           if (hydroRoll < extraHydrologyChance) {
             type = 'water';
