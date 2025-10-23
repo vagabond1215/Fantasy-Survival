@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initSetupUI } from '../src/ui.js';
 import { difficultySettings, difficultyScore, resolveWorldParameters } from '../src/difficulty.js';
+import { resetWorldConfig } from '../src/state.js';
 
 vi.mock('../src/biomes.js', () => ({
   biomes: [
@@ -119,11 +120,13 @@ beforeEach(() => {
       return array;
     }
   } as unknown as Crypto);
+  resetWorldConfig();
 });
 
 describe('difficulty panel interactions', () => {
   it('applies preset values to world sliders', () => {
     initSetupUI(() => {});
+    document.querySelector<HTMLButtonElement>('#difficulty-toggle')?.click();
     const presetSelect = document.querySelector<HTMLSelectElement>('#difficulty-preset');
     expect(presetSelect).toBeTruthy();
     if (!presetSelect) return;
@@ -140,6 +143,7 @@ describe('difficulty panel interactions', () => {
 
   it('marks preset as custom when sliders change', () => {
     initSetupUI(() => {});
+    document.querySelector<HTMLButtonElement>('#difficulty-toggle')?.click();
     const presetSelect = document.querySelector<HTMLSelectElement>('#difficulty-preset');
     expect(presetSelect?.value).toBe('normal');
 
