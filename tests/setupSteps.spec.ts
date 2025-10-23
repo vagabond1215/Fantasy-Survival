@@ -87,24 +87,31 @@ vi.mock('../src/difficulty.js', () => {
   };
 });
 
-const mockMap = {
-  xStart: 0,
-  yStart: 0,
-  width: 3,
-  height: 3,
-  seed: 'seed-value',
-  season: 'Thawbound',
-  types: [
-    ['open', 'open', 'water'],
-    ['forest', 'open', 'open'],
-    ['open', 'open', 'open']
-  ]
-};
+const { PREVIEW_MAP_SIZE, mockTypes, mockMap } = vi.hoisted(() => {
+  const PREVIEW_MAP_SIZE = 128;
+  const mockTypes = Array.from({ length: PREVIEW_MAP_SIZE }, (_, row) =>
+    Array.from({ length: PREVIEW_MAP_SIZE }, (_, col) => {
+      if (row === 0 && col === PREVIEW_MAP_SIZE - 1) return 'water';
+      if (row === 1 && col === 0) return 'forest';
+      return 'open';
+    })
+  );
+  const mockMap = {
+    xStart: 0,
+    yStart: 0,
+    width: PREVIEW_MAP_SIZE,
+    height: PREVIEW_MAP_SIZE,
+    seed: 'seed-value',
+    season: 'Thawbound',
+    types: mockTypes
+  };
+  return { PREVIEW_MAP_SIZE, mockTypes, mockMap };
+});
 
 vi.mock('../src/map.js', () => ({
   computeCenteredStart: () => ({ xStart: 0, yStart: 0 }),
-  DEFAULT_MAP_HEIGHT: 3,
-  DEFAULT_MAP_WIDTH: 3,
+  DEFAULT_MAP_HEIGHT: PREVIEW_MAP_SIZE,
+  DEFAULT_MAP_WIDTH: PREVIEW_MAP_SIZE,
   generateColorMap: vi.fn(() => ({ ...mockMap })),
   TERRAIN_COLORS: {
     open: '#ffffff',
