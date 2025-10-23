@@ -45,6 +45,8 @@ const difficultyFlavors = {
   custom: 'tailored'
 };
 
+const PREVIEW_MAP_SIZE = 128;
+
 const DARK_TILE_BASE_COLOR = '#7d7f81';
 const DARK_TILE_HOVER_LIFT = 0.08;
 const DARK_TILE_ACTIVE_SHADE = 0.16;
@@ -1064,8 +1066,8 @@ export function initSetupUI(onStart) {
 
   function generatePreview() {
     if (!selectedBiome || !mapPreview) return;
-    const width = DEFAULT_MAP_WIDTH;
-    const height = DEFAULT_MAP_HEIGHT;
+    const width = PREVIEW_MAP_SIZE;
+    const height = PREVIEW_MAP_SIZE;
     const { xStart, yStart } = computeCenteredStart(width, height);
     mapData = generateColorMap(
       selectedBiome,
@@ -1319,6 +1321,8 @@ export function initSetupUI(onStart) {
     showLegend: false,
     idPrefix: 'setup-map',
     useTerrainColors: true,
+    bufferMargin: 8,
+    minZoom: 0.4,
     fetchMap: ({ xStart, yStart, width, height, seed, season, viewport }) => {
       const biomeId = selectedBiome;
       const nextSeed = seed ?? mapSeed;
