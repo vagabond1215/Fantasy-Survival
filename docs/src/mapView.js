@@ -114,7 +114,11 @@ export function createMapView(container, {
   actions = {},
   jobSelector = null,
   useTerrainColors = false,
-  terrainColors = null
+  terrainColors = null,
+  bufferMargin = BUFFER_MARGIN,
+  minZoom = 0.5,
+  maxZoom = 3,
+  initialZoom = 1
 } = {}) {
   if (!container) throw new Error('Container is required for map view');
 
@@ -122,6 +126,19 @@ export function createMapView(container, {
     terrainColors && typeof terrainColors === 'object'
       ? { ...TERRAIN_COLORS, ...terrainColors }
       : { ...TERRAIN_COLORS };
+
+  const normalizedBufferMargin = Number.isFinite(bufferMargin)
+    ? Math.max(0, Math.trunc(bufferMargin))
+    : BUFFER_MARGIN;
+  const normalizedMinZoom = Number.isFinite(minZoom) ? Math.max(0.1, minZoom) : 0.5;
+  const normalizedMaxZoom = Number.isFinite(maxZoom)
+    ? Math.max(normalizedMinZoom, maxZoom)
+    : 3;
+  const normalizedInitialZoom = Number.isFinite(initialZoom) ? initialZoom : 1;
+  const clampedInitialZoom = Math.min(
+    normalizedMaxZoom,
+    Math.max(normalizedMinZoom, normalizedInitialZoom)
+  );
 
   const applyControlButtonStyle = (
     button,
@@ -165,10 +182,11 @@ export function createMapView(container, {
     onTileClick: typeof onTileClick === 'function' ? onTileClick : null,
     navMode: navMode === 'player' ? 'player' : 'viewport',
     onNavigate: typeof onNavigate === 'function' ? onNavigate : null,
-    bufferMargin: BUFFER_MARGIN,
-    zoom: 1,
-    minZoom: 0.5,
-    maxZoom: 3,
+    bufferMargin: normalizedBufferMargin,
+    zoom: clampedInitialZoom,
+    minZoom: normalizedMinZoom,
+    maxZoom: normalizedMaxZoom,
+    initialZoom: clampedInitialZoom,
     zoomBase: { width: 0, height: 0 },
     zoomDisplayFactor: 1,
     sizeRetryCount: 0,
@@ -2323,8 +2341,13 @@ export function createMapView(container, {
 
   function updateZoomControls() {
     if (!zoomResetButton) return;
-    zoomResetButton.textContent = `${Math.round(state.zoom * 100)}%`;
-    zoomResetButton.setAttribute('aria-label', `Reset zoom to 100% (current ${Math.round(state.zoom * 100)}%)`);
+    const currentPercent = Math.round(state.zoom * 100);
+    const baselinePercent = Math.round((state.initialZoom || 1) * 100);
+    zoomResetButton.textContent = `${currentPercent}%`;
+    zoomResetButton.setAttribute(
+      'aria-label',
+      `Reset zoom to ${baselinePercent}% (current ${currentPercent}%)`
+    );
     if (zoomOutButton) {
       zoomOutButton.disabled = state.zoom <= state.minZoom + 0.001;
     }
@@ -2361,7 +2384,7 @@ export function createMapView(container, {
   }
 
   function resetZoom() {
-    setZoom(1);
+    setZoom(state.initialZoom || 1);
   }
 
   function ensureTileElements(cols, rows) {
