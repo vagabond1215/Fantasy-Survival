@@ -934,8 +934,67 @@ body.landing-active .spawn-confirm button:hover {
   transform: translateY(-1px);
 }
 
+body.landing-active {
+  --spawn-marker-outline-color: color-mix(in srgb, var(--color-primary-light) 80%, white 12%);
+  --spawn-marker-cross-color: color-mix(in srgb, var(--text-strong) 90%, white 10%);
+  --spawn-marker-halo-color: color-mix(in srgb, var(--color-primary) 45%, transparent);
+  --spawn-marker-shadow-color: rgba(4, 10, 24, 0.55);
+}
+
+body[data-theme-appearance='light'].landing-active {
+  --spawn-marker-outline-color: color-mix(in srgb, var(--color-secondary-dark) 75%, black 8%);
+  --spawn-marker-cross-color: color-mix(in srgb, var(--color-background-dark) 88%, black 10%);
+  --spawn-marker-halo-color: color-mix(in srgb, var(--color-secondary) 45%, transparent);
+  --spawn-marker-shadow-color: rgba(4, 12, 26, 0.38);
+}
+
+body[data-theme-appearance='dark'].landing-active {
+  --spawn-marker-outline-color: color-mix(in srgb, var(--color-primary-light) 92%, white 8%);
+  --spawn-marker-cross-color: color-mix(in srgb, var(--color-neutral-light) 96%, white 4%);
+  --spawn-marker-halo-color: color-mix(in srgb, var(--color-primary-light) 60%, transparent);
+  --spawn-marker-shadow-color: rgba(0, 0, 0, 0.7);
+}
+
 body.landing-active .map-marker--spawn {
-  filter: drop-shadow(0 0 8px #7d7f81);
+  filter: none;
+}
+
+body.landing-active .map-marker--spawn-outline {
+  --spawn-marker-size: 44px;
+  --spawn-marker-ring-thickness: 3px;
+  --spawn-marker-cross-thickness: 3px;
+  --spawn-marker-cross-inset: 28%;
+  position: relative;
+  display: block;
+  width: var(--spawn-marker-size);
+  height: var(--spawn-marker-size);
+  color: var(--spawn-marker-cross-color);
+}
+
+body.landing-active .map-marker--spawn-outline::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  border-radius: 999px;
+  border: var(--spawn-marker-ring-thickness) solid var(--spawn-marker-outline-color);
+  box-shadow:
+    0 0 0 2px var(--spawn-marker-shadow-color),
+    0 0 18px var(--spawn-marker-halo-color);
+  background: color-mix(in srgb, var(--spawn-marker-outline-color) 15%, transparent);
+}
+
+body.landing-active .map-marker--spawn-outline::after {
+  content: '';
+  position: absolute;
+  inset: var(--spawn-marker-cross-inset);
+  border-radius: 999px;
+  background:
+    linear-gradient(var(--spawn-marker-cross-color), var(--spawn-marker-cross-color)) center/100%
+      var(--spawn-marker-cross-thickness),
+    linear-gradient(90deg, var(--spawn-marker-cross-color), var(--spawn-marker-cross-color))
+      center/var(--spawn-marker-cross-thickness) 100%;
+  background-repeat: no-repeat;
+  filter: drop-shadow(0 0 2px var(--spawn-marker-shadow-color));
 }
 
 body.landing-active .map-legend {
