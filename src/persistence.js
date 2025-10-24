@@ -92,6 +92,10 @@ export function loadGame() {
 
 // Remove any saved game data.
 export function clearSave() {
-  localStorage.removeItem(SAVE_KEY);
+  try {
+    localStorage.removeItem(SAVE_KEY);
+  } catch (err) {
+    console.warn('Failed to clear saved game data.', err);
+  }
 }
 

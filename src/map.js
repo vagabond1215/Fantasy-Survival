@@ -3,8 +3,8 @@ import { getBiome } from './biomes.js';
 import store from './state.js';
 import { resolveWorldParameters } from './difficulty.js';
 import { notifySanityCheck } from './notifications.js';
-import { createElevationSampler } from './map/generation/elevation.ts';
-import { generateHydrology } from './map/generation/hydrology.ts';
+import { createElevationSampler } from './map/generation/elevation.js';
+import { generateHydrology } from './map/generation/hydrology.js';
 
 export const GRID_DISTANCE_METERS = 100;
 

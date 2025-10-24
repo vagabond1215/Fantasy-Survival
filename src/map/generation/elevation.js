@@ -1,14 +1,22 @@
 const F2 = 0.5 * (Math.sqrt(3) - 1);
 const G2 = (3 - Math.sqrt(3)) / 6;
 
-function clamp(value: number, min: number, max: number): number {
+/**
+ * @param {number} value
+ * @param {number} min
+ * @param {number} max
+ */
+function clamp(value, min, max) {
   if (!Number.isFinite(value)) return min;
   if (value < min) return min;
   if (value > max) return max;
   return value;
 }
 
-function hashSeed(seed: string | number): number {
+/**
+ * @param {string | number} seed
+ */
+function hashSeed(seed) {
   const text = typeof seed === 'string' ? seed : String(seed ?? '');
   let h = 1779033703 ^ text.length;
   for (let i = 0; i < text.length; i += 1) {
@@ -20,7 +28,10 @@ function hashSeed(seed: string | number): number {
   return (h ^= h >>> 16) >>> 0;
 }
 
-function mulberry32(seed: number): () => number {
+/**
+ * @param {number} seed
+ */
+function mulberry32(seed) {
   let t = seed >>> 0;
   return () => {
     t += 0x6d2b79f5;
@@ -30,7 +41,8 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-const GRADIENTS: Array<[number, number]> = [
+/** @type {Array<[number, number]>} */
+const GRADIENTS = [
   [1, 1],
   [-1, 1],
   [1, -1],
@@ -46,9 +58,10 @@ const GRADIENTS: Array<[number, number]> = [
 ];
 
 class Simplex2D {
-  private perm: Uint8Array;
-
-  constructor(seed: string | number) {
+  /**
+   * @param {string | number} seed
+   */
+  constructor(seed) {
     const random = mulberry32(hashSeed(seed));
     const perm = new Uint8Array(256);
     for (let i = 0; i < 256; i += 1) {
@@ -60,13 +73,18 @@ class Simplex2D {
       perm[i] = perm[j];
       perm[j] = temp;
     }
+    /** @type {Uint8Array} */
     this.perm = new Uint8Array(512);
     for (let i = 0; i < 512; i += 1) {
       this.perm[i] = perm[i & 255];
     }
   }
 
-  noise2D(xin: number, yin: number): number {
+  /**
+   * @param {number} xin
+   * @param {number} yin
+   */
+  noise2D(xin, yin) {
     let n0 = 0;
     let n1 = 0;
     let n2 = 0;
@@ -125,26 +143,32 @@ class Simplex2D {
   }
 }
 
-export interface ElevationOptions {
-  base?: number;
-  variance?: number;
-  scale?: number;
-  worldScale?: number;
-  octaves?: number;
-  persistence?: number;
-  lacunarity?: number;
-  maskStrength?: number;
-  maskBias?: number;
-}
+/**
+ * @typedef {Object} ElevationOptions
+ * @property {number} [base]
+ * @property {number} [variance]
+ * @property {number} [scale]
+ * @property {number} [worldScale]
+ * @property {number} [octaves]
+ * @property {number} [persistence]
+ * @property {number} [lacunarity]
+ * @property {number} [maskStrength]
+ * @property {number} [maskBias]
+ */
 
-function computeMask(
-  simplex: Simplex2D,
-  x: number,
-  y: number,
-  worldScale: number,
-  maskStrength: number,
-  maskBias: number
-): number {
+/**
+ * @typedef {{sample: (x: number, y: number) => number}} ElevationSampler
+ */
+
+/**
+ * @param {Simplex2D} simplex
+ * @param {number} x
+ * @param {number} y
+ * @param {number} worldScale
+ * @param {number} maskStrength
+ * @param {number} maskBias
+ */
+function computeMask(simplex, x, y, worldScale, maskStrength, maskBias) {
   const scale = Math.max(24, worldScale);
   const nx = x / scale;
   const ny = y / scale;
@@ -156,14 +180,12 @@ function computeMask(
   return clamp(biased + maskBias, 0, 1);
 }
 
-export interface ElevationSampler {
-  sample(x: number, y: number): number;
-}
-
-export function createElevationSampler(
-  seed: string | number,
-  options: ElevationOptions = {}
-): ElevationSampler {
+/**
+ * @param {string | number} seed
+ * @param {ElevationOptions} [options]
+ * @returns {ElevationSampler}
+ */
+export function createElevationSampler(seed, options = {}) {
   const simplex = new Simplex2D(`${seed}:elev`);
   const maskSimplex = new Simplex2D(`${seed}:mask`);
 
@@ -181,14 +203,14 @@ export function createElevationSampler(
   const worldFactor = Math.sqrt(worldScale / 64);
 
   return {
-    sample(x: number, y: number): number {
+    sample(x, y) {
       let amplitude = 1;
       let frequency = 1;
       let total = 0;
       let weight = 0;
       for (let octave = 0; octave < octaves; octave += 1) {
-        const nx = (x + octave * 17.31) * baseFrequency * frequency / worldFactor;
-        const ny = (y - octave * 11.17) * baseFrequency * frequency / worldFactor;
+        const nx = ((x + octave * 17.31) * baseFrequency * frequency) / worldFactor;
+        const ny = ((y - octave * 11.17) * baseFrequency * frequency) / worldFactor;
         const noise = simplex.noise2D(nx, ny) * 0.5 + 0.5;
         total += noise * amplitude;
         weight += amplitude;
