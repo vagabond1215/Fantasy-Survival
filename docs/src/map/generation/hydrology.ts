@@ -1,4 +1,4 @@
-import { resolveWaterRules, type WaterRuleSet } from './waterRules.ts';
+import { resolveWaterRules, type WaterRuleSet } from './waterRules';
 
 export type HydrologyTile = 'land' | 'ocean' | 'lake' | 'river' | 'marsh';
 
