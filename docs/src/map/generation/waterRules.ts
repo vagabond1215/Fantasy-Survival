@@ -1,4 +1,4 @@
-import type { ElevationOptions } from './elevation.ts';
+import type { ElevationOptions } from './elevation';
 
 interface WorldParameters {
   oreDensity?: number;

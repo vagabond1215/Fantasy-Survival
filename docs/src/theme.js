@@ -1,6 +1,9 @@
 const THEME_SELECTION_STORAGE_KEY = 'theme:selected';
 const THEME_APPEARANCE_STORAGE_KEY = 'theme:appearance';
 const LEGACY_THEME_STORAGE_KEYS = ['theme'];
+const LEGACY_THEME_ALIASES = new Map([
+  ['lunar-surface-dawn', 'lunar-surface']
+]);
 const APPEARANCE_VALUES = new Set(['light', 'dark']);
 
 const STANDARD_COLOR_KEYS = [
@@ -173,6 +176,62 @@ function fillColorScale(scale = {}) {
 }
 
 const THEME_DEFINITIONS = [
+  {
+    id: 'lunar-surface',
+    meta: {
+      label: 'Lunar Surface',
+      emoji: '🌕',
+      image:
+        'https://raw.githubusercontent.com/microsoft/fluentui-emoji/main/assets/Full%20Moon/3D/full_moon_3d.png',
+    },
+    appearance: 'dark',
+    colors: {
+      background: { light: '#2d3036', base: '#1f2228', dark: '#111419' },
+      neutral: { light: '#d8dbe2', base: '#b4b8c1', dark: '#828690' },
+      primary: { light: '#c1c4cc', base: '#a0a4ac', dark: '#72757c' },
+      secondary: { light: '#acb0b8', base: '#8e929a', dark: '#63666d' },
+      accent: { light: '#d0d3da', base: '#b1b5bd', dark: '#7f8289' }
+    },
+    standardColors: {
+      red: { light: '#d7dadd', dark: '#6b6e74' },
+      orange: { light: '#cfd1d6', dark: '#686b71' },
+      yellow: { light: '#c7cacf', dark: '#5f6268' },
+      green: { light: '#c1c4c9', dark: '#585b60' },
+      blue: { light: '#bbbfc5', dark: '#51555c' },
+      pink: { light: '#d2d5da', dark: '#6a6d73' },
+      purple: { light: '#c6c9d0', dark: '#5d6168' },
+      brown: { light: '#bfc2c7', dark: '#55585e' }
+    },
+    text: {
+      primary: '#f0f2f7',
+      muted: '#b9bdc5'
+    },
+    appearances: {
+      light: {
+        colors: {
+          background: { light: '#f5f6f8', base: '#e5e7eb', dark: '#c2c5cc' },
+          neutral: { light: '#4f5359', base: '#383c42', dark: '#202329' },
+          primary: { light: '#6d7178', base: '#555960', dark: '#3a3e44' },
+          secondary: { light: '#90949c', base: '#757981', dark: '#4f535a' },
+          accent: { light: '#a4a8b0', base: '#878b93', dark: '#5d6168' }
+        },
+        standardColors: {
+          red: { light: '#a6a9af', dark: '#4a4d53' },
+          orange: { light: '#b0b3b9', dark: '#505359' },
+          yellow: { light: '#bbbfc6', dark: '#555960' },
+          green: { light: '#aeb1b8', dark: '#4c5056' },
+          blue: { light: '#a1a5ac', dark: '#45494f' },
+          pink: { light: '#b7bac1', dark: '#53565d' },
+          purple: { light: '#bfc2ca', dark: '#595d63' },
+          brown: { light: '#a7abb2', dark: '#4a4e54' }
+        },
+        text: {
+          primary: '#1c1f23',
+          muted: '#4f535a'
+        }
+      }
+    }
+  },
   {
     id: 'apple-orchard',
     meta: {
@@ -640,6 +699,30 @@ const THEME_DEFINITIONS = [
   }
 ];
 
+function resolveThemeAppearance(theme, appearance) {
+  if (!theme) {
+    return { colors: {}, standardColors: undefined, text: undefined };
+  }
+
+  const baseColors = theme.colors ? { ...theme.colors } : {};
+  const baseStandardColors = theme.standardColors ? { ...theme.standardColors } : undefined;
+  const baseText = theme.text ? { ...theme.text } : undefined;
+
+  const variants = theme.appearances || null;
+  const variant =
+    variants?.[appearance] || (theme.appearance && variants?.[theme.appearance]) || null;
+
+  if (!variant) {
+    return { colors: baseColors, standardColors: baseStandardColors, text: baseText };
+  }
+
+  const colors = variant.colors ? { ...baseColors, ...variant.colors } : baseColors;
+  const standardColors = variant.standardColors || baseStandardColors;
+  const text = variant.text || baseText;
+
+  return { colors, standardColors, text };
+}
+
 const THEME_INDEX = new Map(THEME_DEFINITIONS.map(theme => [theme.id, theme]));
 const VALID_THEMES = new Set(THEME_DEFINITIONS.map(theme => theme.id));
 const THEME_CLASSES = THEME_DEFINITIONS.map(theme => `theme-${theme.id}`);
@@ -647,9 +730,13 @@ const THEME_CLASSES = THEME_DEFINITIONS.map(theme => `theme-${theme.id}`);
 function toThemeExport(theme, activeAppearance = currentAppearance) {
   if (!theme) return null;
   const meta = theme.meta ? { ...theme.meta } : { label: '', emoji: '', image: null };
+  const resolved = resolveThemeAppearance(theme, activeAppearance);
   return {
     ...theme,
     meta,
+    colors: resolved.colors,
+    standardColors: resolved.standardColors,
+    text: resolved.text,
     name: meta.emoji || '',
     label: meta.label || '',
     activeAppearance
@@ -706,8 +793,14 @@ function readStoredThemeSelection() {
   for (const key of keys) {
     try {
       const stored = localStorage.getItem(key);
-      if (stored && VALID_THEMES.has(stored)) {
-        return stored;
+      if (stored) {
+        if (VALID_THEMES.has(stored)) {
+          return stored;
+        }
+        const alias = LEGACY_THEME_ALIASES.get(stored);
+        if (alias && VALID_THEMES.has(alias)) {
+          return alias;
+        }
       }
     } catch (error) {
       console.warn('Unable to access theme preference storage.', error);
@@ -773,7 +866,10 @@ function applyThemeVariables() {
   const theme = THEME_INDEX.get(currentTheme);
   if (!theme) return;
 
-  const { colors: rawColors, standardColors, text } = theme;
+  const { colors: rawColors, standardColors, text } = resolveThemeAppearance(
+    theme,
+    currentAppearance
+  );
 
   /** @type {ThemeColors} */
   const colors = rawColors || {};
