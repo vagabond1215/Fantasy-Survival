@@ -19,6 +19,7 @@ Thank you for your interest in improving **Fantasy Survival**! This document cap
    npm test
    npm run check:types
    npm run check:links
+   npm run guard:paths
    ```
 4. **Format your changes** when necessary with Prettier:
    ```bash
