@@ -19,7 +19,8 @@ export const defaultWorldParameters = {
     vegetationScale: 50,
     oreNoiseScale: 50,
     oreThresholdOffset: 50,
-    waterGuaranteeRadius: 50
+    waterGuaranteeRadius: 50,
+    waterFlowMultiplier: 50
   }
 };
 
@@ -102,7 +103,8 @@ const SCORE_WEIGHTS = {
     vegetationScale: -1,
     oreNoiseScale: 2,
     oreThresholdOffset: -3,
-    waterGuaranteeRadius: -2
+    waterGuaranteeRadius: -2,
+    waterFlowMultiplier: -2
   }
 };
 
@@ -157,7 +159,8 @@ export const difficultySettings = {
     advanced: {
       vegetationScale: 62,
       oreThresholdOffset: 68,
-      waterGuaranteeRadius: 70
+      waterGuaranteeRadius: 70,
+      waterFlowMultiplier: 45
     }
   }),
   normal: withWorld('normal', {
@@ -182,7 +185,8 @@ export const difficultySettings = {
       elevationScale: 64,
       oreNoiseScale: 62,
       oreThresholdOffset: 38,
-      waterGuaranteeRadius: 32
+      waterGuaranteeRadius: 32,
+      waterFlowMultiplier: 62
     }
   }),
   custom: withWorld('normal')

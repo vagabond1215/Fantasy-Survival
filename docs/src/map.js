@@ -3,6 +3,8 @@ import { getBiome } from './biomes.js';
 import store from './state.js';
 import { resolveWorldParameters } from './difficulty.js';
 import { notifySanityCheck } from './notifications.js';
+import { createElevationSampler } from './map/generation/elevation.ts';
+import { generateHydrology } from './map/generation/hydrology.ts';
 
 export const GRID_DISTANCE_METERS = 100;
 
@@ -12,6 +14,10 @@ export const DEFAULT_MAP_HEIGHT = DEFAULT_MAP_SIZE;
 
 export const TERRAIN_SYMBOLS = {
   water: '💧',
+  ocean: '🌊',
+  lake: '🟦',
+  river: '〰️',
+  marsh: '🪴',
   open: '🌾',
   forest: '🌲',
   ore: '⛏️',
@@ -20,11 +26,21 @@ export const TERRAIN_SYMBOLS = {
 
 export const TERRAIN_COLORS = {
   water: '#2d7ff9',
+  ocean: '#2563eb',
+  lake: '#38bdf8',
+  river: '#0ea5e9',
+  marsh: '#4ade80',
   open: '#facc15',
   forest: '#16a34a',
   ore: '#f97316',
   stone: '#94a3b8'
 };
+
+const WATER_TERRAIN_TYPES = new Set(['water', 'ocean', 'lake', 'river', 'marsh']);
+
+export function isWaterTerrain(type) {
+  return type ? WATER_TERRAIN_TYPES.has(type) : false;
+}
 
 export function computeCenteredStart(width = DEFAULT_MAP_WIDTH, height = DEFAULT_MAP_HEIGHT, focusX = 0, focusY = 0) {
   const normalizedWidth = Math.max(1, Math.trunc(width));
@@ -124,7 +140,7 @@ export function scanRadius(
       const dx = worldX - centerX;
       if (dx * dx + dy * dy > radiusSq) continue;
       stats.total++;
-      if (type === 'water') {
+      if (isWaterTerrain(type)) {
         stats.water++;
         continue;
       }
@@ -186,7 +202,14 @@ function collectTilesWithinRadius(
     if (dy * dy > radiusSq) continue;
     for (let col = 0; col < rowData.length; col++) {
       const type = rowData[col];
-      if (!type || type !== matchType) continue;
+      if (!type) continue;
+      const matches =
+        typeof matchType === 'function'
+          ? matchType(type)
+          : matchType === 'water'
+            ? isWaterTerrain(type)
+            : type === matchType;
+      if (!matches) continue;
       const worldX = startX + col;
       const dx = worldX - centerX;
       if (dx * dx + dy * dy > radiusSq) continue;
@@ -230,7 +253,7 @@ export function findValidSpawn(
     if (!rowData) continue;
     for (let col = 0; col < rowData.length; col++) {
       const type = rowData[col];
-      if (!type || type === 'water') continue;
+      if (!type || isWaterTerrain(type)) continue;
       const worldX = startX + col;
       const worldY = startY + row;
       const distance = Math.hypot(worldX - centerX, worldY - centerY);
@@ -443,22 +466,12 @@ function noise2D(seed, x, y, scale, salt) {
   return lerp(ix0, ix1, sy);
 }
 
-function elevationNoise(seed, x, y, scale) {
-  return noise2D(seed, x, y, scale, 'elev');
-}
-
 function vegetationNoise(seed, x, y, scale) {
   return noise2D(seed, x, y, scale, 'veg');
 }
 
 function oreNoise(seed, x, y, scale) {
   return noise2D(seed, x, y, scale, 'ore');
-}
-
-function getElevation(seed, x, y, options = {}) {
-  const { base = 0.5, variance = 0.5, scale = 50 } = options;
-  const noise = elevationNoise(seed, x, y, scale);
-  return base + (noise - 0.5) * 2 * variance;
 }
 
 export function generateColorMap(
@@ -481,8 +494,6 @@ export function generateColorMap(
   const biome = getBiome(biomeId);
   const world = resolveWorldParameters(worldSettings || {});
   const adv = world.advanced || {};
-  const waterFeature = biome && hasWaterFeature(biome.features);
-
   const rainfallBias = (world.rainfall - 50) / 100;
   const temperatureBias = (world.temperature - 50) / 100;
   const mountainsBias = (world.mountains - 50) / 100;
@@ -533,18 +544,6 @@ export function generateColorMap(
     )
   };
 
-  const baseWaterLevel = waterLevelOverride ?? biome?.elevation?.waterLevel ?? 0.3;
-  const waterLevel = clamp(
-    baseWaterLevel +
-      waterBias * 0.18 +
-      rainfallBias * 0.12 +
-      Math.max(riversBias, 0) * 0.12 +
-      Math.max(lakesBias, 0) * 0.16 -
-      Math.max(mountainsBias, 0) * 0.06,
-    0.05,
-    0.85
-  );
-
   const oreThresholdBase = clamp(0.95 - (world.oreDensity / 100) * 0.35, 0.55, 0.98);
   const oreThreshold = clamp(
     oreThresholdBase - (((adv.oreThresholdOffset ?? 50) - 50) / 100) * 0.2,
@@ -552,11 +551,6 @@ export function generateColorMap(
     0.98
   );
   const oreScale = clamp(10 + ((adv.oreNoiseScale ?? 50) / 100) * 24, 6, 40);
-
-  const hydroBaseChance =
-    Math.max(0, world.rivers100 - 40) * 0.0016 + Math.max(0, world.lakes100 - 30) * 0.0014;
-  const hydroModifier = 1 - Math.max(0, mountainsBias) * 0.35;
-  const extraHydrologyChance = Math.max(0, hydroBaseChance * hydroModifier);
 
   const guaranteedWaterRadius = clamp(
     Math.round(
@@ -572,41 +566,68 @@ export function generateColorMap(
   const terrainTypes = [];
   const elevations = [];
 
+  const worldScale = Math.max(mapWidth, mapHeight) * 1.2;
+  const elevationSampler = createElevationSampler(seed, {
+    base: elevationOptions.base,
+    variance: elevationOptions.variance,
+    scale: elevationOptions.scale,
+    worldScale,
+    maskStrength: clamp(0.5 + mountainsBias * 0.2 - waterBias * 0.1, 0.25, 0.85),
+    maskBias: clamp((waterBias + rainfallBias) * -0.08, -0.25, 0.2)
+  });
+
   for (let y = 0; y < mapHeight; y++) {
-    const row = [];
-    const typeRow = [];
     const eRow = [];
     for (let x = 0; x < mapWidth; x++) {
       const gx = effectiveXStart + x;
       const gy = effectiveYStart + y;
-      const elevation = getElevation(seed, gx, gy, elevationOptions);
+      const elevation = elevationSampler.sample(gx, gy);
       eRow.push(elevation);
+    }
+    elevations.push(eRow);
+  }
+
+  const hydrology = generateHydrology({
+    seed,
+    width: mapWidth,
+    height: mapHeight,
+    elevations,
+    biome: biome
+      ? { id: biome.id, features: biome.features, elevation: biome.elevation }
+      : null,
+    world
+  });
+
+  for (let y = 0; y < mapHeight; y++) {
+    const row = [];
+    const typeRow = [];
+    for (let x = 0; x < mapWidth; x++) {
+      const gx = effectiveXStart + x;
+      const gy = effectiveYStart + y;
+      const elevation = elevations[y][x];
+      const hydroType = hydrology.types[y]?.[x] ?? 'land';
       let type;
-      if (waterFeature && elevation < waterLevel) {
-        type = 'water';
+      if (hydroType && hydroType !== 'land') {
+        type = hydroType;
       } else {
         const vegNoise = vegetationNoise(seed, gx, gy, vegScale);
         type = vegNoise < openLand ? 'open' : 'forest';
-        if (type !== 'water' && elevation >= waterLevel && extraHydrologyChance > 0) {
-          const hydroRoll = coordRand(seed, gx, gy, 'hydro');
-          if (hydroRoll < extraHydrologyChance) {
-            type = 'water';
-          }
-        }
-        if (type !== 'water') {
-          const oreVal = oreNoise(seed, gx, gy, oreScale);
-          if (oreVal > oreThreshold && elevation >= waterLevel) type = 'ore';
+        const oreVal = oreNoise(seed, gx, gy, oreScale);
+        if (oreVal > oreThreshold && elevation >= hydrology.seaLevel) {
+          type = 'ore';
         }
       }
-
       const symbol = TERRAIN_SYMBOLS[type] || '?';
       row.push(symbol);
       typeRow.push(type);
     }
     tiles.push(row);
     terrainTypes.push(typeRow);
-    elevations.push(eRow);
   }
+
+  const waterLevel = Number.isFinite(waterLevelOverride)
+    ? clamp(waterLevelOverride, 0, 1)
+    : hydrology.seaLevel;
 
   const originColIndex = -effectiveXStart;
   const originRowIndex = -effectiveYStart;
@@ -621,14 +642,14 @@ export function generateColorMap(
 
   if (originInBounds) {
     const originType = terrainTypes[originRowIndex]?.[originColIndex];
-    if (originType === 'water') {
+    if (isWaterTerrain(originType)) {
       let closestLand = null;
       for (let row = 0; row < mapHeight; row++) {
         const rowData = terrainTypes[row];
         if (!rowData) continue;
         for (let col = 0; col < mapWidth; col++) {
           const type = rowData[col];
-          if (type === 'water') continue;
+          if (isWaterTerrain(type)) continue;
           const worldX = effectiveXStart + col;
           const worldY = effectiveYStart + row;
           const distance = Math.hypot(worldX, worldY);
@@ -662,7 +683,7 @@ export function generateColorMap(
       const worldX = effectiveXStart + col;
       const worldY = effectiveYStart + row;
       const distance = Math.hypot(worldX, worldY);
-      if (type === 'water') {
+      if (isWaterTerrain(type)) {
         if (distance < nearestWaterDistance) {
           nearestWaterDistance = distance;
         }
@@ -683,8 +704,23 @@ export function generateColorMap(
 
   if (nearestWaterDistance > guaranteedWaterRadius && bestWaterCandidate) {
     const { localX, localY } = bestWaterCandidate;
-    terrainTypes[localY][localX] = 'water';
-    tiles[localY][localX] = TERRAIN_SYMBOLS.water;
+    terrainTypes[localY][localX] = 'lake';
+    tiles[localY][localX] = TERRAIN_SYMBOLS.lake || TERRAIN_SYMBOLS.water;
+    if (hydrology.types[localY]) {
+      hydrology.types[localY][localX] = 'lake';
+    }
+    if (hydrology.flowDirections[localY]) {
+      hydrology.flowDirections[localY][localX] = null;
+    }
+    if (hydrology.flowAccumulation[localY]) {
+      hydrology.flowAccumulation[localY][localX] = 0;
+    }
+    if (hydrology.filledElevation[localY]) {
+      hydrology.filledElevation[localY][localX] = Math.max(
+        hydrology.filledElevation[localY][localX] ?? elevations[localY][localX],
+        waterLevel
+      );
+    }
   }
 
   const sanityContext = {
@@ -693,7 +729,8 @@ export function generateColorMap(
     effectiveXStart,
     effectiveYStart,
     originShiftX,
-    originShiftY
+    originShiftY,
+    hydrology
   };
   const sanitySeed = worldSettings?.seed ?? seed;
   const { adjustments: sanityAdjustments, validation: sanityValidation } = applySanityChecks(
@@ -766,6 +803,7 @@ export function generateColorMap(
     elevations,
     season,
     waterLevel,
+    hydrology,
     worldSettings: world,
     viewport: viewportDetails
   };

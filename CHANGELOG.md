@@ -13,3 +13,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - TypeScript configuration for JavaScript projects with `// @ts-check` enabled in browser and Node entry points.
 - Repository standards files: `.editorconfig`, `CONTRIBUTING.md`, and `CHANGELOG.md`.
 - Continuous integration workflow that runs linting, tests, and type-checking.
+- Hydrology modules for elevation, water rules, and flow simulation powering rivers, lakes, wetlands, and coastal shaping with automated coverage tests.
+
+### Changed
+- Map generation now consumes the hydrology pipeline for water placement, with biome-aware marshes, widened river mouths, and richer terrain symbols.
+- Difficulty settings expose a water-flow multiplier slider that feeds new hydrology thresholds in both the UI and presets.
