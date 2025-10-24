@@ -1,4 +1,4 @@
-import { GRID_DISTANCE_METERS } from './map.js';
+import { GRID_DISTANCE_METERS, isWaterTerrain } from './map.js';
 
 const BASE_WALK_SPEED_METERS_PER_HOUR = 4200; // ~4.2 km/h average travel speed
 
@@ -8,6 +8,10 @@ const TERRAIN_TIME_MULTIPLIER = {
   ore: 1.3,
   stone: 1.4,
   water: 4,
+  ocean: 4.2,
+  lake: 4,
+  river: 3.8,
+  marsh: 2.8,
   default: 1.25
 };
 
@@ -34,7 +38,7 @@ export function calculateTravelTime({
   let blocked = false;
   let reason = '';
 
-  if (toTerrain === 'water' || fromTerrain === 'water') {
+  if (isWaterTerrain(toTerrain) || isWaterTerrain(fromTerrain)) {
     const swimSkill = clamp(swimmingLevel, 1, 100);
     if (swimSkill < 8) {
       blocked = true;
@@ -67,7 +71,13 @@ export function describeTerrainDifficulty(type) {
     case 'stone':
       return 'Jagged stone forces a cautious pace.';
     case 'water':
-      return 'Requires swimming or a bridge to cross.';
+    case 'lake':
+    case 'ocean':
+      return 'Requires swimming or a boat to cross safely.';
+    case 'river':
+      return 'Swift currents complicate fording attempts.';
+    case 'marsh':
+      return 'Slogging through wetlands is slow and exhausting.';
     case 'open':
     default:
       return 'Gentle terrain allows steady progress.';

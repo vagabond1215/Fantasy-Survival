@@ -11,6 +11,7 @@ function slugify(value = '') {
 }
 
 const DEFAULT_STICK_SEASON_WEIGHTS = { Thawbound: 2, Sunheight: 3, Emberwane: 3, Frostshroud: 2 };
+const WATER_HABITATS = ['water', 'river', 'lake', 'marsh', 'ocean'];
 
 const STURDY_TREE_STICK_CONFIG = [
   {
@@ -21,7 +22,7 @@ const STURDY_TREE_STICK_CONFIG = [
   },
   {
     name: 'Buttonwood',
-    habitats: ['water'],
+    habitats: WATER_HABITATS,
     encounterName: 'salt-hardened buttonwood branch',
     successSuffix: 'from the tide-smoothed buttonwood branch, tough enough for sturdy grips.'
   },
@@ -233,7 +234,7 @@ const BASE_HABITAT_ITEMS = [
     singularName: 'driftwood log',
     encounterName: 'driftwood',
     type: 'loose',
-    habitats: ['water'],
+    habitats: WATER_HABITATS,
     baseWeight: 2,
     seasonWeights: { Thawbound: 2, Sunheight: 2, Emberwane: 3, Frostshroud: 2 },
     minQuantity: 1,
@@ -248,7 +249,7 @@ const BASE_HABITAT_ITEMS = [
     singularName: 'bundle of shoreline herbs',
     encounterName: 'stand of shoreline herbs',
     type: 'loose',
-    habitats: ['water'],
+    habitats: WATER_HABITATS,
     baseWeight: 1,
     seasonWeights: { Thawbound: 1, Sunheight: 2, Emberwane: 3, Frostshroud: 1 },
     minQuantity: 1,
@@ -263,7 +264,7 @@ const BASE_HABITAT_ITEMS = [
     singularName: 'chunk of salt crust',
     encounterName: 'salt-encrusted tide pool',
     type: 'harvest',
-    habitats: ['water'],
+    habitats: WATER_HABITATS,
     baseWeight: 1,
     seasonWeights: { Thawbound: 1, Sunheight: 2, Emberwane: 2, Frostshroud: 1 },
     minQuantity: 1,

@@ -339,7 +339,17 @@ function describeTerrainNarrative(terrain, node) {
       }
       break;
     case 'water':
-      result.lead = 'is a shallow pool fed by the surrounding terrain';
+    case 'lake':
+      result.lead = 'rests beside a still lake with fresh water.';
+      break;
+    case 'ocean':
+      result.lead = 'opens onto a tidal shoreline with crashing surf.';
+      break;
+    case 'river':
+      result.lead = 'is cut by a flowing river ripe for fishing and power.';
+      break;
+    case 'marsh':
+      result.lead = 'is saturated marshland thick with reeds.';
       break;
     default:
       result.lead = 'is mostly open ground ready for work';

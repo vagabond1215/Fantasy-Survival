@@ -3,6 +3,10 @@ import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS, TERRAIN_COLORS } from './map.js';
 
 const LEGEND_DEFAULTS = {
   water: 'Water',
+  ocean: 'Ocean',
+  lake: 'Lake',
+  river: 'River',
+  marsh: 'Marsh',
   open: 'Open Land',
   forest: 'Forest',
   ore: 'Ore Deposits',

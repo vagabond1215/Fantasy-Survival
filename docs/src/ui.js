@@ -13,7 +13,8 @@ import {
   DEFAULT_MAP_HEIGHT,
   DEFAULT_MAP_WIDTH,
   generateColorMap,
-  TERRAIN_COLORS
+  TERRAIN_COLORS,
+  isWaterTerrain
 } from './map.js';
 import { createMapView } from './mapView.js';
 import { ensureSanityCheckToasts } from './notifications.js';
@@ -181,6 +182,15 @@ const ADVANCED_WORLD_PARAMETERS = [
     min: 0,
     max: 100,
     step: 1
+  },
+  {
+    id: 'advanced.waterFlowMultiplier',
+    path: ['advanced', 'waterFlowMultiplier'],
+    label: 'Water Flow Multiplier',
+    hint: 'Scales river strength and drainage (50 is balanced).',
+    min: 0,
+    max: 100,
+    step: 1
   }
 ];
 
@@ -190,7 +200,13 @@ const PARAMETER_CATEGORIES = [
   {
     id: 'water',
     label: 'Water',
-    parameters: ['waterTable', 'rivers100', 'lakes100', 'advanced.waterGuaranteeRadius']
+    parameters: [
+      'waterTable',
+      'rivers100',
+      'lakes100',
+      'advanced.waterGuaranteeRadius',
+      'advanced.waterFlowMultiplier'
+    ]
   },
   { id: 'ore', label: 'Ore', parameters: ['oreDensity', 'advanced.oreNoiseScale', 'advanced.oreThresholdOffset'] },
   { id: 'fauna', label: 'Fauna', parameters: ['advanced.elevationVariance'] },
@@ -975,7 +991,7 @@ export function initSetupUI(onStart) {
       if (!rowData) continue;
       for (let col = 0; col < rowData.length; col += 1) {
         const type = rowData[col];
-        if (type === 'water') continue;
+        if (isWaterTerrain(type)) continue;
         const worldX = xStart + col;
         const worldY = yStart + row;
         const dx = targetX !== null ? worldX - targetX : worldX;
@@ -1004,7 +1020,7 @@ export function initSetupUI(onStart) {
       return { x, y, terrain: null, relocated: false };
     }
     const terrain = getTerrainAt(mapData, { x, y });
-    if (terrain && terrain !== 'water') {
+    if (terrain && !isWaterTerrain(terrain)) {
       return { x, y, terrain, relocated: false };
     }
     const nearest = findNearestNonWater(mapData, { x, y });

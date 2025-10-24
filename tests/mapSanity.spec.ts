@@ -25,7 +25,7 @@ function buildContext(
 
 describe('findValidSpawn', () => {
   it('returns the nearest spawn candidate that meets thresholds', () => {
-    const grid = Array.from({ length: 9 }, () => Array(9).fill('water'));
+    const grid = Array.from({ length: 9 }, () => Array(9).fill('lake'));
     // Carve a land cluster away from the origin.
     for (let row = 3; row <= 6; row++) {
       for (let col = 4; col <= 7; col++) {
@@ -49,7 +49,7 @@ describe('findValidSpawn', () => {
 
 describe('applySanityChecks', () => {
   it('raises land ratio to at least 50% within the radius', () => {
-    const terrain = Array.from({ length: 7 }, () => Array(7).fill('water'));
+    const terrain = Array.from({ length: 7 }, () => Array(7).fill('lake'));
     // Sparse land initially keeps land ratio below threshold.
     [[3, 3], [3, 2], [2, 3]].forEach(([col, row]) => {
       terrain[row][col] = 'open';
