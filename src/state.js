@@ -35,6 +35,14 @@ function normalizeTechnologyStateRecord(id, value) {
   };
 }
 
+function normalizeEntryCollection(input) {
+  if (!input) return [];
+  if (input instanceof Map) return [...input.entries()];
+  if (Array.isArray(input)) return input;
+  if (typeof input === 'object') return Object.entries(input);
+  return [];
+}
+
 class DataStore {
   constructor() {
     this.buildings = new Map();
@@ -134,11 +142,11 @@ class DataStore {
 
   // Load store from serialized data.
   deserialize(data) {
-    this.buildings = new Map(data.buildings || []);
-    this.people = new Map(data.people || []);
-    this.inventory = new Map(data.inventory || []);
-    this.craftTargets = new Map(data.craftTargets || []);
-    this.locations = new Map(data.locations || []);
+    this.buildings = new Map(normalizeEntryCollection(data.buildings));
+    this.people = new Map(normalizeEntryCollection(data.people));
+    this.inventory = new Map(normalizeEntryCollection(data.inventory));
+    this.craftTargets = new Map(normalizeEntryCollection(data.craftTargets));
+    this.locations = new Map(normalizeEntryCollection(data.locations));
     const rawTechnologies = Array.isArray(data.technologies)
       ? data.technologies
       : data.technologies && typeof data.technologies === 'object'
@@ -158,7 +166,7 @@ class DataStore {
       })
       .filter(Boolean);
     this.technologies = new Map(technologyEntries);
-    this.proficiencies = new Map(data.proficiencies || []);
+    this.proficiencies = new Map(normalizeEntryCollection(data.proficiencies));
     const savedPlayer = data.player || {};
     this.player = {
       locationId: savedPlayer.locationId ?? null,
@@ -184,7 +192,7 @@ class DataStore {
     this.unlockedBuildings = new Set(data.unlockedBuildings || []);
     this.research = new Set(data.research || []);
     this.buildingSeq = data.buildingSeq || 0;
-    this.gatherNodes = new Map(data.gatherNodes || []);
+    this.gatherNodes = new Map(normalizeEntryCollection(data.gatherNodes));
     this.jobSettings = data.jobSettings || {};
     this.jobDaily = data.jobDaily || {};
     this.worldSettings = data.worldSettings || null;
