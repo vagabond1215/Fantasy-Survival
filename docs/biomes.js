@@ -133,6 +133,6 @@ selector.addEventListener('change', () => {
     </section>
   `;
   description.textContent = biome.description;
-  image.src = `images/${biome.id}.jpg`;
+  image.src = new URL(`./images/${biome.id}.jpg`, import.meta.url).href;
   image.alt = biome.name;
 });
