@@ -132,7 +132,6 @@ let jobHighlightTimer = null;
 let inventoryDialog = null;
 let inventoryDialogContent = null;
 let inventoryTableBody = null;
-let inventoryEmblemHost = null;
 let inventoryVisible = false;
 let jobsDialog = null;
 let jobsContent = null;
@@ -149,44 +148,8 @@ let researchContent = null;
 
 const MASS_NOUNS = new Set(['wood', 'firewood', 'food', 'water']);
 
-const HEADER_EMOJI = '🛡️';
-const HEADER_LABEL = 'Fantasy Survival';
-
 export function renderHeader(root) {
-  if (!root) return null;
-
-  let emblem = root.querySelector(':scope > .emblem');
-  if (!emblem) {
-    emblem = document.createElement('div');
-    emblem.className = 'emblem';
-    root.insertBefore(emblem, root.firstChild || null);
-  } else {
-    while (emblem.firstChild) {
-      emblem.removeChild(emblem.firstChild);
-    }
-    if (emblem.parentElement !== root || root.firstChild !== emblem) {
-      root.insertBefore(emblem, root.firstChild || null);
-    }
-  }
-
-  emblem.removeAttribute('data-theme');
-  emblem.classList.remove('emblem--with-image');
-  emblem.classList.add('emblem--with-emoji');
-  emblem.setAttribute('role', 'group');
-  emblem.setAttribute('aria-label', HEADER_LABEL);
-
-  const emojiSpan = document.createElement('span');
-  emojiSpan.className = 'emblem-emoji';
-  emojiSpan.textContent = HEADER_EMOJI;
-  emojiSpan.setAttribute('aria-hidden', 'true');
-
-  const labelSpan = document.createElement('span');
-  labelSpan.className = 'emblem-label';
-  labelSpan.textContent = HEADER_LABEL;
-
-  emblem.append(emojiSpan, labelSpan);
-
-  return emblem;
+  return root || null;
 }
 
 function articleFor(word = '') {
@@ -2841,9 +2804,6 @@ function ensureInventoryDialog() {
     if (!inventoryDialog.parentElement) {
       document.body.appendChild(inventoryDialog);
     }
-    if (inventoryEmblemHost) {
-      renderHeader(inventoryEmblemHost);
-    }
     return inventoryDialog;
   }
 
@@ -2896,10 +2856,6 @@ function ensureInventoryDialog() {
   headerLead.style.alignItems = 'center';
   headerLead.style.gap = '12px';
 
-  inventoryEmblemHost = document.createElement('div');
-  inventoryEmblemHost.className = 'inventory-dialog__emblem';
-  headerLead.appendChild(inventoryEmblemHost);
-
   const title = document.createElement('h3');
   title.id = 'inventory-popup-title';
   title.textContent = 'Inventory Overview';
@@ -2917,7 +2873,6 @@ function ensureInventoryDialog() {
   header.appendChild(closeBtn);
 
   inventoryDialogContent.appendChild(header);
-  renderHeader(inventoryEmblemHost);
 
   const blurb = document.createElement('p');
   blurb.textContent = 'Track on-hand quantities alongside projected supply and demand from queued orders.';

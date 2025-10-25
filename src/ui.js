@@ -387,9 +387,6 @@ export function initSetupUI(onStart) {
     <section id="create-step-content" aria-live="polite">
       <div class="setup">
         <div class="setup__column setup__column--primary">
-          <div class="card hero">
-            <div class="sub">Settle a harsh land. Thrive through seasons. Adapt or vanish.</div>
-          </div>
           <div class="card section" id="biome-card">
             <div class="section__title">Starting Season</div>
             <div class="segment" id="season-seg"></div>

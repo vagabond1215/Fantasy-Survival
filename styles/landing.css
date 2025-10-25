@@ -116,6 +116,15 @@ body.landing-active .setup {
   overflow: visible;
 }
 
+body.landing-active .setup__column {
+  display: grid;
+  gap: 20px;
+}
+
+body.landing-active .setup__column > * {
+  margin: 0;
+}
+
 body.landing-active .setup > * {
   color: inherit;
   background-color: rgba(16, 26, 43, 0.55);
@@ -382,21 +391,6 @@ body.landing-active .step-label {
   font-size: 14px;
   letter-spacing: 0.02em;
   white-space: nowrap;
-}
-
-body.landing-active .hero {
-  display: flex;
-  align-items: center;
-  justify-content: space-between;
-  gap: 16px;
-  padding-block: clamp(14px, 2.5vw, 18px);
-}
-
-body.landing-active .card.hero {
-  background: color-mix(in srgb, var(--color-secondary) 55%, var(--color-background) 25%);
-  border: 1px solid color-mix(in srgb, var(--color-secondary-dark) 45%, transparent);
-  color: var(--text-strong);
-  z-index: 2;
 }
 
 body.landing-active .hero-settings {
