@@ -393,37 +393,51 @@ body.landing-active .step-label {
   white-space: nowrap;
 }
 
-body.landing-active .hero-settings {
-  position: relative;
-  display: inline-flex;
-  align-items: center;
+body.landing-active .settings-float {
+  position: fixed;
+  top: 12px;
+  right: 12px;
+  z-index: 9999;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 8px;
 }
 
-body.landing-active .hero-settings__trigger {
-  border: 1px solid var(--border-secondary);
-  background: color-mix(in srgb, var(--color-secondary-dark) 75%, transparent);
+body.landing-active .icon-gear {
+  appearance: none;
+  border: none;
+  background: transparent;
   color: var(--text-strong);
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 38px;
-  height: 38px;
-  border-radius: 12px;
-  font-size: 20px;
+  width: 40px;
+  height: 40px;
+  padding: 0;
+  border-radius: 999px;
+  font-size: 22px;
   line-height: 1;
   cursor: pointer;
-  transition: transform 0.1s ease, background 0.2s ease, border-color 0.2s ease;
+  transition: background 0.2s ease, color 0.2s ease, transform 0.15s ease;
 }
 
-body.landing-active .hero-settings__trigger:hover {
-  transform: translateY(-1px);
-  background: color-mix(in srgb, var(--color-secondary-dark) 65%, var(--color-secondary) 20%);
-  border-color: color-mix(in srgb, var(--color-secondary-dark) 55%, transparent);
+body.landing-active .icon-gear:hover {
+  background: color-mix(in srgb, var(--color-secondary-dark) 35%, transparent);
+  color: var(--accent);
 }
 
-body.landing-active .hero-settings__trigger:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 75%, transparent);
+body.landing-active .icon-gear:active {
+  transform: scale(0.96);
+}
+
+body.landing-active .icon-gear:focus-visible {
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
+}
+
+body.landing-active .icon-gear > span {
+  pointer-events: none;
 }
 
 body.landing-active .hero-settings__panel {

@@ -316,35 +316,6 @@ export function initSetupUI(onStart) {
         >
           Difficulty
         </button>
-        <div class="hero-settings">
-          <button
-            id="landing-settings-btn"
-            type="button"
-            class="hero-settings__trigger"
-            aria-haspopup="true"
-            aria-expanded="false"
-            aria-label="Settings"
-            title="Settings"
-          >
-            ⚙️
-          </button>
-          <div
-            id="landing-settings-panel"
-            class="hero-settings__panel"
-            role="dialog"
-            aria-hidden="true"
-            aria-labelledby="landing-settings-title"
-          >
-            <div class="hero-settings__header">
-              <div class="badge badge--ok">Alpha</div>
-              <div class="hero-settings__title" id="landing-settings-title">Settings</div>
-            </div>
-            <div class="hero-settings__section">
-              <div class="hero-settings__section-title">Theme</div>
-              <div class="hero-settings__theme-row" id="landing-theme-grid"></div>
-            </div>
-          </div>
-        </div>
       </div>
     </header>
     <aside
@@ -440,10 +411,52 @@ export function initSetupUI(onStart) {
   stepContent.hidden = false;
   stepContent.style.display = '';
 
-  const heroSettings = appBar.querySelector('.hero-settings');
-  const landingSettingsTrigger = heroSettings?.querySelector('#landing-settings-btn');
-  const landingSettingsPanel = heroSettings?.querySelector('#landing-settings-panel');
-  const landingThemeContainer = landingSettingsPanel?.querySelector('#landing-theme-grid');
+  const existingSettingsFloat = document.querySelector('.settings-float');
+  if (existingSettingsFloat?.parentElement) {
+    existingSettingsFloat.parentElement.removeChild(existingSettingsFloat);
+  }
+
+  const heroSettings = document.createElement('div');
+  heroSettings.className = 'settings-float';
+
+  const landingSettingsTrigger = document.createElement('button');
+  landingSettingsTrigger.id = 'landing-settings-btn';
+  landingSettingsTrigger.type = 'button';
+  landingSettingsTrigger.className = 'icon-gear';
+  landingSettingsTrigger.setAttribute('aria-haspopup', 'true');
+  landingSettingsTrigger.setAttribute('aria-expanded', 'false');
+  landingSettingsTrigger.setAttribute('aria-controls', 'landing-settings-panel');
+  landingSettingsTrigger.setAttribute('aria-label', 'Settings');
+  landingSettingsTrigger.title = 'Settings';
+
+  const gearGlyph = document.createElement('span');
+  gearGlyph.setAttribute('aria-hidden', 'true');
+  gearGlyph.textContent = '⚙️';
+  landingSettingsTrigger.appendChild(gearGlyph);
+
+  const landingSettingsPanel = document.createElement('div');
+  landingSettingsPanel.id = 'landing-settings-panel';
+  landingSettingsPanel.className = 'hero-settings__panel';
+  landingSettingsPanel.setAttribute('role', 'dialog');
+  landingSettingsPanel.setAttribute('aria-hidden', 'true');
+  landingSettingsPanel.setAttribute('aria-labelledby', 'landing-settings-title');
+  landingSettingsPanel.innerHTML = `
+    <div class="hero-settings__header">
+      <div class="badge badge--ok">Alpha</div>
+      <div class="hero-settings__title" id="landing-settings-title">Settings</div>
+    </div>
+    <div class="hero-settings__section">
+      <div class="hero-settings__section-title">Theme</div>
+      <div class="hero-settings__theme-row" id="landing-theme-grid"></div>
+    </div>
+  `;
+
+  heroSettings.append(landingSettingsTrigger, landingSettingsPanel);
+
+  const settingsMountTarget = document.body || contentRoot;
+  settingsMountTarget.appendChild(heroSettings);
+
+  const landingThemeContainer = landingSettingsPanel.querySelector('#landing-theme-grid');
 
   const biomeGrid = setupRoot.querySelector('#biome-grid');
   const biomeDetails = setupRoot.querySelector('#biome-details');
@@ -548,7 +561,7 @@ export function initSetupUI(onStart) {
       button.append(icon, label);
       button.addEventListener('click', () => {
         setTheme(theme.id);
-        closeLandingSettings();
+        closeLandingSettings({ returnFocus: true });
       });
 
       landingThemeGrid.appendChild(button);
@@ -573,18 +586,21 @@ export function initSetupUI(onStart) {
     landingSettingsTrigger.setAttribute('aria-expanded', 'true');
   }
 
-  function closeLandingSettings() {
+  function closeLandingSettings(options = {}) {
     if (!landingSettingsPanel || !landingSettingsTrigger) return;
     landingSettingsPanel.classList.remove('is-open');
     landingSettingsPanel.setAttribute('aria-hidden', 'true');
     landingSettingsTrigger.setAttribute('aria-expanded', 'false');
+    if (options.returnFocus) {
+      landingSettingsTrigger.focus();
+    }
   }
 
   if (landingSettingsTrigger && landingSettingsPanel && heroSettings) {
     landingSettingsTrigger.addEventListener('click', event => {
       event.stopPropagation();
       if (landingSettingsPanel.classList.contains('is-open')) {
-        closeLandingSettings();
+        closeLandingSettings({ returnFocus: true });
       } else {
         openLandingSettings();
       }
@@ -602,7 +618,7 @@ export function initSetupUI(onStart) {
 
     document.addEventListener('keydown', event => {
       if (event.key === 'Escape') {
-        closeLandingSettings();
+        closeLandingSettings({ returnFocus: true });
       }
     });
   }
