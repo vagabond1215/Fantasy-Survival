@@ -207,48 +207,117 @@ body.landing-active .create-step:focus-visible {
   outline-offset: 3px;
 }
 
-body.landing-active .difficulty-panel {
+body.landing-active .setup-appbar {
+  width: min(960px, 100%);
   display: flex;
-  flex-direction: column;
-  gap: 16px;
-}
-
-body.landing-active .difficulty-panel__header {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 16px;
   align-items: center;
   justify-content: space-between;
+  gap: 12px;
+  padding: clamp(12px, 3vw, 18px) clamp(16px, 4vw, 26px);
+  border-radius: 28px;
+  background: color-mix(in srgb, var(--glass-primary) 55%, var(--color-background-dark) 35%);
+  border: 1px solid color-mix(in srgb, var(--glass-highlight) 40%, transparent);
+  box-shadow: var(--shadow);
+  backdrop-filter: blur(calc(var(--blur) * 0.5));
 }
 
-body.landing-active .difficulty-panel__preset-field {
-  display: flex;
-  flex-direction: column;
-  gap: 4px;
-  min-width: 200px;
-}
-
-body.landing-active .difficulty-panel__preset-label {
-  font-size: 0.78rem;
+body.landing-active .setup-appbar__title {
+  display: inline-flex;
+  align-items: center;
+  gap: 14px;
+  font-size: 1.35rem;
+  font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: var(--text-muted);
 }
 
-body.landing-active .difficulty-panel__preset {
-  appearance: none;
-  border-radius: 12px;
-  border: 1px solid var(--seg-border);
-  padding: 8px 14px;
-  background: color-mix(in srgb, var(--background-glass-light) 68%, transparent);
+body.landing-active .icon-difficulty {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 42px;
+  height: 42px;
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--glass-highlight) 45%, transparent);
+  background: color-mix(in srgb, var(--glass-primary) 70%, transparent);
   color: inherit;
-  font: inherit;
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-highlight) 20%, transparent);
+  font-size: 1.1rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
 }
 
-body.landing-active .difficulty-panel__preset:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-primary-light) 70%, transparent);
-  outline-offset: 2px;
+body.landing-active .icon-difficulty:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--glass-primary-strong) 70%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--glass-highlight) 35%, transparent);
+}
+
+body.landing-active .icon-difficulty:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 70%, transparent);
+  outline-offset: 3px;
+}
+
+body.landing-active .icon-difficulty span {
+  pointer-events: none;
+}
+
+body.landing-active .modal {
+  border: none;
+  padding: 0;
+  margin: 0;
+  width: min(720px, 96vw);
+  max-width: 96vw;
+  background: transparent;
+  color: inherit;
+}
+
+body.landing-active .modal[open] {
+  display: block;
+}
+
+body.landing-active .modal::backdrop {
+  background: color-mix(in srgb, var(--color-background-dark) 70%, rgba(10, 16, 28, 0.8));
+  backdrop-filter: blur(10px);
+}
+
+body.landing-active .modal__card {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+  padding: clamp(18px, 4vw, 30px);
+  border-radius: 28px;
+  background: linear-gradient(160deg, color-mix(in srgb, var(--glass-primary) 65%, transparent), color-mix(in srgb, var(--glass-secondary) 55%, transparent));
+  border: 1px solid color-mix(in srgb, var(--glass-highlight) 38%, transparent);
+  box-shadow: var(--shadow);
+}
+
+body.landing-active .modal__header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+body.landing-active .modal__title {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+body.landing-active .difficulty-modal__title {
+  margin: 0;
+  font-size: 1.4rem;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+body.landing-active .difficulty-modal__meta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+  color: var(--text-muted);
+  font-size: 0.88rem;
 }
 
 body.landing-active .difficulty-score {
@@ -260,7 +329,103 @@ body.landing-active .difficulty-score {
   letter-spacing: 0.04em;
 }
 
-body.landing-active .difficulty-parameters {
+body.landing-active .modal__close {
+  border: none;
+  border-radius: 999px;
+  width: 38px;
+  height: 38px;
+  background: color-mix(in srgb, var(--glass-highlight) 28%, transparent);
+  color: inherit;
+  cursor: pointer;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-highlight) 45%, transparent);
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+body.landing-active .modal__close:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--glass-highlight) 45%, transparent);
+}
+
+body.landing-active .modal__close:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary-light) 75%, transparent);
+  outline-offset: 2px;
+}
+
+body.landing-active .modal__body {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+body.landing-active .difficulty-modal__preset-field {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+  min-width: 220px;
+}
+
+body.landing-active .difficulty-modal__preset-label {
+  font-size: 0.78rem;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: var(--text-muted);
+}
+
+body.landing-active .difficulty-modal__preset {
+  appearance: none;
+  border-radius: 12px;
+  border: 1px solid var(--seg-border);
+  padding: 8px 14px;
+  background: color-mix(in srgb, var(--background-glass-light) 68%, transparent);
+  color: inherit;
+  font: inherit;
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-highlight) 20%, transparent);
+}
+
+body.landing-active .difficulty-modal__preset:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary-light) 70%, transparent);
+  outline-offset: 2px;
+}
+
+body.landing-active .difficulty-modal__tabs {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+
+body.landing-active .difficulty-modal__tab {
+  border-radius: 999px;
+  border: 1px solid color-mix(in srgb, var(--glass-highlight) 35%, transparent);
+  background: color-mix(in srgb, var(--glass-primary) 55%, transparent);
+  color: inherit;
+  font: inherit;
+  padding: 6px 16px;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.landing-active .difficulty-modal__tab:hover,
+body.landing-active .difficulty-modal__tab.is-active {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--glass-primary-strong) 70%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-highlight) 35%, transparent);
+}
+
+body.landing-active .difficulty-modal__tab:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 70%, transparent);
+  outline-offset: 3px;
+}
+
+body.landing-active .difficulty-modal__panels {
+  display: flex;
+  flex-direction: column;
+  gap: 18px;
+}
+
+body.landing-active .difficulty-modal__panel {
   display: grid;
   grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
   gap: 14px;
@@ -269,8 +434,8 @@ body.landing-active .difficulty-parameters {
 body.landing-active .difficulty-param {
   display: flex;
   flex-direction: column;
-  gap: 8px;
-  padding: 12px;
+  gap: 10px;
+  padding: 14px;
   border-radius: 16px;
   background: color-mix(in srgb, var(--glass-secondary) 55%, transparent);
   border: 1px solid color-mix(in srgb, var(--glass-highlight) 25%, transparent);
@@ -289,8 +454,8 @@ body.landing-active .difficulty-param__label {
 }
 
 body.landing-active .difficulty-param__number {
-  width: 68px;
-  padding: 4px 8px;
+  width: 72px;
+  padding: 4px 10px;
   border-radius: 10px;
   border: 1px solid var(--seg-border);
   background: color-mix(in srgb, var(--background-glass-light) 55%, transparent);
@@ -304,9 +469,114 @@ body.landing-active .difficulty-param__number:focus-visible {
   outline-offset: 2px;
 }
 
-body.landing-active .difficulty-param__slider {
+body.landing-active .difficulty-param__range-group {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+body.landing-active .difficulty-param__range {
+  flex: 1;
+}
+
+body.landing-active .range__input {
   width: 100%;
-  accent-color: var(--color-primary);
+  appearance: none;
+  height: 8px;
+  border-radius: 999px;
+  background: linear-gradient(
+    90deg,
+    color-mix(in srgb, var(--color-primary-light) 70%, transparent) 0,
+    color-mix(in srgb, var(--color-primary-light) 70%, transparent) var(--range-progress, 50%),
+    color-mix(in srgb, var(--glass-highlight) 25%, transparent) var(--range-progress, 50%),
+    color-mix(in srgb, var(--glass-highlight) 25%, transparent) 100%
+  );
+  cursor: pointer;
+  transition: box-shadow 0.2s ease;
+}
+
+body.landing-active .range__input:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-primary-light) 65%, transparent);
+  outline-offset: 3px;
+}
+
+body.landing-active .range__input::-webkit-slider-thumb {
+  appearance: none;
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-secondary-light) 75%, transparent);
+  border: 2px solid color-mix(in srgb, var(--color-secondary-dark) 45%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--glass-highlight) 35%, transparent);
+  transition: transform 0.2s ease;
+}
+
+body.landing-active .range__input:active::-webkit-slider-thumb {
+  transform: scale(1.08);
+}
+
+body.landing-active .range__input::-moz-range-thumb {
+  width: 18px;
+  height: 18px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--color-secondary-light) 75%, transparent);
+  border: 2px solid color-mix(in srgb, var(--color-secondary-dark) 45%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--glass-highlight) 35%, transparent);
+  transition: transform 0.2s ease;
+}
+
+body.landing-active .range__input:active::-moz-range-thumb {
+  transform: scale(1.08);
+}
+
+body.landing-active .range__value {
+  border: 1px solid color-mix(in srgb, var(--glass-highlight) 35%, transparent);
+  border-radius: 999px;
+  padding: 6px 14px;
+  background: color-mix(in srgb, var(--glass-primary) 55%, transparent);
+  color: inherit;
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease;
+}
+
+body.landing-active .range__value:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--glass-primary-strong) 65%, transparent);
+}
+
+body.landing-active .range__value:focus-visible {
+  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 70%, transparent);
+  outline-offset: 3px;
+}
+
+body.landing-active .range__chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+body.landing-active .range__chip {
+  border: 1px solid color-mix(in srgb, var(--glass-highlight) 30%, transparent);
+  border-radius: 999px;
+  padding: 4px 12px;
+  background: color-mix(in srgb, var(--glass-secondary) 40%, transparent);
+  color: inherit;
+  font: inherit;
+  font-size: 0.82rem;
+  cursor: pointer;
+  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+}
+
+body.landing-active .range__chip:hover {
+  transform: translateY(-1px);
+  background: color-mix(in srgb, var(--glass-secondary) 55%, transparent);
+}
+
+body.landing-active .range__chip.is-active {
+  background: color-mix(in srgb, var(--color-secondary) 55%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-highlight) 35%, transparent);
 }
 
 body.landing-active .difficulty-param__hint {
@@ -314,36 +584,14 @@ body.landing-active .difficulty-param__hint {
   color: var(--text-muted);
 }
 
-body.landing-active .difficulty-advanced {
-  border-radius: 18px;
-  border: 1px solid color-mix(in srgb, var(--glass-highlight) 22%, transparent);
-  background: color-mix(in srgb, var(--glass-primary) 35%, transparent);
-  padding: 0 14px 14px;
-}
-
-body.landing-active .difficulty-advanced__summary {
-  cursor: pointer;
-  list-style: none;
-  padding: 14px 0;
-  font-weight: 600;
+body.landing-active .modal__footer {
   display: flex;
   align-items: center;
-  gap: 8px;
+  gap: 12px;
 }
 
-body.landing-active .difficulty-advanced__summary::-webkit-details-marker {
-  display: none;
-}
-
-body.landing-active .difficulty-advanced[open] .difficulty-advanced__summary {
-  border-bottom: 1px solid color-mix(in srgb, var(--glass-highlight) 20%, transparent);
-  margin-bottom: 10px;
-}
-
-body.landing-active .difficulty-advanced__content {
-  display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
-  gap: 14px;
+body.landing-active .modal__footer .spacer {
+  flex: 1;
 }
 
 body.landing-active .create-step.is-locked {
@@ -914,6 +1162,7 @@ body.landing-active .map-preview canvas {
 body.landing-active .difficulty-tip {
   font-size: 12px;
   color: var(--text-muted);
+  max-width: 50ch;
 }
 
 body.landing-active .spacer {

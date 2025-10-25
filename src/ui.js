@@ -256,6 +256,24 @@ function parameterKeyFromPath(path = []) {
   return path.join('.');
 }
 
+function getFocusableElements(container) {
+  if (!container) return [];
+  const selectors = [
+    'a[href]',
+    'button:not([disabled])',
+    'input:not([disabled]):not([type="hidden"])',
+    'select:not([disabled])',
+    'textarea:not([disabled])',
+    '[tabindex]:not([tabindex="-1"])'
+  ].join(',');
+  return Array.from(container.querySelectorAll(selectors)).filter(element => {
+    if (!(element instanceof HTMLElement)) return false;
+    if (element.hidden) return false;
+    const ariaHidden = element.getAttribute('aria-hidden');
+    return ariaHidden !== 'true';
+  });
+}
+
 function formatThemeLabel(id, fallback = '') {
   if (!id || typeof id !== 'string') {
     return fallback;
@@ -304,57 +322,64 @@ export function initSetupUI(onStart) {
   const template = document.createElement('template');
   template.innerHTML = `
     <header class="setup-appbar" role="banner">
-      <div class="setup-appbar__title">World Setup</div>
-      <div class="setup-appbar__actions">
+      <div class="setup-appbar__title">
+        World Setup
         <button
           id="difficulty-toggle"
           type="button"
-          class="setup-appbar__action"
-          aria-haspopup="true"
+          class="icon-difficulty"
+          aria-haspopup="dialog"
           aria-expanded="false"
-          aria-controls="difficulty-drawer"
+          aria-controls="difficulty-modal"
+          aria-label="Adjust difficulty"
         >
-          Difficulty
+          <span aria-hidden="true">⚙️</span>
         </button>
       </div>
     </header>
-    <aside
-      id="difficulty-drawer"
-      class="difficulty-drawer"
-      role="dialog"
-      aria-modal="false"
-      aria-hidden="true"
-      aria-labelledby="difficulty-drawer-title"
+    <dialog
+      id="difficulty-modal"
+      class="modal"
+      aria-labelledby="difficulty-modal-title"
     >
-      <div class="difficulty-drawer__header">
-        <h2 class="difficulty-drawer__title" id="difficulty-drawer-title">Difficulty</h2>
-        <div class="difficulty-drawer__meta">
-          <div class="difficulty-score" id="difficulty-score" role="status" aria-live="polite"></div>
-          <div class="difficulty-tip" id="difficulty-tip"></div>
+      <div class="modal__card difficulty-modal">
+        <header class="modal__header">
+          <div class="modal__title">
+            <h2 class="difficulty-modal__title" id="difficulty-modal-title">Difficulty</h2>
+            <div class="difficulty-modal__meta">
+              <div class="difficulty-score" id="difficulty-score" role="status" aria-live="polite"></div>
+              <div class="difficulty-tip" id="difficulty-tip"></div>
+            </div>
+          </div>
+          <button
+            id="difficulty-close"
+            type="button"
+            class="modal__close"
+            aria-label="Close difficulty settings"
+          >
+            ✕
+          </button>
+        </header>
+        <div class="modal__body">
+          <div class="difficulty-modal__preset-field">
+            <label class="difficulty-modal__preset-label" for="difficulty-preset">Preset</label>
+            <select id="difficulty-preset" class="difficulty-modal__preset"></select>
+          </div>
+          <div
+            class="difficulty-modal__tabs"
+            role="tablist"
+            aria-label="Difficulty parameter categories"
+            data-role="difficulty-tabs"
+          ></div>
+          <div class="difficulty-modal__panels" data-role="difficulty-panels"></div>
         </div>
-        <button
-          id="difficulty-close"
-          type="button"
-          class="difficulty-drawer__close"
-          aria-label="Close difficulty settings"
-        >
-          ✕
-        </button>
+        <footer class="modal__footer">
+          <button id="difficulty-reset" type="button" class="btn btn--ghost">Reset</button>
+          <div class="spacer" aria-hidden="true"></div>
+          <button id="difficulty-apply" type="button" class="btn btn--primary">Apply</button>
+        </footer>
       </div>
-      <div class="difficulty-drawer__body">
-        <div class="difficulty-drawer__preset-field">
-          <label class="difficulty-drawer__preset-label" for="difficulty-preset">Preset</label>
-          <select id="difficulty-preset" class="difficulty-drawer__preset"></select>
-        </div>
-        <div
-          class="difficulty-drawer__tabs"
-          role="tablist"
-          aria-label="Difficulty parameter categories"
-          data-role="difficulty-tabs"
-        ></div>
-        <div class="difficulty-drawer__panels" data-role="difficulty-panels"></div>
-      </div>
-    </aside>
+    </dialog>
     <section id="create-step-content" aria-live="polite">
       <div class="setup">
         <div class="setup__column setup__column--primary">
@@ -395,16 +420,18 @@ export function initSetupUI(onStart) {
   const stepContent = contentRoot.querySelector('#create-step-content');
   const setupRoot = stepContent?.querySelector('.setup');
   const appBar = contentRoot.querySelector('.setup-appbar');
-  const difficultyDrawer = contentRoot.querySelector('#difficulty-drawer');
+  const difficultyModal = contentRoot.querySelector('#difficulty-modal');
   const difficultyToggle = contentRoot.querySelector('#difficulty-toggle');
-  const difficultyCloseBtn = difficultyDrawer?.querySelector('#difficulty-close');
-  const difficultyTabsRoot = difficultyDrawer?.querySelector('[data-role="difficulty-tabs"]');
-  const difficultyPanelsRoot = difficultyDrawer?.querySelector('[data-role="difficulty-panels"]');
-  const difficultyTip = difficultyDrawer?.querySelector('#difficulty-tip');
-  const difficultyScoreBadge = difficultyDrawer?.querySelector('#difficulty-score');
-  const presetSelect = difficultyDrawer?.querySelector('#difficulty-preset');
+  const difficultyCloseBtn = difficultyModal?.querySelector('#difficulty-close');
+  const difficultyResetBtn = difficultyModal?.querySelector('#difficulty-reset');
+  const difficultyApplyBtn = difficultyModal?.querySelector('#difficulty-apply');
+  const difficultyTabsRoot = difficultyModal?.querySelector('[data-role="difficulty-tabs"]');
+  const difficultyPanelsRoot = difficultyModal?.querySelector('[data-role="difficulty-panels"]');
+  const difficultyTip = difficultyModal?.querySelector('#difficulty-tip');
+  const difficultyScoreBadge = difficultyModal?.querySelector('#difficulty-score');
+  const presetSelect = difficultyModal?.querySelector('#difficulty-preset');
 
-  if (!stepContent || !setupRoot || !appBar || !difficultyDrawer || !difficultyToggle || !difficultyTabsRoot || !difficultyPanelsRoot) {
+  if (!stepContent || !setupRoot || !appBar || !difficultyModal || !difficultyToggle || !difficultyTabsRoot || !difficultyPanelsRoot) {
     throw new Error('Unable to initialize setup UI layout.');
   }
 
@@ -1222,7 +1249,7 @@ export function initSetupUI(onStart) {
 
       const tab = document.createElement('button');
       tab.type = 'button';
-      tab.className = 'difficulty-drawer__tab';
+      tab.className = 'difficulty-modal__tab';
       tab.id = tabId;
       tab.dataset.categoryId = category.id;
       tab.setAttribute('role', 'tab');
@@ -1265,7 +1292,7 @@ export function initSetupUI(onStart) {
 
       const panel = document.createElement('div');
       panel.id = panelId;
-      panel.className = 'difficulty-drawer__panel';
+      panel.className = 'difficulty-modal__panel';
       panel.dataset.categoryId = category.id;
       panel.setAttribute('role', 'tabpanel');
       panel.setAttribute('aria-labelledby', tabId);
@@ -1383,17 +1410,129 @@ export function initSetupUI(onStart) {
 
   attachSetupLegend();
 
-  difficultyToggle.addEventListener('click', () => {
-    if (difficultyDrawer?.classList.contains('is-open')) {
-      closeDifficultyDrawer();
+  let releaseDifficultyFocusTrap = null;
+  let lastDifficultyFocus = null;
+
+  const isDifficultyModalOpen = () => {
+    if (!difficultyModal) return false;
+    if (typeof difficultyModal.open === 'boolean') {
+      return difficultyModal.open;
+    }
+    return difficultyModal.hasAttribute('open');
+  };
+
+  const handleDifficultyModalClosed = () => {
+    releaseDifficultyFocusTrap?.();
+    releaseDifficultyFocusTrap = null;
+    difficultyToggle?.setAttribute('aria-expanded', 'false');
+    const target = lastDifficultyFocus && 'focus' in lastDifficultyFocus ? lastDifficultyFocus : difficultyToggle;
+    if (target && typeof target.focus === 'function') {
+      target.focus();
+    }
+    lastDifficultyFocus = null;
+  };
+
+  const trapFocusWithin = container => {
+    const handleKeydown = event => {
+      if (event.key !== 'Tab') return;
+      const focusable = getFocusableElements(container);
+      if (!focusable.length) {
+        event.preventDefault();
+        return;
+      }
+      const first = focusable[0];
+      const last = focusable[focusable.length - 1];
+      const active = document.activeElement;
+      if (event.shiftKey) {
+        if (!container.contains(active) || active === first) {
+          event.preventDefault();
+          last.focus();
+        }
+      } else if (!container.contains(active) || active === last) {
+        event.preventDefault();
+        first.focus();
+      }
+    };
+    container.addEventListener('keydown', handleKeydown);
+    return () => {
+      container.removeEventListener('keydown', handleKeydown);
+    };
+  };
+
+  const openDifficultyModal = () => {
+    if (!difficultyModal || !difficultyToggle) return;
+    if (isDifficultyModalOpen()) return;
+    lastDifficultyFocus = document.activeElement instanceof HTMLElement ? document.activeElement : difficultyToggle;
+    if (typeof difficultyModal.showModal === 'function') {
+      try {
+        difficultyModal.showModal();
+      } catch (error) {
+        difficultyModal.setAttribute('open', '');
+      }
     } else {
-      openDifficultyDrawer();
+      difficultyModal.setAttribute('open', '');
+    }
+    difficultyToggle.setAttribute('aria-expanded', 'true');
+    releaseDifficultyFocusTrap = trapFocusWithin(difficultyModal);
+    const focusable = getFocusableElements(difficultyModal);
+    (focusable[0] || difficultyCloseBtn || difficultyModal).focus();
+  };
+
+  const closeDifficultyModal = () => {
+    if (!difficultyModal || !isDifficultyModalOpen()) return;
+    if (typeof difficultyModal.close === 'function') {
+      try {
+        difficultyModal.close();
+      } catch (error) {
+        difficultyModal.removeAttribute('open');
+        handleDifficultyModalClosed();
+      }
+    } else {
+      difficultyModal.removeAttribute('open');
+      handleDifficultyModalClosed();
+    }
+  };
+
+  difficultyToggle.addEventListener('click', () => {
+    if (isDifficultyModalOpen()) {
+      closeDifficultyModal();
+    } else {
+      openDifficultyModal();
     }
   });
 
   difficultyCloseBtn?.addEventListener('click', () => {
-    closeDifficultyDrawer();
-    difficultyToggle?.focus();
+    closeDifficultyModal();
+  });
+
+  difficultyModal?.addEventListener('cancel', event => {
+    event.preventDefault();
+    closeDifficultyModal();
+  });
+
+  difficultyModal?.addEventListener('click', event => {
+    if (event.target === difficultyModal) {
+      closeDifficultyModal();
+    }
+  });
+
+  difficultyModal?.addEventListener('close', handleDifficultyModalClosed);
+
+  difficultyResetBtn?.addEventListener('click', () => {
+    const presetId = presetSelect?.value || selectedDifficulty || 'custom';
+    setPreset(presetId);
+    syncWorldControls();
+    updateDifficultyScore();
+    updateDifficultyInfo();
+    scheduleWorldPreview();
+  });
+
+  difficultyApplyBtn?.addEventListener('click', () => {
+    updateWorldConfig({
+      difficulty: selectedDifficulty,
+      worldParameters: cloneWorldParameters(worldParameters)
+    });
+    closeDifficultyModal();
   });
 
   syncBiomeSelection(selectedBiome);
@@ -1402,32 +1541,6 @@ export function initSetupUI(onStart) {
   updateBiomeDetails();
   updateDifficultyInfo();
   updateDifficultyScore();
-
-  const handleDifficultyKeydown = event => {
-    if (event.key !== 'Escape') return;
-    if (!difficultyDrawer || difficultyDrawer.getAttribute('aria-hidden') === 'true') return;
-    event.preventDefault();
-    closeDifficultyDrawer();
-    difficultyToggle?.focus();
-  };
-
-  function openDifficultyDrawer() {
-    if (!difficultyDrawer || !difficultyToggle) return;
-    if (difficultyDrawer.classList.contains('is-open')) return;
-    difficultyDrawer.classList.add('is-open');
-    difficultyDrawer.setAttribute('aria-hidden', 'false');
-    difficultyToggle.setAttribute('aria-expanded', 'true');
-    document.addEventListener('keydown', handleDifficultyKeydown);
-  }
-
-  function closeDifficultyDrawer() {
-    if (!difficultyDrawer || !difficultyToggle) return;
-    if (!difficultyDrawer.classList.contains('is-open')) return;
-    difficultyDrawer.classList.remove('is-open');
-    difficultyDrawer.setAttribute('aria-hidden', 'true');
-    difficultyToggle.setAttribute('aria-expanded', 'false');
-    document.removeEventListener('keydown', handleDifficultyKeydown);
-  }
 
   function updateBiomeDetails() {
     if (!biomeDetails) return;
@@ -1553,7 +1666,50 @@ export function initSetupUI(onStart) {
     slider.min = String(def.min);
     slider.max = String(def.max);
     slider.step = String(def.step ?? 1);
-    slider.className = 'difficulty-param__slider';
+    slider.className = 'difficulty-param__slider range__input';
+
+    const rangeWrapper = document.createElement('div');
+    rangeWrapper.className = 'difficulty-param__range range';
+    rangeWrapper.appendChild(slider);
+
+    const valueBadge = document.createElement('button');
+    valueBadge.type = 'button';
+    valueBadge.className = 'range__value';
+    valueBadge.addEventListener('click', () => {
+      number.focus();
+    });
+
+    const rangeGroup = document.createElement('div');
+    rangeGroup.className = 'difficulty-param__range-group';
+    rangeGroup.appendChild(rangeWrapper);
+    rangeGroup.appendChild(valueBadge);
+
+    const quickValues = Array.from(
+      new Set([
+        def.min,
+        Math.round((def.min + def.max) / 2),
+        def.max
+      ])
+    );
+    const quickButtons = [];
+    const quickContainer = document.createElement('div');
+    quickContainer.className = 'range__chips';
+    quickValues.forEach(value => {
+      const chip = document.createElement('button');
+      chip.type = 'button';
+      chip.className = 'range__chip';
+      chip.dataset.value = String(value);
+      chip.textContent = String(value);
+      chip.setAttribute('aria-label', `Set ${def.label} to ${value}`);
+      chip.addEventListener('click', () => {
+        slider.value = String(value);
+        number.value = String(value);
+        updateRangeVisuals(value);
+        onChange(Number(value));
+      });
+      quickButtons.push(chip);
+      quickContainer.appendChild(chip);
+    });
 
     const hintId = `difficulty-hint-${key}`;
     let hintElement = null;
@@ -1578,6 +1734,7 @@ export function initSetupUI(onStart) {
         isSyncing = true;
         slider.value = stringValue;
         number.value = stringValue;
+        updateRangeVisuals(normalized);
         isSyncing = false;
       }
     };
@@ -1587,22 +1744,45 @@ export function initSetupUI(onStart) {
       handleWorldParameterChange(control, value);
     };
 
+    const updateRangeVisuals = value => {
+      const resolvedValue = clampParameter(value, def.min, def.max);
+      const percentDenominator = def.max - def.min || 1;
+      const percent = ((resolvedValue - def.min) / percentDenominator) * 100;
+      slider.style.setProperty('--range-progress', `${percent}%`);
+      valueBadge.textContent = String(resolvedValue);
+      quickButtons.forEach(button => {
+        const buttonValue = Number(button.dataset.value);
+        if (buttonValue === resolvedValue) {
+          button.classList.add('is-active');
+        } else {
+          button.classList.remove('is-active');
+        }
+      });
+    };
+
     slider.addEventListener('input', () => {
-      onChange(Number(slider.value));
+      const nextValue = Number(slider.value);
+      updateRangeVisuals(nextValue);
+      onChange(nextValue);
     });
     number.addEventListener('change', () => {
-      onChange(Number(number.value));
+      const nextValue = Number(number.value);
+      updateRangeVisuals(nextValue);
+      onChange(nextValue);
     });
     number.addEventListener('input', () => {
       if (isSyncing) return;
       if (number.value === '') return;
-      onChange(Number(number.value));
+      const nextValue = Number(number.value);
+      updateRangeVisuals(nextValue);
+      onChange(nextValue);
     });
 
     header.appendChild(label);
     header.appendChild(number);
     wrapper.appendChild(header);
-    wrapper.appendChild(slider);
+    wrapper.appendChild(rangeGroup);
+    wrapper.appendChild(quickContainer);
     if (hintElement) {
       wrapper.appendChild(hintElement);
     }
