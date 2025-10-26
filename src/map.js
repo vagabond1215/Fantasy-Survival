@@ -33,7 +33,23 @@ export const DEFAULT_TERRAIN_COLORS = Object.freeze({
   open: '#facc15',
   forest: '#16a34a',
   ore: '#f97316',
-  stone: '#94a3b8'
+  stone: '#94a3b8',
+  desert: '#f4b76b',
+  tundra: '#9ac5ff',
+  taiga: '#2f6b2a',
+  savanna: '#f59e0b',
+  rainforest: '#047857',
+  jungle: '#0f766e',
+  swamp: '#14532d',
+  wetland: '#22c55e',
+  coast: '#0ea5e9',
+  island: '#38bdf8',
+  mountain: '#64748b',
+  alpine: '#60a5fa',
+  volcanic: '#ea580c',
+  temperate: '#4ade80',
+  tropical: '#10b981',
+  plains: '#facc15'
 });
 
 const TERRAIN_COLOR_VARIABLES = Object.freeze({
@@ -45,7 +61,23 @@ const TERRAIN_COLOR_VARIABLES = Object.freeze({
   open: '--legend-open',
   forest: '--legend-forest',
   ore: '--legend-ore',
-  stone: '--legend-stone'
+  stone: '--legend-stone',
+  desert: '--legend-desert',
+  tundra: '--legend-tundra',
+  taiga: '--legend-taiga',
+  savanna: '--legend-savanna',
+  rainforest: '--legend-rainforest',
+  jungle: '--legend-jungle',
+  swamp: '--legend-swamp',
+  wetland: '--legend-wetland',
+  coast: '--legend-coast',
+  island: '--legend-island',
+  mountain: '--legend-mountain',
+  alpine: '--legend-alpine',
+  volcanic: '--legend-volcanic',
+  temperate: '--legend-temperate',
+  tropical: '--legend-tropical',
+  plains: '--legend-plains'
 });
 
 let terrainColorCache = null;

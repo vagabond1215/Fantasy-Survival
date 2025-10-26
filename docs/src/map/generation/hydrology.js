@@ -31,7 +31,7 @@ class MinHeap {
     bubbleDown(index) {
         let current = index;
         const length = this.heap.length;
-        while (true) {
+        while (current < length) {
             const left = current * 2 + 1;
             const right = current * 2 + 2;
             let smallest = current;
@@ -95,10 +95,7 @@ function priorityFlood(width, height, elevations, seaLevel) {
             }
         }
     }
-    while (true) {
-        const current = heap.pop();
-        if (!current)
-            break;
+    for (let current = heap.pop(); current; current = heap.pop()) {
         const { index, value } = current;
         const x = index % width;
         const y = Math.floor(index / width);
