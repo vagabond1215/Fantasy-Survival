@@ -211,27 +211,39 @@ describe('setup layout', () => {
     }
   });
 
-  it('toggles the difficulty drawer with appropriate aria attributes', () => {
+  it('opens the difficulty modal with appropriate aria attributes', () => {
     initSetupUI(() => {});
     const toggle = document.querySelector<HTMLButtonElement>('#difficulty-toggle');
-    const drawer = document.querySelector<HTMLElement>('#difficulty-drawer');
-    const close = drawer?.querySelector<HTMLButtonElement>('#difficulty-close');
+    const modal = document.querySelector<HTMLDialogElement>('#difficulty-modal');
+    const close = modal?.querySelector<HTMLButtonElement>('#difficulty-close');
+    const reset = modal?.querySelector<HTMLButtonElement>('#difficulty-reset');
+    const apply = modal?.querySelector<HTMLButtonElement>('#difficulty-apply');
     expect(toggle).toBeTruthy();
-    expect(drawer).toBeTruthy();
+    expect(modal).toBeTruthy();
     expect(close).toBeTruthy();
-    if (!toggle || !drawer || !close) return;
+    expect(reset).toBeTruthy();
+    expect(apply).toBeTruthy();
+    if (!toggle || !modal || !close) return;
 
-    expect(toggle.getAttribute('aria-controls')).toBe('difficulty-drawer');
+    const isOpen = () => {
+      if (typeof modal.open === 'boolean') {
+        return modal.open;
+      }
+      return modal.hasAttribute('open');
+    };
+
+    expect(toggle.getAttribute('aria-controls')).toBe('difficulty-modal');
+    expect(toggle.getAttribute('aria-haspopup')).toBe('dialog');
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(drawer.getAttribute('aria-hidden')).toBe('true');
+    expect(isOpen()).toBe(false);
 
     toggle.click();
     expect(toggle.getAttribute('aria-expanded')).toBe('true');
-    expect(drawer.getAttribute('aria-hidden')).toBe('false');
+    expect(isOpen()).toBe(true);
 
     close.click();
     expect(toggle.getAttribute('aria-expanded')).toBe('false');
-    expect(drawer.getAttribute('aria-hidden')).toBe('true');
+    expect(isOpen()).toBe(false);
   });
 });
 
