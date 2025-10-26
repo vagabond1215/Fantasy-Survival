@@ -398,8 +398,10 @@ export function initSetupUI(onStart) {
       <div class="setup">
         <div class="setup__column setup__column--primary">
           <div class="card section" id="biome-card">
-            <div class="section__title">Starting Season</div>
-            <div class="segment" id="season-seg"></div>
+            <div class="season-row">
+              <div class="season-label section__title">Starting Season</div>
+              <div class="season-switch" id="season-seg"></div>
+            </div>
             <div class="section__title">Biome</div>
             <div class="grid" id="biome-grid"></div>
             <div class="sub" id="biome-details"></div>
@@ -1370,7 +1372,7 @@ export function initSetupUI(onStart) {
     seasons.forEach(season => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'seg seg--icon';
+      button.className = 'season-switch__button season-switch__button--icon';
       button.dataset.season = season.id;
       const label = season.label || season.id;
       if (label) {
