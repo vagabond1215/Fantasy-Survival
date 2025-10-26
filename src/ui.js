@@ -50,6 +50,8 @@ const PREVIEW_MAP_SIZE = 128;
 
 const DARK_TILE_BASE_COLOR = '#7d7f81';
 const DARK_TILE_HOVER_LIFT = 0.08;
+const LIGHT_TILE_BASE_COLOR = '#f2f4ff';
+const LIGHT_TILE_HOVER_LIFT = 0.08;
 
 const PRIMARY_WORLD_PARAMETERS = [
   {
@@ -841,21 +843,49 @@ export function initSetupUI(onStart) {
           button.style.setProperty('--tile-hover-bg', formatColor(hoverColor));
         }
       }
-      button.style.removeProperty('--tile-active-bg');
+      const accentHex =
+        currentThemeInfo?.colors?.accent?.base || currentThemeInfo?.colors?.accent?.light || null;
+      const accentColor = parseColor(accentHex);
+      if (accentColor) {
+        const activeColor = lightenColor(accentColor, 0.22);
+        button.style.setProperty('--tile-active-bg', formatColor(activeColor));
+      } else {
+        button.style.removeProperty('--tile-active-bg');
+      }
       return;
     }
-    const grandparent = button.parentElement?.parentElement;
-    let baseColor = grandparent ? resolveBackgroundColor(grandparent, 0, 0) : null;
-    if (!baseColor || baseColor.a === 0) {
-      baseColor = resolveBackgroundColor(document.body) || parseColor(getComputedStyle(document.body).backgroundColor);
+    const backgroundHex =
+      currentThemeInfo?.colors?.background?.light ||
+      currentThemeInfo?.colors?.background?.base ||
+      currentThemeInfo?.colors?.neutral?.light ||
+      LIGHT_TILE_BASE_COLOR;
+    const neutralHex =
+      currentThemeInfo?.colors?.neutral?.base ||
+      currentThemeInfo?.colors?.background?.base ||
+      LIGHT_TILE_BASE_COLOR;
+    const backgroundColor = parseColor(backgroundHex) || parseColor(LIGHT_TILE_BASE_COLOR);
+    const neutralColor = parseColor(neutralHex);
+    let baseColor = backgroundColor;
+    if (baseColor && neutralColor) {
+      baseColor = mixColors(baseColor, neutralColor, 0.28);
     }
-    if (!baseColor) return;
-    const hoverColor = lightenColor(baseColor, 0.06);
-    button.style.setProperty('--tile-base-bg', formatColor(baseColor));
-    if (hoverColor) {
-      button.style.setProperty('--tile-hover-bg', formatColor(hoverColor));
+    if (baseColor) {
+      button.style.setProperty('--tile-base-bg', formatColor(baseColor));
+      const hoverColor = lightenColor(baseColor, LIGHT_TILE_HOVER_LIFT);
+      if (hoverColor) {
+        button.style.setProperty('--tile-hover-bg', formatColor(hoverColor));
+      }
     }
-    button.style.removeProperty('--tile-active-bg');
+    const accentHex =
+      currentThemeInfo?.colors?.accent?.light || currentThemeInfo?.colors?.accent?.base || null;
+    const accentColor = parseColor(accentHex);
+    if (accentColor) {
+      const accentLift = lightenColor(accentColor, 0.25);
+      const activeColor = accentLift ? mixColors(accentColor, accentLift, 0.4) : accentColor;
+      button.style.setProperty('--tile-active-bg', formatColor(activeColor));
+    } else {
+      button.style.removeProperty('--tile-active-bg');
+    }
   }
 
   function hideSpawnPrompt() {

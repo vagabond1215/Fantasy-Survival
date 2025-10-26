@@ -627,6 +627,95 @@ function createConstructionDetails(project) {
   return details;
 }
 
+function formatStructureName(project) {
+  if (!project) return '';
+  const type = getBuildingType(project.typeId);
+  const icon = type?.icon ? `${type.icon} ` : '';
+  const name = type?.name || titleizeIdentifier(project.typeId);
+  return `${icon}${name}`.trim();
+}
+
+function collectMapDevelopments(locationId) {
+  if (!locationId) return [];
+  const grouped = new Map();
+  getBuildings().forEach(project => {
+    if (!project || project.locationId !== locationId) return;
+    const tile = project.tile;
+    if (!tile || !Number.isFinite(tile.x) || !Number.isFinite(tile.y)) return;
+    const x = Math.trunc(tile.x);
+    const y = Math.trunc(tile.y);
+    const key = `${x}:${y}`;
+    if (!grouped.has(key)) {
+      grouped.set(key, { x, y, completed: [], underway: [], planned: [] });
+    }
+    const bucket = grouped.get(key);
+    const name = formatStructureName(project);
+    const status = (project.status || '').toLowerCase();
+    if (status === 'completed') {
+      bucket.completed.push(name);
+    } else if (status === 'under-construction') {
+      bucket.underway.push(name);
+    } else {
+      bucket.planned.push({ name, status });
+    }
+  });
+  return [...grouped.values()].map(bucket => {
+    const detailParts = [];
+    if (bucket.completed.length) {
+      const label = bucket.completed.length > 1 ? 'Completed structures' : 'Completed structure';
+      detailParts.push(`${label}: ${joinWithAnd(bucket.completed)}`);
+    }
+    if (bucket.underway.length) {
+      const label = bucket.underway.length > 1 ? 'Under construction' : 'Under construction';
+      detailParts.push(`${label}: ${joinWithAnd(bucket.underway)}`);
+    }
+    if (bucket.planned.length) {
+      const plannedNames = bucket.planned.map(entry => {
+        if (entry.status && entry.status !== 'planned') {
+          return `${entry.name} (${titleizeIdentifier(entry.status)})`;
+        }
+        return entry.name;
+      });
+      detailParts.push(`Planned: ${joinWithAnd(plannedNames)}`);
+    }
+    const status = bucket.underway.length
+      ? bucket.completed.length
+        ? 'mixed'
+        : 'under-construction'
+      : bucket.completed.length
+        ? 'completed'
+        : bucket.planned.length
+          ? 'planned'
+          : 'noted';
+    const structures = [
+      ...bucket.completed,
+      ...bucket.underway,
+      ...bucket.planned.map(entry => entry.name)
+    ];
+    const label = structures[0] || 'Development';
+    const tooltip = detailParts.join(' • ') || label;
+    return {
+      x: bucket.x,
+      y: bucket.y,
+      status,
+      structures,
+      label,
+      details: tooltip,
+      count: structures.length
+    };
+  });
+}
+
+function updateMapDevelopments() {
+  if (!mapView || typeof mapView.setDevelopments !== 'function') return;
+  const loc = getActiveLocation();
+  if (!loc) {
+    mapView.setDevelopments([]);
+    return;
+  }
+  mapView.setDevelopments(collectMapDevelopments(loc.id));
+}
+
 function renderTileInfo() {
   if (!tileInfoContent) {
     const container = document.getElementById('game');
@@ -703,11 +792,7 @@ function renderTileInfo() {
   }
 
   if (completed.length) {
-    const names = completed.map(project => {
-      const type = getBuildingType(project.typeId);
-      const icon = type?.icon ? `${type.icon} ` : '';
-      return `${icon}${type?.name || project.typeId}`;
-    });
+    const names = completed.map(project => formatStructureName(project));
     const completeParagraph = document.createElement('p');
     completeParagraph.textContent = `Completed structures: ${joinWithAnd(names)}.`;
     tileInfoContent.appendChild(completeParagraph);
@@ -2215,6 +2300,7 @@ function renderTextMap() {
   });
   centerOnPlayer({ recenter: true });
   updatePlayerMarker();
+  updateMapDevelopments();
 }
 
 function formatHour(hour = 0, options = {}) {
@@ -4359,6 +4445,7 @@ export function initGameUI() {
         updatePlayerMarker();
         renderPlayerPanel();
         renderTileInfo();
+        updateMapDevelopments();
       }
     });
     mapView.setMap(loc.map, {
