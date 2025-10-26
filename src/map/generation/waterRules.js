@@ -49,6 +49,11 @@ export function resolveWaterRules(biome, world, width, height) {
     const lakeAreaBias = clamp(lakesBias + rainfallBias * 0.4, -0.5, 1.2);
     const lakeMinArea = Math.max(4, Math.round(6 + lakeAreaBias * 8));
     const maxSingletonFraction = clamp(0.0005 + lakesBias * 0.00015, 0.0002, 0.001);
+    const estuaryRadius = clamp(Math.round(4 + (waterBias + rainfallBias) * 6), 3, 12);
+    const distributaryMin = clamp(Math.round(2 + riversBias * 1.2 + rainfallBias * 0.8), 2, 4);
+    const distributaryMax = clamp(distributaryMin + 1 + Math.round(wetlandBias * 2), distributaryMin, 6);
+    const estuaryWideningDepth = clamp(0.04 + rainfallBias * 0.03 + waterBias * 0.04, 0.02, 0.12);
+    const confluenceRadius = clamp(Math.round(estuaryRadius * 0.6 + riversBias * 2), 2, estuaryRadius);
     return {
         seaLevel: baseSeaLevel,
         flowMultiplier,
@@ -59,6 +64,11 @@ export function resolveWaterRules(biome, world, width, height) {
         lakeMinArea,
         marshRingWidth,
         marshiness,
-        maxSingletonFraction
+        maxSingletonFraction,
+        estuaryRadius,
+        distributaryMin,
+        distributaryMax,
+        estuaryWideningDepth,
+        confluenceRadius
     };
 }
