@@ -1,3 +1,5 @@
+@import '../src/styles/tile-palette.css';
+
 :root {
   --bg: #111930;
   --surface: #1b2542;
@@ -92,16 +94,16 @@
   --border-charcoal: var(--border-secondary);
   --border-bright: var(--border-accent);
 
-  --legend-water: #2d7ff9;
+  --legend-water: var(--tile-water);
   --legend-ocean: #2563eb;
   --legend-lake: #38bdf8;
   --legend-river: #0ea5e9;
   --legend-marsh: #4ade80;
   --legend-mangrove: #065f46;
-  --legend-open: #facc15;
-  --legend-forest: #16a34a;
-  --legend-ore: #f97316;
-  --legend-stone: #94a3b8;
+  --legend-open: var(--tile-open);
+  --legend-forest: var(--tile-forest);
+  --legend-ore: var(--tile-ore);
+  --legend-stone: var(--tile-stone);
   --legend-desert: #f4b76b;
   --legend-tundra: #9ac5ff;
   --legend-taiga: #2f6b2a;
@@ -1486,7 +1488,7 @@ body.landing-active .map-legend__label {
 }
 
 body.landing-active .map-legend__swatch[data-type='water'] {
-  background: var(--legend-water);
+  background: var(--tile-water);
 }
 
 body.landing-active .map-legend__swatch[data-type='ocean'] {
@@ -1510,19 +1512,19 @@ body.landing-active .map-legend__swatch[data-type='mangrove'] {
 }
 
 body.landing-active .map-legend__swatch[data-type='open'] {
-  background: var(--legend-open);
+  background: var(--tile-open);
 }
 
 body.landing-active .map-legend__swatch[data-type='forest'] {
-  background: var(--legend-forest);
+  background: var(--tile-forest);
 }
 
 body.landing-active .map-legend__swatch[data-type='ore'] {
-  background: var(--legend-ore);
+  background: var(--tile-ore);
 }
 
 body.landing-active .map-legend__swatch[data-type='stone'] {
-  background: var(--legend-stone);
+  background: var(--tile-stone);
 }
 
 .map-tile--developed {
