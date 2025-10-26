@@ -5,6 +5,7 @@ import { resolveWorldParameters } from './difficulty.js';
 import { notifySanityCheck } from './notifications.js';
 import { createElevationSampler } from './map/generation/elevation.js';
 import { generateHydrology } from './map/generation/hydrology.js';
+import { applyMangroveZones } from './map/generation/vegetation.js';
 
 export const GRID_DISTANCE_METERS = 100;
 
@@ -18,6 +19,7 @@ export const TERRAIN_SYMBOLS = {
   lake: '🟦',
   river: '〰️',
   marsh: '🪴',
+  mangrove: '🪷',
   open: '🌾',
   forest: '🌲',
   ore: '⛏️',
@@ -30,6 +32,7 @@ export const DEFAULT_TERRAIN_COLORS = Object.freeze({
   lake: '#38bdf8',
   river: '#0ea5e9',
   marsh: '#4ade80',
+  mangrove: '#065f46',
   open: '#facc15',
   forest: '#16a34a',
   ore: '#f97316',
@@ -58,6 +61,7 @@ const TERRAIN_COLOR_VARIABLES = Object.freeze({
   lake: '--legend-lake',
   river: '--legend-river',
   marsh: '--legend-marsh',
+  mangrove: '--legend-mangrove',
   open: '--legend-open',
   forest: '--legend-forest',
   ore: '--legend-ore',
@@ -159,7 +163,7 @@ export const TERRAIN_COLORS = new Proxy(
   }
 );
 
-const WATER_TERRAIN_TYPES = new Set(['water', 'ocean', 'lake', 'river', 'marsh']);
+const WATER_TERRAIN_TYPES = new Set(['water', 'ocean', 'lake', 'river', 'marsh', 'mangrove']);
 
 export function isWaterTerrain(type) {
   return type ? WATER_TERRAIN_TYPES.has(type) : false;
@@ -177,7 +181,9 @@ export function computeCenteredStart(width = DEFAULT_MAP_WIDTH, height = DEFAULT
 }
 
 export function hasWaterFeature(features = []) {
-  return features.some(f => /(water|river|lake|shore|beach|lagoon|reef|marsh|bog|swamp|delta|stream|tide|coast)/i.test(f));
+  return features.some(f =>
+    /(water|river|lake|shore|beach|lagoon|reef|marsh|bog|swamp|delta|stream|tide|coast|mangrove)/i.test(f)
+  );
 }
 
 // Deterministic pseudo-random generator based on string seed
@@ -710,6 +716,18 @@ export function generateColorMap(
       : null,
     world
   });
+
+  const mangroveReport = applyMangroveZones({
+    hydrology,
+    elevations,
+    seed,
+    random: (x, y, salt = '') =>
+      coordinateRandom(seed, effectiveXStart + x, effectiveYStart + y, `mangrove:${salt}`)
+  });
+
+  if (mangroveReport) {
+    hydrology.mangroveStats = mangroveReport;
+  }
 
   const waterTable = hydrology.waterTable ?? hydrology.filledElevation;
 

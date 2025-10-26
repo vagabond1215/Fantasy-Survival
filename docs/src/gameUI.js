@@ -314,6 +314,9 @@ function describeTerrainNarrative(terrain, node) {
     case 'marsh':
       result.lead = 'is saturated marshland thick with reeds.';
       break;
+    case 'mangrove':
+      result.lead = 'winds through tangled mangrove roots and tidal pools.';
+      break;
     default:
       result.lead = 'is mostly open ground ready for work';
       break;
