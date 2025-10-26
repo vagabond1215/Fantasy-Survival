@@ -58,6 +58,14 @@ const D8 = [
     [0, -1],
     [1, -1]
 ];
+function directionIndex(dx, dy) {
+    for (let i = 0; i < D8.length; i += 1) {
+        if (D8[i][0] === dx && D8[i][1] === dy) {
+            return i;
+        }
+    }
+    return -1;
+}
 function clamp(value, min, max) {
     if (!Number.isFinite(value))
         return min;
@@ -427,6 +435,366 @@ function applyRiverClassification(width, height, types, accumulation, flow, upst
         }
     }
 }
+
+function selectCoastalMouth(width, height, types, elevations, filled, accumulation, seaLevel, rules) {
+    const size = width * height;
+    let bestIdx = -1;
+    let bestScore = -Infinity;
+    const lowlandBand = seaLevel + Math.max(0.03, rules.estuaryWideningDepth ?? 0.05);
+    for (let idx = 0; idx < size; idx += 1) {
+        const type = types[idx];
+        if (type !== 'land' && type !== 'river' && type !== 'marsh')
+            continue;
+        const x = idx % width;
+        const y = Math.floor(idx / width);
+        let touchesOcean = false;
+        for (const [dx, dy] of D8) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height)
+                continue;
+            if (types[ny * width + nx] === 'ocean') {
+                touchesOcean = true;
+                break;
+            }
+        }
+        if (!touchesOcean)
+            continue;
+        const elevation = elevations[idx];
+        const level = filled[idx];
+        const lowland = Math.max(0, lowlandBand - elevation);
+        const slack = Math.max(0, seaLevel + 0.08 - level);
+        const flow = accumulation[idx];
+        const mouthWeight = (type === 'river' ? 1.15 : 1) + (type === 'marsh' ? 0.1 : 0);
+        const score = flow * (1 + lowland * 5) * mouthWeight + slack * 150;
+        if (score > bestScore) {
+            bestScore = score;
+            bestIdx = idx;
+        }
+    }
+    return bestIdx;
+}
+
+function gatherTributarySources(mouthIdx, upstream, accumulation, rules, maxSources) {
+    if (mouthIdx < 0)
+        return [];
+    const visited = new Uint8Array(upstream.length);
+    const queue = [{ idx: mouthIdx, depth: 0 }];
+    visited[mouthIdx] = 1;
+    const threshold = Math.max(rules.riverFlowThreshold, rules.tributaryThreshold) * rules.flowMultiplier * 0.8;
+    const candidates = [];
+    while (queue.length) {
+        const current = queue.shift();
+        for (const up of upstream[current.idx]) {
+            if (visited[up])
+                continue;
+            visited[up] = 1;
+            const depth = current.depth + 1;
+            const acc = accumulation[up];
+            if (acc >= threshold) {
+                candidates.push({ idx: up, acc, depth });
+            }
+            queue.push({ idx: up, depth });
+        }
+    }
+    candidates.sort((a, b) => {
+        if (b.acc !== a.acc)
+            return b.acc - a.acc;
+        return b.depth - a.depth;
+    });
+    const picked = [];
+    for (const candidate of candidates) {
+        picked.push(candidate.idx);
+        if (picked.length >= maxSources)
+            break;
+    }
+    return picked;
+}
+
+function routeRiverPath(width, height, start, target, filled, types, options) {
+    if (start === target)
+        return [start];
+    const size = width * height;
+    const heap = new MinHeap();
+    const cost = new Float64Array(size);
+    const visited = new Uint8Array(size);
+    const prev = new Int32Array(size);
+    cost.fill(Number.POSITIVE_INFINITY);
+    prev.fill(-1);
+    const slopeWeight = options.slopeWeight ?? 35;
+    const heuristicWeight = options.heuristicWeight ?? 1;
+    const radiusWeight = options.radiusWeight ?? 1.5;
+    const elevationWeight = options.elevationWeight ?? 40;
+    const avoidOcean = options.avoidOcean ?? false;
+    const targetX = target % width;
+    const targetY = Math.floor(target / width);
+    const centerX = options.confluenceCenter?.x ?? targetX;
+    const centerY = options.confluenceCenter?.y ?? targetY;
+    const radius = Math.max(0, options.confluenceRadius ?? 0);
+    const maxElevation = options.maxElevation ?? Number.POSITIVE_INFINITY;
+    cost[start] = 0;
+    heap.push({ index: start, value: 0 });
+    while (true) {
+        const current = heap.pop();
+        if (!current)
+            break;
+        const { index, value } = current;
+        if (value > cost[index])
+            continue;
+        if (index === target)
+            break;
+        if (visited[index])
+            continue;
+        visited[index] = 1;
+        const cx = index % width;
+        const cy = Math.floor(index / width);
+        for (let i = 0; i < D8.length; i += 1) {
+            const dx = D8[i][0];
+            const dy = D8[i][1];
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height)
+                continue;
+            const nIdx = ny * width + nx;
+            if (avoidOcean && types[nIdx] === 'ocean' && nIdx !== target)
+                continue;
+            const base = (i % 2 === 0) ? 1 : Math.SQRT2;
+            const slope = Math.max(0, filled[nIdx] - filled[index]);
+            const slopePenalty = slope * slopeWeight;
+            const distanceFromCenter = Math.hypot(nx - centerX, ny - centerY);
+            const radiusPenalty = distanceFromCenter > radius ? (distanceFromCenter - radius) * radiusWeight : 0;
+            const elevationPenalty = filled[nIdx] > maxElevation ? (filled[nIdx] - maxElevation) * elevationWeight : 0;
+            const penalty = slopePenalty + radiusPenalty + elevationPenalty;
+            const newCost = cost[index] + base + penalty;
+            if (newCost >= cost[nIdx])
+                continue;
+            cost[nIdx] = newCost;
+            prev[nIdx] = index;
+            const heuristic = Math.hypot(nx - targetX, ny - targetY) * heuristicWeight;
+            heap.push({ index: nIdx, value: newCost + heuristic });
+        }
+    }
+    if (prev[target] === -1)
+        return null;
+    const path = [target];
+    let current = target;
+    while (current !== start) {
+        current = prev[current];
+        if (current === -1)
+            return null;
+        path.push(current);
+    }
+    path.reverse();
+    return path;
+}
+
+function markRiverPath(path, types, flow, width, height, options = {}) {
+    if (!path || path.length === 0)
+        return 0;
+    const skipLast = options.skipLast ?? false;
+    const limit = skipLast ? path.length - 1 : path.length;
+    for (let i = 0; i < limit; i += 1) {
+        const idx = path[i];
+        if (types[idx] !== 'ocean' && types[idx] !== 'lake') {
+            types[idx] = 'river';
+        }
+    }
+    for (let i = 0; i < path.length - 1; i += 1) {
+        const current = path[i];
+        const next = path[i + 1];
+        const cx = current % width;
+        const cy = Math.floor(current / width);
+        const nx = next % width;
+        const ny = Math.floor(next / width);
+        const dir = directionIndex(nx - cx, ny - cy);
+        if (dir >= 0) {
+            flow[current] = dir;
+        }
+    }
+    return limit;
+}
+
+function widenRiverEstuary(width, height, path, types, filled, seaLevel, wideningDepth) {
+    if (!path || !path.length)
+        return;
+    const delta = Math.max(0.01, wideningDepth ?? 0.05);
+    for (const idx of path) {
+        const level = filled[idx];
+        if (level > seaLevel + delta)
+            continue;
+        const closeness = seaLevel + delta - level;
+        const radius = Math.min(3, Math.max(1, Math.round(1 + closeness / delta)));
+        const cx = idx % width;
+        const cy = Math.floor(idx / width);
+        for (let dy = -radius; dy <= radius; dy += 1) {
+            for (let dx = -radius; dx <= radius; dx += 1) {
+                const nx = cx + dx;
+                const ny = cy + dy;
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height)
+                    continue;
+                if (Math.hypot(dx, dy) > radius + 0.25)
+                    continue;
+                const nIdx = ny * width + nx;
+                if (types[nIdx] === 'ocean' || types[nIdx] === 'lake')
+                    continue;
+                types[nIdx] = 'river';
+            }
+        }
+    }
+}
+
+function createDistributaries(width, height, mouthIdx, types, flow, filled, seaLevel, rules, seed) {
+    if (mouthIdx < 0)
+        return 0;
+    const min = Math.max(1, rules.distributaryMin ?? 2);
+    const max = Math.max(min, rules.distributaryMax ?? min);
+    const span = max - min + 1;
+    const mouthX = mouthIdx % width;
+    const mouthY = Math.floor(mouthIdx / width);
+    const radius = Math.max(2, rules.estuaryRadius ?? 4);
+    const radiusSq = radius * radius;
+    const candidates = [];
+    for (let y = Math.max(0, mouthY - radius); y <= Math.min(height - 1, mouthY + radius); y += 1) {
+        for (let x = Math.max(0, mouthX - radius); x <= Math.min(width - 1, mouthX + radius); x += 1) {
+            const dx = x - mouthX;
+            const dy = y - mouthY;
+            if (dx * dx + dy * dy > radiusSq)
+                continue;
+            const idx = y * width + x;
+            if (types[idx] === 'ocean') {
+                candidates.push(idx);
+            }
+        }
+    }
+    if (!candidates.length)
+        return 0;
+    const hashBase = hashCoord(seed ?? 0, mouthIdx);
+    const desiredRaw = min + (span > 0 ? hashBase % span : 0);
+    const desired = Math.min(max, Math.max(min, desiredRaw));
+    let created = 0;
+    const used = new Set();
+    let attempts = 0;
+    const maxAttempts = candidates.length * 4;
+    while (created < desired && attempts < maxAttempts) {
+        const hash = hashCoord(seed ?? 0, mouthIdx * 131 + created * 17 + attempts + 1);
+        const target = candidates[hash % candidates.length];
+        attempts += 1;
+        if (used.has(target))
+            continue;
+        const path = routeRiverPath(width, height, mouthIdx, target, filled, types, {
+            slopeWeight: 30,
+            heuristicWeight: 0.9,
+            radiusWeight: 1.2,
+            confluenceCenter: { x: mouthX, y: mouthY },
+            confluenceRadius: radius,
+            maxElevation: seaLevel + (rules.estuaryWideningDepth ?? 0.06) * 1.4,
+            elevationWeight: 90,
+            avoidOcean: false
+        });
+        if (!path || path.length < 2)
+            continue;
+        markRiverPath(path, types, flow, width, height, { skipLast: types[path[path.length - 1]] === 'ocean' });
+        used.add(target);
+        created += 1;
+    }
+    return created;
+}
+
+function applyEstuaryMorphology(width, height, mouthIdx, types, radius) {
+    if (mouthIdx < 0 || radius <= 0)
+        return;
+    const mouthX = mouthIdx % width;
+    const mouthY = Math.floor(mouthIdx / width);
+    const radiusSq = radius * radius;
+    const toOcean = [];
+    const toMarsh = [];
+    for (let y = Math.max(0, mouthY - radius); y <= Math.min(height - 1, mouthY + radius); y += 1) {
+        for (let x = Math.max(0, mouthX - radius); x <= Math.min(width - 1, mouthX + radius); x += 1) {
+            const dx = x - mouthX;
+            const dy = y - mouthY;
+            if (dx * dx + dy * dy > radiusSq)
+                continue;
+            const idx = y * width + x;
+            if (types[idx] !== 'land')
+                continue;
+            let waterNeighbors = 0;
+            let oceanNeighbors = 0;
+            for (const [ox, oy] of D8) {
+                const nx = x + ox;
+                const ny = y + oy;
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height)
+                    continue;
+                const neighbor = types[ny * width + nx];
+                if (neighbor !== 'land') {
+                    waterNeighbors += 1;
+                    if (neighbor === 'ocean') {
+                        oceanNeighbors += 1;
+                    }
+                }
+            }
+            if (oceanNeighbors >= 3 || waterNeighbors >= 5) {
+                toOcean.push(idx);
+            }
+            else if (waterNeighbors >= 3) {
+                toMarsh.push(idx);
+            }
+        }
+    }
+    for (const idx of toOcean) {
+        types[idx] = 'ocean';
+    }
+    for (const idx of toMarsh) {
+        if (types[idx] === 'land') {
+            types[idx] = 'marsh';
+        }
+    }
+}
+
+function enhanceRiverNetwork({ width, height, types, flow, accumulation, upstream, filled, rules, seed, seaLevel, elevations }) {
+    const stats = { mainChannels: 0, tributaries: 0, distributaries: 0 };
+    const mouthIdx = selectCoastalMouth(width, height, types, elevations, filled, accumulation, seaLevel, rules);
+    if (mouthIdx < 0)
+        return stats;
+    const maxSources = Math.max(2, rules.distributaryMax ?? 3);
+    const sources = gatherTributarySources(mouthIdx, upstream, accumulation, rules, maxSources);
+    if (!sources.length)
+        return stats;
+    const center = { x: mouthIdx % width, y: Math.floor(mouthIdx / width) };
+    const confluenceRadius = Math.max(2, rules.confluenceRadius ?? Math.round((rules.estuaryRadius ?? 4) * 0.75));
+    let longestPath = [];
+    for (let i = 0; i < sources.length; i += 1) {
+        const sourceIdx = sources[i];
+        const path = routeRiverPath(width, height, sourceIdx, mouthIdx, filled, types, {
+            slopeWeight: 45,
+            heuristicWeight: 1,
+            radiusWeight: 2,
+            confluenceCenter: center,
+            confluenceRadius,
+            maxElevation: seaLevel + (rules.estuaryWideningDepth ?? 0.06) * 1.25,
+            elevationWeight: 70,
+            avoidOcean: true
+        });
+        if (!path || path.length < 2)
+            continue;
+        markRiverPath(path, types, flow, width, height, { skipLast: false });
+        if (path.length > longestPath.length) {
+            longestPath = path;
+        }
+    }
+    if (!longestPath.length) {
+        if (types[mouthIdx] === 'land') {
+            types[mouthIdx] = 'river';
+        }
+        return stats;
+    }
+    stats.mainChannels = longestPath.length;
+    stats.tributaries = Math.max(0, sources.length - 1);
+    widenRiverEstuary(width, height, longestPath, types, filled, seaLevel, rules.estuaryWideningDepth);
+    const distributaries = createDistributaries(width, height, mouthIdx, types, flow, filled, seaLevel, rules, seed);
+    stats.distributaries = distributaries;
+    applyEstuaryMorphology(width, height, mouthIdx, types, Math.round(rules.estuaryRadius ?? 4));
+    return stats;
+}
 function layMarshes(width, height, types, rules) {
     if (rules.marshiness <= 0)
         return;
@@ -671,12 +1039,25 @@ function buildHydrologyState({ width, height, elevationGrid, rules, seed, seaLev
     const accumulation = computeAccumulation(width, height, flow, types, filled);
     const upstream = buildUpstreamGraph(width, height, flow);
     applyRiverClassification(width, height, types, accumulation, flow, upstream, rules);
+    const riverStats = enhanceRiverNetwork({
+        width,
+        height,
+        types,
+        flow,
+        accumulation,
+        upstream,
+        filled,
+        rules,
+        seed,
+        seaLevel,
+        elevations: elevationGrid
+    });
     pruneDisconnectedRivers(width, height, types, flow);
     layMarshes(width, height, types, rules);
     bridgeDiagonals(width, height, types);
     normalizeCoastline(width, height, types);
     pruneSingletons(width, height, types, spill, rules.maxSingletonFraction);
-    return { filled, types, spill, flow, accumulation };
+    return { filled, types, spill, flow, accumulation, riverStats };
 }
 
 function pruneDisconnectedRivers(width, height, types, flow) {
@@ -863,11 +1244,12 @@ export function generateHydrology(input) {
     }
     const waterTableMatrix = filledMatrix;
     const adjustedRules = { ...rules, seaLevel: adjustedSeaLevel };
+    const riverStats = finalResult.riverStats ?? { mainChannels: 0, tributaries: 0, distributaries: 0 };
     const percent = (coverage * 100).toFixed(2);
     const surfacePercent = (surfaceCoverage * 100).toFixed(2);
     const seaLevelLabel = adjustedSeaLevel.toFixed(3);
     if (typeof console !== 'undefined' && typeof console.debug === 'function') {
-        console.debug(`[hydrology] water coverage ${percent}% (surface ${surfacePercent}%) after ${iterations} pass(es) (seaLevel=${seaLevelLabel})`);
+        console.debug(`[hydrology] water coverage ${percent}% (surface ${surfacePercent}%) after ${iterations} pass(es) (seaLevel=${seaLevelLabel}) | rivers main=${riverStats.mainChannels} trib=${riverStats.tributaries} dist=${riverStats.distributaries}`);
     }
     return {
         types: typesMatrix,
@@ -879,6 +1261,7 @@ export function generateHydrology(input) {
         seaLevel: adjustedSeaLevel,
         waterCoverage: coverage,
         surfaceWaterCoverage: surfaceCoverage,
-        waterAdjustmentHistory: adjustmentHistory
+        waterAdjustmentHistory: adjustmentHistory,
+        riverStats
     };
 }
