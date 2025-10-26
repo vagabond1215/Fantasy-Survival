@@ -25,12 +25,20 @@
   --layer-background-3: var(--color-neutral-dark);
   --layer-background-4: var(--color-neutral);
 
-  --seg-border: rgba(90, 134, 206, 0.35);
-  --seg-border-strong: #7d7f81;
-  --seg-ring: color-mix(in srgb, var(--color-accent-light) 72%, transparent);
+  --surface-1: var(--layer-background-1);
+  --surface-2: var(--layer-background-2);
+  --surface-3: var(--layer-background-3);
+  --surface-4: var(--layer-background-4);
+
+  --seg-border: color-mix(in srgb, var(--surface-3) 65%, transparent);
+  --seg-border-strong: color-mix(in srgb, var(--surface-4) 85%, transparent);
+  --seg-ring: color-mix(in srgb, var(--accent) 55%, transparent);
 
   --text-strong: var(--color-neutral-light);
+  --text: var(--text-strong);
   --text-muted: color-mix(in srgb, var(--color-neutral-light) 55%, var(--color-neutral-dark));
+
+  --accent-contrast: color-mix(in srgb, var(--text-strong) 92%, white 8%);
 
   --background-glass-light: color-mix(in srgb, var(--color-background-light) 68%, transparent);
   --background-glass-strong: color-mix(in srgb, var(--color-background-dark) 82%, transparent);
@@ -69,6 +77,16 @@
   --border-blue: var(--border-primary);
   --border-charcoal: var(--border-secondary);
   --border-bright: var(--border-accent);
+
+  --legend-water: #2d7ff9;
+  --legend-ocean: #2563eb;
+  --legend-lake: #38bdf8;
+  --legend-river: #0ea5e9;
+  --legend-marsh: #4ade80;
+  --legend-open: #facc15;
+  --legend-forest: #16a34a;
+  --legend-ore: #f97316;
+  --legend-stone: #94a3b8;
 }
 
 img:where([src=""]),
@@ -918,9 +936,9 @@ body.landing-active .seg {
   gap: 8px;
   padding: 10px 14px;
   border-radius: 14px;
-  background: rgba(16, 36, 70, 0.55);
-  border: 1px solid var(--seg-border);
-  color: var(--text-strong);
+  background: var(--surface-2);
+  border: 1px solid var(--border-soft, var(--seg-border));
+  color: var(--text, var(--text-strong));
   cursor: pointer;
   user-select: none;
   transition:
@@ -933,21 +951,21 @@ body.landing-active .seg {
 }
 
 body.landing-active .seg:hover {
-  border-color: var(--seg-border-strong);
-  box-shadow: 0 0 0 1px var(--seg-border-strong);
+  border-color: var(--border-strong, var(--seg-border-strong));
+  box-shadow: 0 0 0 1px var(--border-strong, var(--seg-border-strong));
 }
 
 body.landing-active .seg:focus-visible {
   outline: none;
-  border-color: var(--seg-ring);
-  box-shadow: 0 0 0 3px var(--seg-ring);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent);
 }
 
 body.landing-active .seg.is-active {
-  background: color-mix(in srgb, rgba(20, 48, 96, 0.72) 55%, var(--color-secondary-dark));
-  border-color: var(--seg-ring);
-  box-shadow: 0 0 0 3px var(--seg-ring);
-  color: var(--color-neutral-light);
+  background: var(--accent);
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent);
+  color: var(--accent-contrast, var(--text, var(--text-strong)));
 }
 
 body.landing-active .seg .hint {
@@ -997,65 +1015,51 @@ body.landing-active .tile {
   padding: 12px;
   border-radius: 14px;
   cursor: pointer;
-  background: var(
-    --tile-base-bg,
-    linear-gradient(145deg, rgba(9, 27, 66, 0.92), rgba(11, 41, 94, 0.88))
-  );
-  border: 1px solid color-mix(in srgb, var(--color-neutral-light) 38%, transparent);
-  color: var(--text-strong);
+  background: var(--tile-base-bg, var(--surface-2));
+  border: 1px solid var(--border-soft, color-mix(in srgb, var(--surface-4) 55%, transparent));
+  color: var(--text, var(--text-strong));
   transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
   backdrop-filter: blur(calc(var(--blur) * 0.35));
 }
 
 body[data-theme-appearance='dark'].landing-active .tile {
-  background: var(--tile-base-bg, color-mix(in srgb, var(--color-neutral-dark) 55%, transparent));
-  border-color: color-mix(in srgb, var(--color-neutral-light) 28%, transparent);
-  color: var(--text-strong);
-  box-shadow: 0 2px 6px rgba(0, 0, 0, 0.35);
+  background: var(--tile-base-bg, color-mix(in srgb, var(--surface-2) 92%, transparent));
+  border-color: var(--border-soft, color-mix(in srgb, var(--surface-4) 52%, transparent));
+  color: var(--text, var(--text-strong));
+  box-shadow: 0 2px 6px color-mix(in srgb, #000 35%, transparent);
 }
 
 body.landing-active .tile:hover {
-  background: var(
-    --tile-hover-bg,
-    linear-gradient(145deg, rgba(12, 38, 88, 0.95), rgba(15, 52, 120, 0.92))
-  );
-  border-color: color-mix(in srgb, var(--color-neutral-light) 55%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-neutral-light) 35%, transparent);
+  background: var(--tile-hover-bg, var(--surface-3));
+  border-color: var(--border-strong, color-mix(in srgb, var(--surface-4) 70%, transparent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--border-strong, var(--accent)) 35%, transparent);
 }
 
 body[data-theme-appearance='dark'].landing-active .tile:hover {
-  background: var(--tile-hover-bg, color-mix(in srgb, var(--color-neutral-dark) 65%, transparent));
-  border-color: color-mix(in srgb, var(--color-neutral-light) 42%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--color-neutral-light) 22%, transparent);
+  background: var(--tile-hover-bg, color-mix(in srgb, var(--surface-3) 88%, transparent));
+  border-color: var(--border-strong, color-mix(in srgb, var(--surface-4) 65%, transparent));
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--border-strong, var(--accent)) 30%, transparent);
 }
 
 body.landing-active .tile.is-active {
-  background: var(
-    --tile-active-bg,
-    linear-gradient(145deg, rgba(7, 23, 56, 0.98), rgba(13, 44, 104, 0.96))
-  );
-  border-color: color-mix(in srgb, var(--color-neutral-light) 75%, transparent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-neutral-light) 42%, transparent);
-}
-
-body[data-theme-appearance='dark'].landing-active .tile.is-active {
-  background: var(--tile-active-bg, color-mix(in srgb, var(--color-neutral-dark) 72%, transparent));
-  border-color: color-mix(in srgb, var(--color-neutral-light) 48%, transparent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-neutral-light) 26%, transparent);
+  background: var(--tile-active-bg, var(--accent));
+  border-color: var(--accent);
+  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 50%, transparent);
+  color: var(--accent-contrast, var(--text, var(--text-strong)));
 }
 
 body.landing-active .tile__name {
   font-weight: 700;
-  color: color-mix(in srgb, var(--text-strong) 88%, white 6%);
+  color: color-mix(in srgb, var(--text, var(--text-strong)) 88%, white 6%);
 }
 
 body.landing-active .tile__desc {
-  color: color-mix(in srgb, var(--text-muted) 85%, transparent);
+  color: color-mix(in srgb, var(--text-muted, var(--text)) 85%, transparent);
   font-size: 12px;
 }
 
 body[data-theme-appearance='dark'].landing-active .tile__desc {
-  color: color-mix(in srgb, var(--text-strong) 70%, transparent);
+  color: color-mix(in srgb, var(--text, var(--text-strong)) 70%, transparent);
 }
 
 body.landing-active .seed-row {
@@ -1261,10 +1265,10 @@ body.landing-active .map-legend {
   margin-top: 4px;
   padding: 10px 12px;
   border-radius: 12px;
-  border: 1px solid rgba(96, 146, 220, 0.35);
-  background: rgba(17, 28, 50, 0.72);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.05);
-  color: var(--text-strong);
+  border: 1px solid var(--border-soft, color-mix(in srgb, var(--surface-4) 55%, transparent));
+  background: var(--surface-2);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface-4) 18%, transparent);
+  color: var(--text, var(--text-strong));
   font-size: 12px;
 }
 
@@ -1272,7 +1276,7 @@ body.landing-active .map-legend__title {
   text-transform: uppercase;
   letter-spacing: 0.14em;
   font-size: 11px;
-  color: var(--text-muted);
+  color: var(--text-muted, var(--text, var(--text-strong)));
 }
 
 body.landing-active .map-legend__list {
@@ -1287,22 +1291,58 @@ body.landing-active .map-legend__item {
   gap: 8px;
   padding: 6px 8px;
   border-radius: 10px;
-  border: 1px solid rgba(88, 126, 196, 0.28);
-  background: rgba(14, 24, 44, 0.6);
-  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--border-soft, color-mix(in srgb, var(--surface-4) 45%, transparent));
+  background: var(--surface-3);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--surface-4) 14%, transparent);
 }
 
 body.landing-active .map-legend__swatch {
   width: 14px;
   height: 14px;
   border-radius: 4px;
-  box-shadow: 0 0 0 1px rgba(5, 12, 24, 0.45);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--surface-1, #050c18) 65%, transparent);
 }
 
 body.landing-active .map-legend__label {
   font-size: 12px;
-  color: var(--text-strong);
+  color: var(--text, var(--text-strong));
   letter-spacing: 0.02em;
+}
+
+body.landing-active .map-legend__swatch[data-type='water'] {
+  background: var(--legend-water);
+}
+
+body.landing-active .map-legend__swatch[data-type='ocean'] {
+  background: var(--legend-ocean);
+}
+
+body.landing-active .map-legend__swatch[data-type='lake'] {
+  background: var(--legend-lake);
+}
+
+body.landing-active .map-legend__swatch[data-type='river'] {
+  background: var(--legend-river);
+}
+
+body.landing-active .map-legend__swatch[data-type='marsh'] {
+  background: var(--legend-marsh);
+}
+
+body.landing-active .map-legend__swatch[data-type='open'] {
+  background: var(--legend-open);
+}
+
+body.landing-active .map-legend__swatch[data-type='forest'] {
+  background: var(--legend-forest);
+}
+
+body.landing-active .map-legend__swatch[data-type='ore'] {
+  background: var(--legend-ore);
+}
+
+body.landing-active .map-legend__swatch[data-type='stone'] {
+  background: var(--legend-stone);
 }
 
 .toast-container {

@@ -24,7 +24,7 @@ export const TERRAIN_SYMBOLS = {
   stone: '🪨'
 };
 
-export const TERRAIN_COLORS = {
+export const DEFAULT_TERRAIN_COLORS = Object.freeze({
   water: '#2d7ff9',
   ocean: '#2563eb',
   lake: '#38bdf8',
@@ -34,7 +34,98 @@ export const TERRAIN_COLORS = {
   forest: '#16a34a',
   ore: '#f97316',
   stone: '#94a3b8'
-};
+});
+
+const TERRAIN_COLOR_VARIABLES = Object.freeze({
+  water: '--legend-water',
+  ocean: '--legend-ocean',
+  lake: '--legend-lake',
+  river: '--legend-river',
+  marsh: '--legend-marsh',
+  open: '--legend-open',
+  forest: '--legend-forest',
+  ore: '--legend-ore',
+  stone: '--legend-stone'
+});
+
+let terrainColorCache = null;
+
+function readCssVariable(styles, variableName) {
+  if (!styles || typeof styles.getPropertyValue !== 'function') {
+    return '';
+  }
+  try {
+    return styles.getPropertyValue(variableName) || '';
+  } catch (error) {
+    return '';
+  }
+}
+
+function resolveTerrainColorPalette() {
+  let styles = null;
+  if (typeof document !== 'undefined' && document.documentElement) {
+    try {
+      styles = getComputedStyle(document.documentElement);
+    } catch (error) {
+      styles = null;
+    }
+  }
+
+  const palette = {};
+  for (const [type, variable] of Object.entries(TERRAIN_COLOR_VARIABLES)) {
+    const fallback = DEFAULT_TERRAIN_COLORS[type];
+    const value = readCssVariable(styles, variable).trim();
+    palette[type] = value || fallback;
+  }
+  return palette;
+}
+
+export function getTerrainColors({ forceRefresh = false } = {}) {
+  if (forceRefresh) {
+    terrainColorCache = null;
+  }
+  if (terrainColorCache) {
+    return { ...terrainColorCache };
+  }
+  const palette = resolveTerrainColorPalette();
+  terrainColorCache = palette;
+  return { ...palette };
+}
+
+export const TERRAIN_COLORS = new Proxy(
+  {},
+  {
+    get(_target, property) {
+      if (typeof property === 'string') {
+        const palette = getTerrainColors();
+        if (Object.prototype.hasOwnProperty.call(palette, property)) {
+          return palette[property];
+        }
+        if (Object.prototype.hasOwnProperty.call(DEFAULT_TERRAIN_COLORS, property)) {
+          return DEFAULT_TERRAIN_COLORS[property];
+        }
+      }
+      return undefined;
+    },
+    has(_target, property) {
+      return Object.prototype.hasOwnProperty.call(DEFAULT_TERRAIN_COLORS, property);
+    },
+    ownKeys() {
+      return Reflect.ownKeys(DEFAULT_TERRAIN_COLORS);
+    },
+    getOwnPropertyDescriptor(_target, property) {
+      if (Object.prototype.hasOwnProperty.call(DEFAULT_TERRAIN_COLORS, property)) {
+        return {
+          configurable: true,
+          enumerable: true,
+          value: getTerrainColors()[property],
+          writable: false
+        };
+      }
+      return undefined;
+    }
+  }
+);
 
 const WATER_TERRAIN_TYPES = new Set(['water', 'ocean', 'lake', 'river', 'marsh']);
 
