@@ -964,6 +964,7 @@ function applyThemeVariables() {
   setCSSVariable(root, '--color-accent-light', accentScale.light);
   setCSSVariable(root, '--color-accent-dark', accentScale.dark);
   setCSSVariable(root, '--accent', accentScale.base);
+  setCSSVariable(root, '--accent-500', accentScale.base);
   setCSSVariable(root, '--accent-bright', accentScale.light);
   setCSSVariable(root, '--accent-strong', accentScale.dark);
 

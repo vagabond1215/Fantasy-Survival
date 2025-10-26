@@ -15,6 +15,7 @@
   --accent-bright: #ffe39b;
   --accent-strong: #c99c30;
   --accent-contrast: #2a1a06;
+  --accent-500: var(--accent);
 
   --color-primary: #3dc2f0;
   --color-primary-light: #6feaff;
@@ -1243,7 +1244,7 @@ body.landing-active #biome-details {
 body.landing-active .map-preview {
   position: relative;
   border-radius: 18px;
-  border: 1px solid rgba(96, 146, 220, 0.5);
+  border: 2px solid var(--accent-500, var(--accent, var(--color-accent, #ffd166)));
   background: var(--glass-blue-strong);
   overflow: hidden;
   min-height: 320px;
