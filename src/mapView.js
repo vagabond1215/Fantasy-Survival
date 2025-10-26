@@ -1,6 +1,218 @@
 // @ts-nocheck
 import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS, getTerrainColors } from './map.js';
 
+const DEVELOPMENT_STATUS_ALIASES = new Map(
+  [
+    ['complete', 'completed'],
+    ['completed', 'completed'],
+    ['built', 'completed'],
+    ['finished', 'completed'],
+    ['constructed', 'completed'],
+    ['constructing', 'under-construction'],
+    ['building', 'under-construction'],
+    ['under construction', 'under-construction'],
+    ['under-construction', 'under-construction'],
+    ['in-progress', 'under-construction'],
+    ['progress', 'under-construction'],
+    ['queued', 'planned'],
+    ['pending', 'planned'],
+    ['planned', 'planned'],
+    ['noted', 'noted'],
+    ['mixed', 'mixed']
+  ].map(([alias, status]) => [alias, status])
+);
+
+function toFiniteInteger(value) {
+  return Number.isFinite(value) ? Math.trunc(value) : null;
+}
+
+function normalizeDevelopmentStatus(status, fallback = 'noted') {
+  if (!status) return fallback;
+  const key = String(status).trim().toLowerCase();
+  return DEVELOPMENT_STATUS_ALIASES.get(key) || fallback;
+}
+
+function coerceStructureName(entry) {
+  if (!entry) return '';
+  if (typeof entry === 'string') return entry;
+  return (
+    entry.name ||
+    entry.label ||
+    entry.title ||
+    entry.typeName ||
+    entry.typeId ||
+    (typeof entry.toString === 'function' ? entry.toString() : '') ||
+    ''
+  );
+}
+
+function normalizeDevelopmentDescriptor(entry, index = 0) {
+  if (!entry) return null;
+  const source = typeof entry === 'object' ? entry : { structures: [entry] };
+  const x = toFiniteInteger(source.x ?? source.col ?? source.column ?? source.tileX ?? source.tile?.x);
+  const y = toFiniteInteger(source.y ?? source.row ?? source.tileY ?? source.tile?.y);
+  if (x === null || y === null) return null;
+  const structuresRaw = Array.isArray(source.structures)
+    ? source.structures
+    : Array.isArray(source.projects)
+      ? source.projects
+      : source.structure
+        ? [source.structure]
+        : source.name
+          ? [source.name]
+          : [];
+  const structures = structuresRaw
+    .map(item => coerceStructureName(item))
+    .map(name => String(name || '').trim())
+    .filter(Boolean);
+  const status = normalizeDevelopmentStatus(source.status || source.state || source.progress || null);
+  const tooltipParts = [];
+  if (source.tooltip) tooltipParts.push(String(source.tooltip));
+  if (source.details) tooltipParts.push(String(source.details));
+  if (source.description) tooltipParts.push(String(source.description));
+  if (tooltipParts.length === 0 && structures.length) {
+    tooltipParts.push(structures.join(', '));
+  }
+  const label =
+    source.label ||
+    (structures.length ? structures[0] : '') ||
+    source.name ||
+    source.title ||
+    `Development ${index + 1}`;
+  const count = Number.isFinite(source.count) ? Math.max(0, Math.trunc(source.count)) : structures.length;
+  return {
+    x,
+    y,
+    status,
+    structures,
+    label,
+    tooltip: tooltipParts.join(' • '),
+    count,
+    emphasis: source.emphasis === true,
+    highlight: source.highlight === true
+  };
+}
+
+function summarizeStructureGroup(group) {
+  const completed = [];
+  const underway = [];
+  const planned = [];
+  const notes = [];
+  group.items.forEach(item => {
+    const name = coerceStructureName(item);
+    const cleanName = String(name || '').trim() || 'Structure';
+    const status = normalizeDevelopmentStatus(item.status || item.state || item.progress || null, 'planned');
+    if (status === 'completed') {
+      completed.push(cleanName);
+    } else if (status === 'under-construction') {
+      underway.push(cleanName);
+    } else {
+      planned.push(cleanName);
+    }
+    if (item.details) {
+      notes.push(String(item.details));
+    } else if (item.description) {
+      notes.push(String(item.description));
+    }
+  });
+  const detailParts = [];
+  if (completed.length) {
+    detailParts.push(
+      `${completed.length > 1 ? 'Completed structures' : 'Completed structure'}: ${completed.join(', ')}`
+    );
+  }
+  if (underway.length) {
+    detailParts.push(
+      `${underway.length > 1 ? 'Under construction' : 'Under construction'}: ${underway.join(', ')}`
+    );
+  }
+  if (planned.length) {
+    detailParts.push(`Planned: ${planned.join(', ')}`);
+  }
+  if (notes.length) {
+    detailParts.push(notes.join(' • '));
+  }
+  let status = 'noted';
+  if (underway.length) {
+    status = completed.length ? 'mixed' : 'under-construction';
+  } else if (completed.length) {
+    status = 'completed';
+  } else if (planned.length) {
+    status = 'planned';
+  }
+  const structures = [...completed, ...underway, ...planned];
+  const label = group.label || structures[0] || 'Development';
+  return {
+    x: group.x,
+    y: group.y,
+    status,
+    structures,
+    label,
+    tooltip: detailParts.join(' • '),
+    count: structures.length,
+    emphasis: Boolean(group.emphasis),
+    highlight: Boolean(group.highlight)
+  };
+}
+
+export function identifyDevelopmentTiles(map = {}, options = {}) {
+  const results = [];
+  const seen = new Set();
+
+  const directSources =
+    options.developments ?? map.developments ?? map.development ?? map.developmentTiles ?? null;
+  if (Array.isArray(directSources)) {
+    directSources.forEach((entry, index) => {
+      const normalized = normalizeDevelopmentDescriptor(entry, index);
+      if (!normalized) return;
+      const key = `${normalized.x}:${normalized.y}`;
+      seen.add(key);
+      results.push(normalized);
+    });
+  } else if (directSources && typeof directSources === 'object') {
+    Object.values(directSources).forEach((entry, index) => {
+      const normalized = normalizeDevelopmentDescriptor(entry, index);
+      if (!normalized) return;
+      const key = `${normalized.x}:${normalized.y}`;
+      seen.add(key);
+      results.push(normalized);
+    });
+  }
+
+  const structureCandidates = Array.isArray(options.structures)
+    ? options.structures
+    : Array.isArray(map.structures)
+      ? map.structures
+      : [];
+
+  if (structureCandidates.length) {
+    const grouped = new Map();
+    structureCandidates.forEach(item => {
+      if (!item) return;
+      const tile = item.tile || item.location || item.coords || {};
+      const x = toFiniteInteger(item.x ?? tile.x ?? item.col);
+      const y = toFiniteInteger(item.y ?? tile.y ?? item.row);
+      if (x === null || y === null) return;
+      const key = `${x}:${y}`;
+      if (!grouped.has(key)) {
+        grouped.set(key, { x, y, items: [], label: item.label || item.name || null, emphasis: item.emphasis, highlight: item.highlight });
+      }
+      grouped.get(key).items.push(item);
+    });
+
+    grouped.forEach((group, key) => {
+      if (seen.has(key)) return;
+      const summary = summarizeStructureGroup(group);
+      if (summary) {
+        seen.add(key);
+        results.push(summary);
+      }
+    });
+  }
+
+  return results;
+}
+
 const LEGEND_DEFAULTS = {
   water: 'Water',
   ocean: 'Ocean',
@@ -151,21 +363,28 @@ export function createMapView(container, {
     { size = 48, fontSize = '18px', variant = 'square' } = {}
   ) => {
     const dimension = typeof size === 'number' && Number.isFinite(size) ? `${size}px` : `${size}`;
-    button.style.width = dimension;
-    button.style.height = dimension;
-    button.style.padding = '0';
+    const isChip = variant === 'chip' || variant === 'stacked';
+    button.style.width = isChip ? 'auto' : dimension;
+    button.style.minWidth = isChip ? dimension : dimension;
+    button.style.height = variant === 'stacked' ? 'auto' : dimension;
+    button.style.minHeight = variant === 'stacked' ? dimension : dimension;
+    button.style.padding = isChip ? '0 12px' : '0';
     button.style.fontSize = fontSize;
     button.style.display = 'inline-flex';
+    button.style.flexDirection = variant === 'stacked' ? 'column' : 'row';
+    button.style.gap = variant === 'stacked' ? '2px' : '0';
     button.style.alignItems = 'center';
     button.style.justifyContent = 'center';
     button.style.borderRadius = '12px';
-    button.style.border = '1px solid var(--map-border, #ccc)';
-    button.style.background = 'var(--bg-color, #fff)';
-    button.style.color = 'inherit';
-    button.style.lineHeight = '1';
+    button.style.border = '1px solid var(--map-control-border, var(--map-border, #ccc))';
+    button.style.background = 'var(--map-control-bg, var(--bg-color, #fff))';
+    button.style.color = 'var(--map-control-fg, inherit)';
+    button.style.lineHeight = '1.1';
+    button.style.whiteSpace = 'nowrap';
     button.style.cursor = 'pointer';
     button.style.transition = 'background 0.2s ease, transform 0.1s ease';
-    button.style.boxShadow = '0 1px 2px rgba(0, 0, 0, 0.08)';
+    button.style.boxShadow = 'var(--map-control-shadow, 0 1px 2px rgba(0, 0, 0, 0.08))';
+    button.style.fontWeight = '600';
   };
 
   const state = {
@@ -202,7 +421,8 @@ export function createMapView(container, {
     useTerrainColors: Boolean(useTerrainColors),
     terrainColorOverrides,
     terrainColors: normalizedTerrainColors,
-    pendingZoomSync: false
+    pendingZoomSync: false,
+    developmentTiles: new Map()
   };
 
   const getVisibleDimensions = () => {
@@ -422,6 +642,179 @@ export function createMapView(container, {
       symbolEl.style.boxShadow = 'none';
       symbolEl.textContent = symbol ?? '';
     }
+  }
+
+  const DEVELOPMENT_CLASSNAMES = [
+    'map-tile--developed',
+    'map-tile--developed-pending',
+    'map-tile--developed-complete',
+    'map-tile--developed-mixed',
+    'map-tile--developed-planned',
+    'map-tile--developed-emphasis'
+  ];
+
+  function developmentKey(x, y) {
+    return `${Math.trunc(x ?? 0)}:${Math.trunc(y ?? 0)}`;
+  }
+
+  function getDevelopmentInfo(x, y) {
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    return state.developmentTiles.get(developmentKey(x, y)) || null;
+  }
+
+  function normalizeDevelopment(entry, index = 0) {
+    if (!entry && entry !== 0) return null;
+    const x = Number(entry.x);
+    const y = Number(entry.y);
+    if (!Number.isFinite(x) || !Number.isFinite(y)) return null;
+    const tileX = Math.trunc(x);
+    const tileY = Math.trunc(y);
+    const rawStatus = typeof entry.status === 'string' ? entry.status.trim().toLowerCase() : '';
+    let status = '';
+    switch (rawStatus) {
+      case 'completed':
+      case 'complete':
+      case 'built':
+        status = 'completed';
+        break;
+      case 'under-construction':
+      case 'construction':
+      case 'in-progress':
+      case 'building':
+        status = 'under-construction';
+        break;
+      case 'mixed':
+        status = 'mixed';
+        break;
+      case 'planned':
+      case 'planning':
+      case 'queued':
+        status = 'planned';
+        break;
+      default:
+        status = rawStatus || '';
+    }
+    const structures = Array.isArray(entry.structures)
+      ? entry.structures.map(item => String(item || '').trim()).filter(Boolean)
+      : [];
+    const count = Number.isFinite(entry.count)
+      ? Math.max(0, Math.trunc(entry.count))
+      : structures.length;
+    const label = typeof entry.label === 'string' && entry.label.trim()
+      ? entry.label.trim()
+      : structures[0] || 'Development';
+    const detailSources = [];
+    const addDetail = value => {
+      if (typeof value === 'string' && value.trim()) {
+        detailSources.push(value.trim());
+      }
+    };
+    addDetail(entry.tooltip);
+    addDetail(entry.details);
+    addDetail(entry.description);
+    addDetail(entry.summary);
+    addDetail(entry.note);
+    if (!detailSources.length && structures.length > 1) {
+      detailSources.push(`Structures: ${structures.join(', ')}`);
+    }
+    const tooltip = detailSources.join(' • ');
+    const normalizedStatus = status
+      ? status
+      : structures.length
+        ? 'completed'
+        : count > 0
+          ? 'planned'
+          : 'noted';
+    return {
+      key: developmentKey(tileX, tileY),
+      x: tileX,
+      y: tileY,
+      status: normalizedStatus,
+      label,
+      tooltip,
+      structures,
+      count,
+      emphasis: entry.emphasis === true,
+      highlight: entry.highlight === true
+    };
+  }
+
+  function clearTileDevelopment(tile) {
+    if (!tile || !(tile instanceof Element)) return;
+    DEVELOPMENT_CLASSNAMES.forEach(className => tile.classList.remove(className));
+    delete tile.dataset.development;
+    delete tile.dataset.developmentLabel;
+    delete tile.dataset.developmentStatus;
+    delete tile.dataset.developmentDetails;
+    delete tile.dataset.developmentCount;
+  }
+
+  function applyTileDevelopment(tile, worldX, worldY) {
+    if (!tile) return;
+    clearTileDevelopment(tile);
+    const info = getDevelopmentInfo(worldX, worldY);
+    if (!info) return;
+    tile.classList.add('map-tile--developed');
+    if (info.status === 'under-construction') {
+      tile.classList.add('map-tile--developed-pending');
+    } else if (info.status === 'completed') {
+      tile.classList.add('map-tile--developed-complete');
+    } else if (info.status === 'planned') {
+      tile.classList.add('map-tile--developed-planned');
+    } else {
+      tile.classList.add('map-tile--developed-mixed');
+    }
+    if (info.emphasis || info.highlight) {
+      tile.classList.add('map-tile--developed-emphasis');
+    }
+    tile.dataset.development = 'true';
+    if (info.label) {
+      tile.dataset.developmentLabel = info.label;
+    }
+    if (info.status) {
+      tile.dataset.developmentStatus = info.status;
+    }
+    const detailText = info.tooltip || (info.structures?.length ? info.structures.join(', ') : '');
+    if (detailText) {
+      tile.dataset.developmentDetails = detailText;
+    }
+    if (Number.isFinite(info.count) && info.count > 0) {
+      tile.dataset.developmentCount = `${info.count}`;
+    }
+  }
+
+  function syncDevelopmentOverlay() {
+    if (!mapDisplay || typeof mapDisplay.children === 'undefined') return;
+    if (!state.map?.tiles?.length) {
+      Array.from(mapDisplay.children).forEach(tile => clearTileDevelopment(tile));
+      return;
+    }
+    const rows = state.map.tiles.length;
+    const cols = state.map.tiles[0].length;
+    const tiles = mapDisplay.children;
+    if (!tiles || !tiles.length) return;
+    let index = 0;
+    for (let row = 0; row < rows; row++) {
+      for (let col = 0; col < cols; col++) {
+        const tile = tiles[index++];
+        if (!tile) continue;
+        const worldX = state.map.xStart + col;
+        const worldY = state.map.yStart + row;
+        applyTileDevelopment(tile, worldX, worldY);
+      }
+    }
+  }
+
+  function applyDevelopments(entries = []) {
+    const normalized = Array.isArray(entries)
+      ? entries.map((entry, index) => normalizeDevelopment(entry, index)).filter(Boolean)
+      : [];
+    const next = new Map();
+    normalized.forEach(info => {
+      next.set(info.key, info);
+    });
+    state.developmentTiles = next;
+    syncDevelopmentOverlay();
   }
 
   function commitMapUpdate() {
@@ -706,7 +1099,15 @@ export function createMapView(container, {
     const worldX = Number.isFinite(Number(tile.dataset.worldX)) ? Number(tile.dataset.worldX) : null;
     const worldY = Number.isFinite(Number(tile.dataset.worldY)) ? Number(tile.dataset.worldY) : null;
     const coordText = worldX !== null && worldY !== null ? ` (${worldX}, ${worldY})` : '';
-    return `${symbol ? `${symbol} ` : ''}${label}${coordText}`;
+    let developmentText = '';
+    if (worldX !== null && worldY !== null) {
+      const info = getDevelopmentInfo(worldX, worldY);
+      const detail = tile.dataset.developmentDetails || info?.tooltip || null;
+      if (detail) {
+        developmentText = ` — ${detail}`;
+      }
+    }
+    return `${symbol ? `${symbol} ` : ''}${label}${coordText}${developmentText}`;
   };
 
   const showTooltip = (tile, event = null) => {
@@ -863,6 +1264,7 @@ export function createMapView(container, {
   let zoomOutButton = null;
   let zoomInButton = null;
   let zoomResetButton = null;
+  let zoomResetValue = null;
   if (showControls) {
     controls.className = `${idPrefix}-controls map-controls`;
     controls.style.display = 'flex';
@@ -903,29 +1305,42 @@ export function createMapView(container, {
     zoomControls = document.createElement('div');
     zoomControls.className = `${idPrefix}-zoom map-zoom-controls`;
     zoomControls.style.display = 'grid';
-    zoomControls.style.gridTemplateColumns = 'repeat(3, 48px)';
-    zoomControls.style.gridAutoRows = '48px';
+    zoomControls.style.gridTemplateColumns = 'repeat(3, minmax(72px, 1fr))';
+    zoomControls.style.gridAutoRows = 'minmax(48px, auto)';
     zoomControls.style.gap = '6px';
     zoomControls.style.justifyContent = 'center';
-    zoomControls.style.alignItems = 'center';
-    zoomControls.style.justifyItems = 'center';
+    zoomControls.style.alignItems = 'stretch';
+    zoomControls.style.justifyItems = 'stretch';
     zoomControls.style.alignContent = 'center';
     controlColumn.appendChild(zoomControls);
 
-    const createZoomButton = (label, aria, fontSize) => {
+    const createZoomButton = (label, aria, fontSize, variant = 'chip') => {
       const button = document.createElement('button');
       button.type = 'button';
       button.textContent = label;
       button.setAttribute('aria-label', aria);
-      applyControlButtonStyle(button, { fontSize, variant: 'square' });
+      applyControlButtonStyle(button, { fontSize, variant });
       return button;
     };
 
-    zoomOutButton = createZoomButton('−', 'Zoom out', '20px');
+    zoomOutButton = createZoomButton('Zoom −', 'Zoom out', '15px');
 
-    zoomResetButton = createZoomButton('100%', 'Reset zoom to 100%', '16px');
+    zoomResetButton = document.createElement('button');
+    zoomResetButton.type = 'button';
+    zoomResetButton.className = 'map-zoom-reset';
+    const resetLabel = document.createElement('span');
+    resetLabel.className = 'map-zoom-reset__label';
+    resetLabel.textContent = 'Reset';
+    const resetValue = document.createElement('span');
+    resetValue.className = 'map-zoom-reset__value';
+    resetValue.textContent = '100%';
+    zoomResetButton.appendChild(resetLabel);
+    zoomResetButton.appendChild(resetValue);
+    zoomResetValue = resetValue;
+    applyControlButtonStyle(zoomResetButton, { fontSize: '14px', variant: 'stacked' });
+    zoomResetButton.setAttribute('aria-label', 'Reset zoom to 100%');
 
-    zoomInButton = createZoomButton('+', 'Zoom in', '20px');
+    zoomInButton = createZoomButton('Zoom +', 'Zoom in', '15px');
 
     zoomControls.appendChild(zoomOutButton);
     zoomControls.appendChild(zoomResetButton);
@@ -2257,7 +2672,7 @@ export function createMapView(container, {
     const y = Number.isFinite(marker.y) ? Math.trunc(marker.y) : null;
     if (x === null || y === null) return null;
     const id = marker.id || `marker-${index}`;
-    const icon = marker.icon || '📍';
+    const icon = marker.icon === undefined || marker.icon === null ? '' : String(marker.icon);
     const className = marker.className || '';
     const emphasis = Boolean(marker.emphasis);
     const label = marker.label || '';
@@ -2350,7 +2765,11 @@ export function createMapView(container, {
     if (!zoomResetButton) return;
     const currentPercent = Math.round(state.zoom * 100);
     const baselinePercent = Math.round((state.initialZoom || 1) * 100);
-    zoomResetButton.textContent = `${currentPercent}%`;
+    if (zoomResetValue) {
+      zoomResetValue.textContent = `${currentPercent}%`;
+    } else {
+      zoomResetButton.textContent = `${currentPercent}%`;
+    }
     zoomResetButton.setAttribute(
       'aria-label',
       `Reset zoom to ${baselinePercent}% (current ${currentPercent}%)`
@@ -2542,6 +2961,7 @@ export function createMapView(container, {
           delete tile.dataset.terrain;
         }
         applyTileAppearance(tile, type, symbol);
+        applyTileDevelopment(tile, worldX, worldY);
       });
     });
     updateWrapperSize();
@@ -2577,7 +2997,7 @@ export function createMapView(container, {
       { label: '↑', dx: 0, dy: -1, aria: `${verb} north` },
       { label: '↗', dx: 1, dy: -1, aria: `${verb} northeast` },
       { label: '←', dx: -1, dy: 0, aria: `${verb} west` },
-      { label: '🎯', recenter: true, aria: recenterLabel },
+      { label: '⌂', recenter: true, aria: recenterLabel },
       { label: '→', dx: 1, dy: 0, aria: `${verb} east` },
       { label: '↙', dx: -1, dy: 1, aria: `${verb} southwest` },
       { label: '↓', dx: 0, dy: 1, aria: `${verb} south` },
@@ -2718,6 +3138,7 @@ export function createMapView(container, {
         state.zoomDisplayFactor = 1;
         state.zoom = 1;
         state.pendingZoomSync = false;
+        applyDevelopments([]);
         render();
         applyZoomTransform();
         return;
@@ -2772,6 +3193,9 @@ export function createMapView(container, {
 
       state.home = computeHomeStart(state.focus);
 
+      const detectedDevelopments = identifyDevelopmentTiles(map);
+      applyDevelopments(detectedDevelopments);
+
       if (!Number.isFinite(state.viewport.xStart) || !Number.isFinite(state.viewport.yStart)) {
         state.viewport.xStart = state.home.xStart;
         state.viewport.yStart = state.home.yStart;
@@ -2825,6 +3249,7 @@ export function createMapView(container, {
     center: centerMap,
     setFocus,
     setMarkers: applyMarkers,
+    setDevelopments: applyDevelopments,
     destroy() {
       if (typeof window !== 'undefined') {
         if (state.resizeHandler) {
@@ -2844,6 +3269,7 @@ export function createMapView(container, {
         layoutRoot.parentElement.removeChild(layoutRoot);
       }
       setJobOptionsOpen(false);
+      state.developmentTiles = new Map();
       jobOptionButtons.clear();
       closeActionModal();
       if (actionModal?.parentElement) {
