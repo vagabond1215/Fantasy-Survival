@@ -190,11 +190,6 @@ Light Mode
                   text #F1F5FF
                   &:hover [layer 8]
                     border #7B8CA5
-              .map-marker--spawn-outline [layer 6]
-                ring #8CC9FF
-                cross #F1F5FF
-                halo #4B8DFF66
-                shadow #040A1F8C
               .map-legend [layer 6]
                 border #5F7FBA80
                 background #162844C4
@@ -401,11 +396,6 @@ Dark Mode
                   text #F2F5FF
                   &:hover [layer 8]
                     border #7D8DA9
-              .map-marker--spawn-outline [layer 6]
-                ring #8FCBFF
-                cross #F4F7FF
-                halo #4D91FF59
-                shadow #040A1F80
               .map-legend [layer 6]
                 border #5F7FBA80
                 background #12223DC9
