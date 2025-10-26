@@ -219,6 +219,7 @@ const LEGEND_DEFAULTS = {
   lake: 'Lake',
   river: 'River',
   marsh: 'Marsh',
+  mangrove: 'Mangrove Forest',
   open: 'Open Land',
   forest: 'Forest',
   ore: 'Ore Deposits',

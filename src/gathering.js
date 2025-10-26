@@ -11,7 +11,7 @@ function slugify(value = '') {
 }
 
 const DEFAULT_STICK_SEASON_WEIGHTS = { Thawbound: 2, Sunheight: 3, Emberwane: 3, Frostshroud: 2 };
-const WATER_HABITATS = ['water', 'river', 'lake', 'marsh', 'ocean'];
+const WATER_HABITATS = ['water', 'river', 'lake', 'marsh', 'ocean', 'mangrove'];
 
 const STURDY_TREE_STICK_CONFIG = [
   {

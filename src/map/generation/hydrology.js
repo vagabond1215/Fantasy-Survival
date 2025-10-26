@@ -998,7 +998,7 @@ function pruneSingletons(width, height, types, filled, maxFraction) {
     }
 }
 
-const WATER_CLASSIFICATIONS = new Set(['water', 'ocean', 'lake', 'river', 'marsh']);
+const WATER_CLASSIFICATIONS = new Set(['water', 'ocean', 'lake', 'river', 'marsh', 'mangrove']);
 
 function computeWaterCoverage(width, height, types, filled, elevations, seaLevel) {
     const size = width * height;

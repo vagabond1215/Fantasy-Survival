@@ -12,6 +12,7 @@ const TERRAIN_TIME_MULTIPLIER = {
   lake: 4,
   river: 3.8,
   marsh: 2.8,
+  mangrove: 3.1,
   default: 1.25
 };
 
@@ -78,6 +79,8 @@ export function describeTerrainDifficulty(type) {
       return 'Swift currents complicate fording attempts.';
     case 'marsh':
       return 'Slogging through wetlands is slow and exhausting.';
+    case 'mangrove':
+      return 'Dense roots and tidal pools demand careful, time-consuming steps.';
     case 'open':
     default:
       return 'Gentle terrain allows steady progress.';

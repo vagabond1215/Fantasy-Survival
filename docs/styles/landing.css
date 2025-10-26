@@ -97,6 +97,7 @@
   --legend-lake: #38bdf8;
   --legend-river: #0ea5e9;
   --legend-marsh: #4ade80;
+  --legend-mangrove: #065f46;
   --legend-open: #facc15;
   --legend-forest: #16a34a;
   --legend-ore: #f97316;
@@ -1502,6 +1503,10 @@ body.landing-active .map-legend__swatch[data-type='river'] {
 
 body.landing-active .map-legend__swatch[data-type='marsh'] {
   background: var(--legend-marsh);
+}
+
+body.landing-active .map-legend__swatch[data-type='mangrove'] {
+  background: var(--legend-mangrove);
 }
 
 body.landing-active .map-legend__swatch[data-type='open'] {

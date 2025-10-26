@@ -88,6 +88,16 @@ const LEGEND_TOKEN_SPECS = Object.freeze({
         0.35
       )
   },
+  mangrove: {
+    variable: '--legend-mangrove',
+    fallbackKey: 'mangrove',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'green', 'dark') || ctx.secondary.dark,
+        pickStandardColor(ctx.standardPalette, 'blue', 'dark') || ctx.primary.dark,
+        0.4
+      )
+  },
   open: {
     variable: '--legend-open',
     fallbackKey: 'open',
