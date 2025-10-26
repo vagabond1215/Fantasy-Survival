@@ -1115,7 +1115,6 @@ export function initSetupUI(onStart) {
             x: spawnCoords.x,
             y: spawnCoords.y,
             icon: '',
-            className: 'map-marker--spawn map-marker--spawn-outline',
             label: 'Chosen spawn location',
             emphasis: true
           }
