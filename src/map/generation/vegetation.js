@@ -96,6 +96,29 @@ function hasQualifyingNeighbors(types, x, y) {
   return { touchesLand, touchesRiver };
 }
 
+/**
+ * @typedef {Object} HydrologySnapshot
+ * @property {string[][]} types
+ * @property {number} [seaLevel]
+ * @property {number[][]} [waterTable]
+ * @property {number[][]} [filledElevation]
+ * @property {string} [seed]
+ */
+
+/**
+ * @typedef {Object} ApplyMangroveZonesOptions
+ * @property {HydrologySnapshot} [hydrology]
+ * @property {number[][]} [elevations]
+ * @property {(x: number, y: number, salt?: string) => number} [random]
+ * @property {string} [seed]
+ * @property {number} [maxDistance]
+ * @property {number} [maxDepth]
+ * @property {number} [surfaceAllowance]
+ */
+
+/**
+ * @param {ApplyMangroveZonesOptions} [options]
+ */
 export function applyMangroveZones({
   hydrology,
   elevations,
