@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS, TERRAIN_COLORS } from './map.js';
+import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS, getTerrainColors } from './map.js';
 
 const LEGEND_DEFAULTS = {
   water: 'Water',
@@ -126,10 +126,12 @@ export function createMapView(container, {
 } = {}) {
   if (!container) throw new Error('Container is required for map view');
 
-  const normalizedTerrainColors =
-    terrainColors && typeof terrainColors === 'object'
-      ? { ...TERRAIN_COLORS, ...terrainColors }
-      : { ...TERRAIN_COLORS };
+  const baseTerrainColors = getTerrainColors();
+  const terrainColorOverrides =
+    terrainColors && typeof terrainColors === 'object' ? { ...terrainColors } : null;
+  const normalizedTerrainColors = terrainColorOverrides
+    ? { ...baseTerrainColors, ...terrainColorOverrides }
+    : { ...baseTerrainColors };
 
   const normalizedBufferMargin = Number.isFinite(bufferMargin)
     ? Math.max(0, Math.trunc(bufferMargin))
@@ -198,6 +200,7 @@ export function createMapView(container, {
     markerElements: new Map(),
     markerDefs: [],
     useTerrainColors: Boolean(useTerrainColors),
+    terrainColorOverrides,
     terrainColors: normalizedTerrainColors,
     pendingZoomSync: false
   };
@@ -2798,6 +2801,20 @@ export function createMapView(container, {
       updateWrapperSize();
       updateTileSizing();
       applyResponsiveLayout();
+    },
+    setTerrainColors(nextColors = null, options = {}) {
+      const { forceRefresh = false } = options || {};
+      if (nextColors && typeof nextColors === 'object') {
+        state.terrainColorOverrides = { ...nextColors };
+      } else if (nextColors === false) {
+        state.terrainColorOverrides = null;
+      }
+      const basePalette = getTerrainColors({ forceRefresh });
+      const overrides = state.terrainColorOverrides;
+      state.terrainColors = overrides ? { ...basePalette, ...overrides } : { ...basePalette };
+      if (state.useTerrainColors && state.map?.tiles?.length) {
+        render();
+      }
     },
     setJobOptions(options = [], context = {}) {
       applyJobOptions(options, context);

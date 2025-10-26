@@ -1,3 +1,5 @@
+import { DEFAULT_TERRAIN_COLORS } from './map.js';
+
 const THEME_SELECTION_STORAGE_KEY = 'theme:selected';
 const THEME_APPEARANCE_STORAGE_KEY = 'theme:appearance';
 const LEGACY_THEME_STORAGE_KEYS = ['theme'];
@@ -16,6 +18,18 @@ const STANDARD_COLOR_KEYS = [
   'purple',
   'brown'
 ];
+
+const LEGEND_COLOR_VARIABLES = Object.freeze({
+  water: '--legend-water',
+  ocean: '--legend-ocean',
+  lake: '--legend-lake',
+  river: '--legend-river',
+  marsh: '--legend-marsh',
+  open: '--legend-open',
+  forest: '--legend-forest',
+  ore: '--legend-ore',
+  stone: '--legend-stone'
+});
 
 /**
  * @typedef {Object} ColorScale
@@ -947,6 +961,9 @@ function applyThemeVariables() {
   setCSSVariable(root, '--color-accent', accentScale.base);
   setCSSVariable(root, '--color-accent-light', accentScale.light);
   setCSSVariable(root, '--color-accent-dark', accentScale.dark);
+  setCSSVariable(root, '--accent', accentScale.base);
+  setCSSVariable(root, '--accent-bright', accentScale.light);
+  setCSSVariable(root, '--accent-strong', accentScale.dark);
 
   setCSSVariable(root, '--layer-background-0', layerBackgrounds[0]);
   setCSSVariable(root, '--layer-background-1', layerBackgrounds[1]);
@@ -954,10 +971,21 @@ function applyThemeVariables() {
   setCSSVariable(root, '--layer-background-3', layerBackgrounds[3]);
   setCSSVariable(root, '--layer-background-4', layerBackgrounds[4]);
 
+  const surface1 = layerBackgrounds[1] || backgroundBase;
+  const surface2 = layerBackgrounds[2] || surface1;
+  const surface3 = layerBackgrounds[3] || surface2;
+  const surface4 = layerBackgrounds[4] || surface3;
+
+  setCSSVariable(root, '--surface-1', surface1);
+  setCSSVariable(root, '--surface-2', surface2);
+  setCSSVariable(root, '--surface-3', surface3);
+  setCSSVariable(root, '--surface-4', surface4);
+  setCSSVariable(root, '--surface', surface1);
+
   setCSSVariable(root, '--bg-color', layerBackgrounds[0]);
-  setCSSVariable(root, '--surface-color', layerBackgrounds[1]);
-  setCSSVariable(root, '--surface-alt-color', layerBackgrounds[2]);
-  setCSSVariable(root, '--surface-strong-color', layerBackgrounds[3]);
+  setCSSVariable(root, '--surface-color', surface1);
+  setCSSVariable(root, '--surface-alt-color', surface2);
+  setCSSVariable(root, '--surface-strong-color', surface3);
 
   setCSSVariable(root, '--menu-bg', layerBackgrounds[1]);
   setCSSVariable(root, '--map-bg', layerBackgrounds[1]);
@@ -971,17 +999,22 @@ function applyThemeVariables() {
   setCSSVariable(root, '--card-bg', layerBackgrounds[3]);
   setCSSVariable(root, '--card-bg-alt', layerBackgrounds[4]);
 
-  const baseSurface = layerBackgrounds[1] || backgroundBase;
-  const cardSurface = layerBackgrounds[3] || baseSurface;
+  const baseSurface = surface1;
+  const cardSurface = surface3;
 
   const primaryText = ensureContrast(text?.primary, baseSurface, 4.6);
   const mutedText = ensureContrast(text?.muted, baseSurface, 3.2);
   const headingText = ensureContrast(text?.primary, cardSurface, 4.6);
 
   setCSSVariable(root, '--text-color', primaryText);
+  setCSSVariable(root, '--text', primaryText);
+  setCSSVariable(root, '--text-strong', headingText);
   setCSSVariable(root, '--text-muted', mutedText);
   setCSSVariable(root, '--card-text', ensureContrast(text?.primary, cardSurface, 4.6));
   setCSSVariable(root, '--heading-color', headingText);
+
+  const accentContrast = ensureContrast(text?.primary, accentScale.base, 4.6);
+  setCSSVariable(root, '--accent-contrast', accentContrast);
 
   const actionButtonGradient = buildGradient(primaryScale.dark, primaryScale.light);
   const actionButtonActiveGradient = buildGradient(secondaryScale.dark, secondaryScale.light);
@@ -1014,6 +1047,13 @@ function applyThemeVariables() {
   setCSSVariable(root, '--backdrop-shadow', `0 24px 60px ${rgbaFromHex(backgroundStrong, backdropAlpha)}`);
 
   setCSSVariable(root, '--accent-glow-soft', rgbaFromHex(accentScale.light, currentAppearance === 'light' ? 0.35 : 0.4));
+
+  for (const [type, variable] of Object.entries(LEGEND_COLOR_VARIABLES)) {
+    const fallback = DEFAULT_TERRAIN_COLORS?.[type];
+    if (fallback) {
+      setCSSVariable(root, variable, fallback);
+    }
+  }
 
   applyStandardColorVariables(root, standardColors);
 

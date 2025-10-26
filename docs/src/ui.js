@@ -13,7 +13,6 @@ import {
   DEFAULT_MAP_HEIGHT,
   DEFAULT_MAP_WIDTH,
   generateColorMap,
-  TERRAIN_COLORS,
   isWaterTerrain
 } from './map.js';
 import { createMapView } from './mapView.js';
@@ -51,7 +50,6 @@ const PREVIEW_MAP_SIZE = 128;
 
 const DARK_TILE_BASE_COLOR = '#7d7f81';
 const DARK_TILE_HOVER_LIFT = 0.08;
-const DARK_TILE_ACTIVE_SHADE = 0.16;
 
 const PRIMARY_WORLD_PARAMETERS = [
   {
@@ -659,12 +657,16 @@ export function initSetupUI(onStart) {
   let activeCategoryId = PARAMETER_CATEGORIES[0]?.id || null;
 
   let currentThemeInfo = getThemeDefinition();
+  let mapView = null;
 
   onThemeChange((themeId, themeDefinition) => {
     currentThemeInfo = themeDefinition || getThemeDefinition(themeId);
     syncLandingAppearance(currentThemeInfo?.activeAppearance || getThemeAppearance());
     updateLandingThemeButtons(themeId);
     biomeTiles.forEach(applyTileBackground);
+    if (mapView?.setTerrainColors) {
+      mapView.setTerrainColors(null, { forceRefresh: true });
+    }
   }, {
     immediate: true
   });
@@ -681,7 +683,6 @@ export function initSetupUI(onStart) {
   let worldParameters = cloneWorldParameters(getDifficultyPreset(selectedDifficulty)?.world || defaultWorldParameters);
   let mapSeed = createSeed();
   let mapData = null;
-  let mapView = null;
   let spawnCoords = null;
   let spawnPrompt = null;
   let pendingSpawn = null;
@@ -835,15 +836,12 @@ export function initSetupUI(onStart) {
       const baseColor = parseColor(baseHex || DARK_TILE_BASE_COLOR);
       if (baseColor) {
         const hoverColor = lightenColor(baseColor, DARK_TILE_HOVER_LIFT);
-        const activeColor = darkenColor(baseColor, DARK_TILE_ACTIVE_SHADE);
         button.style.setProperty('--tile-base-bg', formatColor(baseColor));
         if (hoverColor) {
           button.style.setProperty('--tile-hover-bg', formatColor(hoverColor));
         }
-        if (activeColor) {
-          button.style.setProperty('--tile-active-bg', formatColor(activeColor));
-        }
       }
+      button.style.removeProperty('--tile-active-bg');
       return;
     }
     const grandparent = button.parentElement?.parentElement;
@@ -853,14 +851,11 @@ export function initSetupUI(onStart) {
     }
     if (!baseColor) return;
     const hoverColor = lightenColor(baseColor, 0.06);
-    const activeColor = darkenColor(baseColor, 0.12);
     button.style.setProperty('--tile-base-bg', formatColor(baseColor));
     if (hoverColor) {
       button.style.setProperty('--tile-hover-bg', formatColor(hoverColor));
     }
-    if (activeColor) {
-      button.style.setProperty('--tile-active-bg', formatColor(activeColor));
-    }
+    button.style.removeProperty('--tile-active-bg');
   }
 
   function hideSpawnPrompt() {
@@ -1185,8 +1180,9 @@ export function initSetupUI(onStart) {
 
       const swatch = document.createElement('span');
       swatch.className = 'map-legend__swatch';
-      const color = TERRAIN_COLORS[entry.type] || '#ffffff';
-      swatch.style.background = color;
+      if (entry.type) {
+        swatch.dataset.type = entry.type;
+      }
       item.appendChild(swatch);
 
       const label = document.createElement('span');
