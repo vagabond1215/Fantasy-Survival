@@ -1,11 +1,18 @@
 :root {
-  --color-background: #111930;
-  --color-background-light: #1b2542;
-  --color-background-dark: #070b16;
+  --bg: #111930;
+  --surface: #1b2542;
+  --surface-2: #24345a;
+  --surface-3: #828ba1;
+  --surface-4: #bac4db;
 
-  --color-neutral: #bac4db;
-  --color-neutral-light: #e8efff;
-  --color-neutral-dark: #828ba1;
+  --text: #e8efff;
+  --text-strong: var(--text);
+  --text-muted: color-mix(in srgb, var(--text) 55%, #6c7491);
+
+  --accent: #ffd166;
+  --accent-bright: #ffe39b;
+  --accent-strong: #c99c30;
+  --accent-contrast: #2a1a06;
 
   --color-primary: #3dc2f0;
   --color-primary-light: #6feaff;
@@ -15,61 +22,68 @@
   --color-secondary-light: #b991ff;
   --color-secondary-dark: #5520ad;
 
-  --color-accent: #ffd166;
-  --color-accent-light: #ffe39b;
-  --color-accent-dark: #c99c30;
+  --neutral-strong: #828ba1;
+  --neutral-soft: #bac4db;
+  --neutral-bright: #e8efff;
 
-  --layer-background-0: var(--color-background-dark);
-  --layer-background-1: var(--color-background);
-  --layer-background-2: var(--color-background-light);
-  --layer-background-3: var(--color-neutral-dark);
-  --layer-background-4: var(--color-neutral);
+  --layer-background-0: color-mix(in srgb, var(--bg) 82%, #020610);
+  --layer-background-1: var(--bg);
+  --layer-background-2: var(--surface);
+  --layer-background-3: var(--surface-2);
+  --layer-background-4: var(--surface-3);
 
-  --surface-1: var(--layer-background-1);
-  --surface-2: var(--layer-background-2);
-  --surface-3: var(--layer-background-3);
-  --surface-4: var(--layer-background-4);
+  --surface-1: var(--surface);
+  --surface-2: var(--surface-2);
+  --surface-3: var(--surface-3);
+  --surface-4: var(--surface-4);
 
   --seg-border: color-mix(in srgb, var(--surface-3) 65%, transparent);
   --seg-border-strong: color-mix(in srgb, var(--surface-4) 85%, transparent);
   --seg-ring: color-mix(in srgb, var(--accent) 55%, transparent);
 
-  --text-strong: var(--color-neutral-light);
-  --text: var(--text-strong);
-  --text-muted: color-mix(in srgb, var(--color-neutral-light) 55%, var(--color-neutral-dark));
+  --accent-glow-soft: color-mix(in srgb, var(--accent-bright) 40%, transparent);
 
-  --accent-contrast: color-mix(in srgb, var(--text-strong) 92%, white 8%);
+  --background-glass-light: color-mix(in srgb, var(--surface-2) 68%, transparent);
+  --background-glass-strong: color-mix(in srgb, var(--bg) 82%, transparent);
 
-  --background-glass-light: color-mix(in srgb, var(--color-background-light) 68%, transparent);
-  --background-glass-strong: color-mix(in srgb, var(--color-background-dark) 82%, transparent);
+  --glass-primary: color-mix(in srgb, var(--surface-2) 60%, transparent);
+  --glass-primary-strong: color-mix(in srgb, var(--surface-1) 70%, transparent);
+  --glass-secondary: color-mix(in srgb, var(--surface-3) 58%, transparent);
+  --glass-secondary-strong: color-mix(in srgb, var(--surface-4) 65%, transparent);
+  --glass-highlight: color-mix(in srgb, var(--text) 18%, transparent);
 
-  --glass-primary: color-mix(in srgb, var(--color-primary-dark) 60%, transparent);
-  --glass-primary-strong: color-mix(in srgb, var(--color-primary) 70%, transparent);
-  --glass-secondary: color-mix(in srgb, var(--color-secondary-dark) 58%, transparent);
-  --glass-secondary-strong: color-mix(in srgb, var(--color-secondary) 65%, transparent);
-  --glass-highlight: color-mix(in srgb, var(--color-neutral-light) 18%, transparent);
-
-  --border-primary: color-mix(in srgb, var(--color-primary-dark) 42%, transparent);
-  --border-secondary: color-mix(in srgb, var(--color-background-light) 55%, transparent);
-  --border-accent: color-mix(in srgb, var(--color-accent-dark) 55%, transparent);
-  --accent-glow-soft: color-mix(in srgb, var(--color-accent-light) 40%, transparent);
+  --border-primary: color-mix(in srgb, var(--surface-3) 42%, transparent);
+  --border-secondary: color-mix(in srgb, var(--surface-2) 55%, transparent);
+  --border-accent: color-mix(in srgb, var(--accent-strong) 55%, transparent);
 
   --ok: color-mix(in srgb, var(--color-secondary-light) 75%, white 5%);
-  --warn: color-mix(in srgb, var(--color-accent) 80%, white 10%);
+  --warn: color-mix(in srgb, var(--accent) 80%, white 10%);
 
   --radius: 20px;
   --blur: 18px;
   --shadow: 0 24px 60px rgba(2, 8, 22, 0.55);
 
   /* Legacy aliases */
+  --color-background-dark: color-mix(in srgb, var(--bg) 90%, black 10%);
+  --color-background: var(--bg);
+  --color-background-light: var(--surface);
+  --color-neutral-dark: var(--neutral-strong);
+  --color-neutral: var(--neutral-soft);
+  --color-neutral-light: var(--neutral-bright);
+  --color-accent: var(--accent);
+  --color-accent-light: var(--accent-bright);
+  --color-accent-dark: var(--accent-strong);
+  --bg-color: var(--bg);
+  --surface-color: var(--surface);
+  --surface-alt-color: var(--surface-2);
+  --surface-strong-color: var(--surface-3);
+
   --navy-950: var(--color-background-dark);
   --navy-900: var(--color-background);
   --navy-850: var(--color-background-light);
   --charcoal-900: var(--color-secondary-dark);
   --charcoal-850: var(--color-secondary);
   --charcoal-800: var(--color-secondary-light);
-  --accent: var(--color-accent);
-  --accent-bright: var(--color-accent-light);
   --glass-blue: var(--glass-primary);
   --glass-blue-strong: var(--glass-primary-strong);
   --glass-charcoal: var(--glass-secondary);
@@ -87,6 +101,22 @@
   --legend-forest: #16a34a;
   --legend-ore: #f97316;
   --legend-stone: #94a3b8;
+  --legend-desert: #f4b76b;
+  --legend-tundra: #9ac5ff;
+  --legend-taiga: #2f6b2a;
+  --legend-savanna: #f59e0b;
+  --legend-rainforest: #047857;
+  --legend-jungle: #0f766e;
+  --legend-swamp: #14532d;
+  --legend-wetland: #22c55e;
+  --legend-coast: #0ea5e9;
+  --legend-island: #38bdf8;
+  --legend-mountain: #64748b;
+  --legend-alpine: #60a5fa;
+  --legend-volcanic: #ea580c;
+  --legend-temperate: #4ade80;
+  --legend-tropical: #10b981;
+  --legend-plains: #facc15;
 }
 
 img:where([src=""]),
@@ -102,7 +132,7 @@ body.landing-active {
   background:
     radial-gradient(1100px 700px at 15% -10%, rgba(20, 57, 128, 0.55) 0%, transparent 60%),
     radial-gradient(900px 600px at 120% 110%, rgba(24, 33, 52, 0.6) 0%, transparent 55%),
-    linear-gradient(200deg, var(--color-background-dark), var(--color-background));
+    linear-gradient(200deg, var(--surface-3, var(--color-background-dark)), var(--bg, var(--color-background)));
 }
 
 body.landing-active #content {
@@ -162,14 +192,18 @@ body.landing-active .setup > .card {
   position: relative;
   border-radius: var(--radius);
   padding: clamp(16px, 3vw, 24px);
-  background: var(--glass-blue);
+  background: var(--glass-blue, color-mix(in srgb, var(--surface-2, var(--surface)) 60%, transparent));
   border: 1px solid var(--border-blue);
   box-shadow: inset 0 0 0 1px var(--glass-highlight);
   backdrop-filter: blur(calc(var(--blur) * 0.6));
 }
 
 body.landing-active .setup > .card:nth-of-type(even) {
-  background: var(--glass-charcoal-strong);
+  background:
+    var(
+      --glass-charcoal-strong,
+      color-mix(in srgb, var(--surface-3, var(--surface-2)) 65%, transparent)
+    );
   border-color: var(--border-charcoal);
 }
 
@@ -180,7 +214,7 @@ body.landing-active .create-steps {
   gap: clamp(12px, 3vw, 24px);
   padding: clamp(12px, 3vw, 20px);
   border-radius: 32px;
-  background: color-mix(in srgb, var(--color-secondary) 50%, var(--color-background) 30%);
+  background: color-mix(in srgb, var(--color-secondary) 50%, var(--bg, var(--color-background)) 30%);
   border: 1px solid color-mix(in srgb, var(--color-secondary-dark) 40%, transparent);
   box-shadow: var(--shadow);
   backdrop-filter: blur(calc(var(--blur) * 0.65));
@@ -221,8 +255,8 @@ body.landing-active .create-step:hover {
 }
 
 body.landing-active .create-step:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 75%, transparent);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 body.landing-active .setup-appbar {
@@ -233,7 +267,12 @@ body.landing-active .setup-appbar {
   gap: 12px;
   padding: clamp(12px, 3vw, 18px) clamp(16px, 4vw, 26px);
   border-radius: 28px;
-  background: color-mix(in srgb, var(--glass-primary) 55%, var(--color-background-dark) 35%);
+  background:
+    color-mix(
+      in srgb,
+      var(--glass-primary, color-mix(in srgb, var(--surface, var(--color-background)) 60%, transparent)) 55%,
+      var(--bg, var(--color-background-dark)) 35%
+    );
   border: 1px solid color-mix(in srgb, var(--glass-highlight) 40%, transparent);
   box-shadow: var(--shadow);
   backdrop-filter: blur(calc(var(--blur) * 0.5));
@@ -271,8 +310,8 @@ body.landing-active .icon-difficulty:hover {
 }
 
 body.landing-active .icon-difficulty:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 70%, transparent);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 body.landing-active .icon-difficulty span {
@@ -294,7 +333,7 @@ body.landing-active .modal[open] {
 }
 
 body.landing-active .modal::backdrop {
-  background: color-mix(in srgb, var(--color-background-dark) 70%, rgba(10, 16, 28, 0.8));
+  background: color-mix(in srgb, var(--bg, var(--color-background-dark)) 70%, rgba(10, 16, 28, 0.8));
   backdrop-filter: blur(10px);
 }
 
@@ -368,7 +407,7 @@ body.landing-active .modal__close:hover {
 }
 
 body.landing-active .modal__close:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-primary-light) 75%, transparent);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -404,7 +443,7 @@ body.landing-active .difficulty-modal__preset {
 }
 
 body.landing-active .difficulty-modal__preset:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-primary-light) 70%, transparent);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -433,8 +472,8 @@ body.landing-active .difficulty-modal__tab.is-active {
 }
 
 body.landing-active .difficulty-modal__tab:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 70%, transparent);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 body.landing-active .difficulty-modal__panels {
@@ -483,7 +522,7 @@ body.landing-active .difficulty-param__number {
 }
 
 body.landing-active .difficulty-param__number:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-primary) 65%, transparent);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -497,61 +536,87 @@ body.landing-active .difficulty-param__range {
   flex: 1;
 }
 
+body.landing-active .range,
 body.landing-active .range__input {
   width: 100%;
   appearance: none;
   height: 8px;
   border-radius: 999px;
-  background: linear-gradient(
-    90deg,
-    color-mix(in srgb, var(--color-primary-light) 70%, transparent) 0,
-    color-mix(in srgb, var(--color-primary-light) 70%, transparent) var(--range-progress, 50%),
-    color-mix(in srgb, var(--glass-highlight) 25%, transparent) var(--range-progress, 50%),
-    color-mix(in srgb, var(--glass-highlight) 25%, transparent) 100%
-  );
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent) 68%, transparent) 0,
+      color-mix(in srgb, var(--accent) 68%, transparent) var(--range-progress, 50%),
+      color-mix(in srgb, var(--surface-3, var(--surface)) 45%, transparent) var(--range-progress, 50%),
+      color-mix(in srgb, var(--surface-3, var(--surface)) 45%, transparent) 100%
+    );
   cursor: pointer;
-  transition: box-shadow 0.2s ease;
+  transition: box-shadow 0.2s ease, background 0.2s ease;
 }
 
+body.landing-active .range:hover,
+body.landing-active .range__input:hover {
+  background:
+    linear-gradient(
+      90deg,
+      color-mix(in srgb, var(--accent) 75%, transparent) 0,
+      color-mix(in srgb, var(--accent) 75%, transparent) var(--range-progress, 50%),
+      color-mix(in srgb, var(--surface-3, var(--surface)) 40%, transparent) var(--range-progress, 50%),
+      color-mix(in srgb, var(--surface-3, var(--surface)) 40%, transparent) 100%
+    );
+}
+
+body.landing-active .range:focus-visible,
 body.landing-active .range__input:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-primary-light) 65%, transparent);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
+body.landing-active .range::-webkit-slider-thumb,
 body.landing-active .range__input::-webkit-slider-thumb {
   appearance: none;
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--color-secondary-light) 75%, transparent);
-  border: 2px solid color-mix(in srgb, var(--color-secondary-dark) 45%, transparent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--glass-highlight) 35%, transparent);
-  transition: transform 0.2s ease;
+  background: color-mix(in srgb, var(--surface, var(--surface-2)) 55%, var(--accent) 20%);
+  border: 2px solid color-mix(in srgb, var(--surface-3, var(--surface)) 55%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--surface-3, var(--surface)) 28%, transparent);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+body.landing-active .range:active::-webkit-slider-thumb,
 body.landing-active .range__input:active::-webkit-slider-thumb {
   transform: scale(1.08);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
+body.landing-active .range::-moz-range-thumb,
 body.landing-active .range__input::-moz-range-thumb {
   width: 18px;
   height: 18px;
   border-radius: 50%;
-  background: color-mix(in srgb, var(--color-secondary-light) 75%, transparent);
-  border: 2px solid color-mix(in srgb, var(--color-secondary-dark) 45%, transparent);
-  box-shadow: 0 0 0 4px color-mix(in srgb, var(--glass-highlight) 35%, transparent);
-  transition: transform 0.2s ease;
+  background: color-mix(in srgb, var(--surface, var(--surface-2)) 55%, var(--accent) 20%);
+  border: 2px solid color-mix(in srgb, var(--surface-3, var(--surface)) 55%, transparent);
+  box-shadow: 0 0 0 4px color-mix(in srgb, var(--surface-3, var(--surface)) 28%, transparent);
+  transition: transform 0.2s ease, box-shadow 0.2s ease;
 }
 
+body.landing-active .range:active::-moz-range-thumb,
 body.landing-active .range__input:active::-moz-range-thumb {
   transform: scale(1.08);
+  box-shadow: 0 0 0 6px color-mix(in srgb, var(--accent) 22%, transparent);
 }
 
 body.landing-active .range__value {
   border: 1px solid color-mix(in srgb, var(--glass-highlight) 35%, transparent);
   border-radius: 999px;
   padding: 6px 14px;
-  background: color-mix(in srgb, var(--glass-primary) 55%, transparent);
+  background:
+    color-mix(
+      in srgb,
+      var(--glass-primary, color-mix(in srgb, var(--surface-2, var(--surface)) 55%, transparent)) 55%,
+      transparent
+    );
   color: inherit;
   font: inherit;
   font-weight: 600;
@@ -561,12 +626,17 @@ body.landing-active .range__value {
 
 body.landing-active .range__value:hover {
   transform: translateY(-1px);
-  background: color-mix(in srgb, var(--glass-primary-strong) 65%, transparent);
+  background:
+    color-mix(
+      in srgb,
+      var(--glass-primary-strong, color-mix(in srgb, var(--surface-2, var(--surface)) 65%, transparent)) 65%,
+      transparent
+    );
 }
 
 body.landing-active .range__value:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 70%, transparent);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 body.landing-active .range__chips {
@@ -579,7 +649,12 @@ body.landing-active .range__chip {
   border: 1px solid color-mix(in srgb, var(--glass-highlight) 30%, transparent);
   border-radius: 999px;
   padding: 4px 12px;
-  background: color-mix(in srgb, var(--glass-secondary) 40%, transparent);
+  background:
+    color-mix(
+      in srgb,
+      var(--glass-secondary, color-mix(in srgb, var(--surface-3, var(--surface-2)) 45%, transparent)) 40%,
+      transparent
+    );
   color: inherit;
   font: inherit;
   font-size: 0.82rem;
@@ -589,7 +664,12 @@ body.landing-active .range__chip {
 
 body.landing-active .range__chip:hover {
   transform: translateY(-1px);
-  background: color-mix(in srgb, var(--glass-secondary) 55%, transparent);
+  background:
+    color-mix(
+      in srgb,
+      var(--glass-secondary, color-mix(in srgb, var(--surface-3, var(--surface-2)) 55%, transparent)) 55%,
+      transparent
+    );
 }
 
 body.landing-active .range__chip.is-active {
@@ -781,7 +861,7 @@ body.landing-active .hero-settings__theme-contrast-controls {
   gap: 6px;
   padding: 4px;
   border-radius: 999px;
-  background: color-mix(in srgb, var(--color-background-light) 70%, transparent);
+  background: color-mix(in srgb, var(--surface, var(--color-background-light)) 70%, transparent);
   border: 1px solid color-mix(in srgb, var(--color-neutral-dark) 20%, transparent);
 }
 
@@ -806,7 +886,7 @@ body.landing-active .hero-settings__theme-contrast-btn.is-active {
 }
 
 body.landing-active .hero-settings__theme-contrast-btn:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 65%, transparent);
+  outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
@@ -826,7 +906,11 @@ body.landing-active .hero-settings__theme-btn {
   min-height: 112px;
   border-radius: 16px;
   border: 1px solid var(--theme-preview-border, var(--border-secondary));
-  background: var(--theme-preview-bg, color-mix(in srgb, var(--color-background-light) 60%, transparent));
+  background:
+    var(
+      --theme-preview-bg,
+      color-mix(in srgb, var(--surface, var(--color-background-light)) 60%, transparent)
+    );
   color: var(--theme-preview-fg, var(--text-strong));
   font-size: 12px;
   font-weight: 700;
@@ -874,8 +958,8 @@ body.landing-active .hero-settings__theme-btn.is-active {
 }
 
 body.landing-active .hero-settings__theme-btn:focus-visible {
-  outline: 2px solid color-mix(in srgb, var(--color-accent-light) 65%, transparent);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 body.landing-active .brand {
@@ -956,7 +1040,8 @@ body.landing-active .seg:hover {
 }
 
 body.landing-active .seg:focus-visible {
-  outline: none;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 55%, transparent);
 }
@@ -1072,15 +1157,16 @@ body.landing-active .input {
   flex: 1 1 260px;
   padding: 10px 12px;
   border-radius: 14px;
-  background: color-mix(in srgb, var(--color-background-light) 65%, transparent);
+  background: color-mix(in srgb, var(--surface, var(--color-background-light)) 65%, transparent);
   color: var(--text-strong);
   border: 1px solid color-mix(in srgb, var(--color-neutral-dark) 55%, transparent);
-  outline: none;
   backdrop-filter: blur(calc(var(--blur) * 0.35));
   transition: border 0.18s ease, box-shadow 0.18s ease;
 }
 
-body.landing-active .input:focus {
+body.landing-active .input:focus-visible {
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
   border-color: var(--outline-strong);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--outline-strong) 35%, transparent);
 }
@@ -1092,7 +1178,12 @@ body.landing-active .btn {
   cursor: pointer;
   border: 1px solid color-mix(in srgb, var(--color-primary-dark) 45%, transparent);
   color: var(--text-strong);
-  background: linear-gradient(160deg, color-mix(in srgb, var(--color-primary-dark) 65%, transparent), color-mix(in srgb, var(--color-background-light) 55%, transparent));
+  background:
+    linear-gradient(
+      160deg,
+      color-mix(in srgb, var(--color-primary-dark) 65%, transparent),
+      color-mix(in srgb, var(--surface, var(--color-background-light)) 55%, transparent)
+    );
   transition: filter 0.18s ease, transform 0.1s ease;
   backdrop-filter: blur(calc(var(--blur) * 0.3));
 }
@@ -1103,12 +1194,12 @@ body.landing-active .btn:hover {
 }
 
 body.landing-active .btn:focus-visible {
-  outline: 2px solid var(--outline-strong);
-  outline-offset: 3px;
+  outline: 2px solid var(--accent);
+  outline-offset: 2px;
 }
 
 body.landing-active .btn--ghost {
-  background: color-mix(in srgb, var(--color-background-light) 35%, transparent);
+  background: color-mix(in srgb, var(--surface, var(--color-background-light)) 35%, transparent);
   border-color: color-mix(in srgb, var(--color-neutral-dark) 40%, transparent);
 }
 
@@ -1204,7 +1295,7 @@ body.landing-active {
 
 body[data-theme-appearance='light'].landing-active {
   --spawn-marker-outline-color: color-mix(in srgb, var(--color-secondary-dark) 75%, black 8%);
-  --spawn-marker-cross-color: color-mix(in srgb, var(--color-background-dark) 88%, black 10%);
+  --spawn-marker-cross-color: color-mix(in srgb, var(--bg, var(--color-background-dark)) 88%, black 10%);
   --spawn-marker-halo-color: color-mix(in srgb, var(--color-secondary) 45%, transparent);
   --spawn-marker-shadow-color: rgba(4, 12, 26, 0.38);
 }

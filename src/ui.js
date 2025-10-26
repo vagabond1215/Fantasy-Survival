@@ -1662,10 +1662,10 @@ export function initSetupUI(onStart) {
     slider.min = String(def.min);
     slider.max = String(def.max);
     slider.step = String(def.step ?? 1);
-    slider.className = 'difficulty-param__slider range__input';
+    slider.className = 'difficulty-param__slider range range__input';
 
     const rangeWrapper = document.createElement('div');
-    rangeWrapper.className = 'difficulty-param__range range';
+    rangeWrapper.className = 'difficulty-param__range';
     rangeWrapper.appendChild(slider);
 
     const valueBadge = document.createElement('button');

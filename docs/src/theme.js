@@ -19,16 +19,259 @@ const STANDARD_COLOR_KEYS = [
   'brown'
 ];
 
-const LEGEND_COLOR_VARIABLES = Object.freeze({
-  water: '--legend-water',
-  ocean: '--legend-ocean',
-  lake: '--legend-lake',
-  river: '--legend-river',
-  marsh: '--legend-marsh',
-  open: '--legend-open',
-  forest: '--legend-forest',
-  ore: '--legend-ore',
-  stone: '--legend-stone'
+const DEFAULT_BIOME_LEGEND_COLORS = Object.freeze({
+  desert: '#f4b76b',
+  tundra: '#9ac5ff',
+  taiga: '#2f6b2a',
+  savanna: '#f59e0b',
+  rainforest: '#047857',
+  jungle: '#0f766e',
+  swamp: '#14532d',
+  wetland: '#22c55e',
+  coast: '#0ea5e9',
+  island: '#38bdf8',
+  mountain: '#64748b',
+  alpine: '#60a5fa',
+  volcanic: '#ea580c',
+  temperate: '#4ade80',
+  tropical: '#10b981',
+  plains: '#facc15'
+});
+
+const FALLBACK_LEGEND_COLORS = Object.freeze({
+  ...DEFAULT_TERRAIN_COLORS,
+  ...DEFAULT_BIOME_LEGEND_COLORS
+});
+
+const LEGEND_TOKEN_SPECS = Object.freeze({
+  water: {
+    variable: '--legend-water',
+    fallbackKey: 'water',
+    derive: ctx =>
+      pickStandardColor(ctx.standardPalette, 'blue', 'light') ||
+      mixHex(ctx.primary.light, ctx.accent.light, ctx.appearance === 'light' ? 0.4 : 0.3)
+  },
+  ocean: {
+    variable: '--legend-ocean',
+    fallbackKey: 'ocean',
+    derive: ctx =>
+      pickStandardColor(ctx.standardPalette, 'blue', 'dark') ||
+      mixHex(ctx.primary.dark, ctx.accent.dark, 0.45)
+  },
+  lake: {
+    variable: '--legend-lake',
+    fallbackKey: 'lake',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'blue', 'light') || ctx.primary.light,
+        pickStandardColor(ctx.standardPalette, 'green', 'light') || ctx.secondary.light,
+        0.3
+      )
+  },
+  river: {
+    variable: '--legend-river',
+    fallbackKey: 'river',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'blue', 'light') || ctx.primary.base,
+        ctx.accent.light,
+        ctx.appearance === 'light' ? 0.35 : 0.25
+      )
+  },
+  marsh: {
+    variable: '--legend-marsh',
+    fallbackKey: 'marsh',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'green', 'light') || ctx.secondary.light,
+        pickStandardColor(ctx.standardPalette, 'blue', 'light') || ctx.primary.light,
+        0.35
+      )
+  },
+  open: {
+    variable: '--legend-open',
+    fallbackKey: 'open',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'yellow', 'light') || ctx.accent.light,
+        pickStandardColor(ctx.standardPalette, 'orange', 'light') || ctx.accent.base,
+        0.45
+      )
+  },
+  forest: {
+    variable: '--legend-forest',
+    fallbackKey: 'forest',
+    derive: ctx =>
+      pickStandardColor(ctx.standardPalette, 'green', 'dark') ||
+      mixHex(ctx.secondary.dark, ctx.accent.dark, 0.4)
+  },
+  ore: {
+    variable: '--legend-ore',
+    fallbackKey: 'ore',
+    derive: ctx =>
+      pickStandardColor(ctx.standardPalette, 'orange', 'dark') ||
+      mixHex(ctx.accent.dark, ctx.secondary.dark, 0.45)
+  },
+  stone: {
+    variable: '--legend-stone',
+    fallbackKey: 'stone',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'brown', 'dark') || ctx.neutral.strong,
+        ctx.background.strong,
+        ctx.appearance === 'light' ? 0.5 : 0.35
+      )
+  },
+  desert: {
+    variable: '--legend-desert',
+    fallbackKey: 'desert',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'yellow', 'light') || ctx.accent.light,
+        pickStandardColor(ctx.standardPalette, 'orange', 'light') || ctx.accent.base,
+        ctx.appearance === 'light' ? 0.55 : 0.45
+      )
+  },
+  tundra: {
+    variable: '--legend-tundra',
+    fallbackKey: 'tundra',
+    derive: ctx => mixHex(pickStandardColor(ctx.standardPalette, 'blue', 'light') || ctx.primary.light, ctx.background.light, 0.4)
+  },
+  taiga: {
+    variable: '--legend-taiga',
+    fallbackKey: 'taiga',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'green', 'dark') || ctx.secondary.dark,
+        ctx.background.strong,
+        0.35
+      )
+  },
+  savanna: {
+    variable: '--legend-savanna',
+    fallbackKey: 'savanna',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'yellow', 'light') || ctx.accent.light,
+        pickStandardColor(ctx.standardPalette, 'green', 'light') || ctx.secondary.light,
+        0.4
+      )
+  },
+  rainforest: {
+    variable: '--legend-rainforest',
+    fallbackKey: 'rainforest',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'green', 'dark') || ctx.secondary.dark,
+        ctx.accent.base,
+        0.4
+      )
+  },
+  jungle: {
+    variable: '--legend-jungle',
+    fallbackKey: 'jungle',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'green', 'dark') || ctx.secondary.dark,
+        ctx.accent.dark,
+        0.35
+      )
+  },
+  swamp: {
+    variable: '--legend-swamp',
+    fallbackKey: 'swamp',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'green', 'dark') || ctx.secondary.dark,
+        ctx.neutral.dark,
+        0.4
+      )
+  },
+  wetland: {
+    variable: '--legend-wetland',
+    fallbackKey: 'wetland',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'green', 'light') || ctx.secondary.light,
+        ctx.primary.light,
+        0.35
+      )
+  },
+  coast: {
+    variable: '--legend-coast',
+    fallbackKey: 'coast',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'blue', 'light') || ctx.primary.light,
+        ctx.accent.light,
+        0.4
+      )
+  },
+  island: {
+    variable: '--legend-island',
+    fallbackKey: 'island',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'blue', 'light') || ctx.primary.light,
+        ctx.accent.base,
+        0.45
+      )
+  },
+  mountain: {
+    variable: '--legend-mountain',
+    fallbackKey: 'mountain',
+    derive: ctx => mixHex(ctx.neutral.strong, ctx.background.strong, 0.5)
+  },
+  alpine: {
+    variable: '--legend-alpine',
+    fallbackKey: 'alpine',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'blue', 'light') || ctx.primary.light,
+        ctx.background.light,
+        0.45
+      )
+  },
+  volcanic: {
+    variable: '--legend-volcanic',
+    fallbackKey: 'volcanic',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'orange', 'dark') || ctx.accent.dark,
+        pickStandardColor(ctx.standardPalette, 'red', 'dark') || ctx.secondary.dark,
+        0.45
+      )
+  },
+  temperate: {
+    variable: '--legend-temperate',
+    fallbackKey: 'temperate',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'green', 'light') || ctx.secondary.light,
+        ctx.neutral.light,
+        0.35
+      )
+  },
+  tropical: {
+    variable: '--legend-tropical',
+    fallbackKey: 'tropical',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'green', 'light') || ctx.secondary.light,
+        ctx.accent.light,
+        0.45
+      )
+  },
+  plains: {
+    variable: '--legend-plains',
+    fallbackKey: 'plains',
+    derive: ctx =>
+      mixHex(
+        pickStandardColor(ctx.standardPalette, 'yellow', 'light') || ctx.accent.light,
+        pickStandardColor(ctx.standardPalette, 'green', 'light') || ctx.secondary.light,
+        0.25
+      )
+  }
 });
 
 /**
@@ -187,6 +430,13 @@ function fillColorScale(scale = {}) {
   const light = normalizeHex(scale.light) || lightenHex(base, 0.18);
   const dark = normalizeHex(scale.dark) || darkenHex(base, 0.22);
   return { light, base: normalizeHex(scale.base) || base, dark };
+}
+
+function pickStandardColor(standardColors, key, tone = 'light') {
+  if (!standardColors || !key) return null;
+  const palette = standardColors[key];
+  if (!palette) return null;
+  return normalizeHex(palette[tone]) || null;
 }
 
 const THEME_DEFINITIONS = [
@@ -715,26 +965,35 @@ const THEME_DEFINITIONS = [
 
 function resolveThemeAppearance(theme, appearance) {
   if (!theme) {
-    return { colors: {}, standardColors: undefined, text: undefined };
+    return { colors: {}, standardColors: undefined, text: undefined, legendColors: undefined };
   }
 
   const baseColors = theme.colors ? { ...theme.colors } : {};
   const baseStandardColors = theme.standardColors ? { ...theme.standardColors } : undefined;
   const baseText = theme.text ? { ...theme.text } : undefined;
+  const baseLegendColors = theme.legendColors ? { ...theme.legendColors } : undefined;
 
   const variants = theme.appearances || null;
   const variant =
     variants?.[appearance] || (theme.appearance && variants?.[theme.appearance]) || null;
 
   if (!variant) {
-    return { colors: baseColors, standardColors: baseStandardColors, text: baseText };
+    return {
+      colors: baseColors,
+      standardColors: baseStandardColors,
+      text: baseText,
+      legendColors: baseLegendColors
+    };
   }
 
   const colors = variant.colors ? { ...baseColors, ...variant.colors } : baseColors;
   const standardColors = variant.standardColors || baseStandardColors;
   const text = variant.text || baseText;
+  const legendColors = variant.legendColors
+    ? { ...(baseLegendColors || {}), ...variant.legendColors }
+    : baseLegendColors;
 
-  return { colors, standardColors, text };
+  return { colors, standardColors, text, legendColors };
 }
 
 const THEME_INDEX = new Map(THEME_DEFINITIONS.map(theme => [theme.id, theme]));
@@ -880,7 +1139,7 @@ function applyThemeVariables() {
   const theme = THEME_INDEX.get(currentTheme);
   if (!theme) return;
 
-  const { colors: rawColors, standardColors, text } = resolveThemeAppearance(
+  const { colors: rawColors, standardColors, text, legendColors } = resolveThemeAppearance(
     theme,
     currentAppearance
   );
@@ -975,14 +1234,16 @@ function applyThemeVariables() {
   const surface2 = layerBackgrounds[2] || surface1;
   const surface3 = layerBackgrounds[3] || surface2;
   const surface4 = layerBackgrounds[4] || surface3;
+  const backgroundRoot = layerBackgrounds[0] || backgroundBase;
 
+  setCSSVariable(root, '--bg', backgroundRoot);
+  setCSSVariable(root, '--surface', surface1);
   setCSSVariable(root, '--surface-1', surface1);
   setCSSVariable(root, '--surface-2', surface2);
   setCSSVariable(root, '--surface-3', surface3);
   setCSSVariable(root, '--surface-4', surface4);
-  setCSSVariable(root, '--surface', surface1);
 
-  setCSSVariable(root, '--bg-color', layerBackgrounds[0]);
+  setCSSVariable(root, '--bg-color', backgroundRoot);
   setCSSVariable(root, '--surface-color', surface1);
   setCSSVariable(root, '--surface-alt-color', surface2);
   setCSSVariable(root, '--surface-strong-color', surface3);
@@ -1046,13 +1307,50 @@ function applyThemeVariables() {
   const backdropAlpha = currentAppearance === 'light' ? 0.28 : 0.55;
   setCSSVariable(root, '--backdrop-shadow', `0 24px 60px ${rgbaFromHex(backgroundStrong, backdropAlpha)}`);
 
-  setCSSVariable(root, '--accent-glow-soft', rgbaFromHex(accentScale.light, currentAppearance === 'light' ? 0.35 : 0.4));
+  setCSSVariable(
+    root,
+    '--accent-glow-soft',
+    rgbaFromHex(accentScale.light, currentAppearance === 'light' ? 0.35 : 0.4)
+  );
 
-  for (const [type, variable] of Object.entries(LEGEND_COLOR_VARIABLES)) {
-    const fallback = DEFAULT_TERRAIN_COLORS?.[type];
-    if (fallback) {
-      setCSSVariable(root, variable, fallback);
+  const legendContext = {
+    standardPalette: standardColors || {},
+    primary: primaryScale,
+    secondary: secondaryScale,
+    accent: accentScale,
+    neutral: {
+      base: neutralBase,
+      light: neutralLight,
+      dark: neutralDark,
+      strong: neutralStrong
+    },
+    background: {
+      base: backgroundBase,
+      light: backgroundLight,
+      dark: backgroundDark,
+      strong: backgroundStrong
+    },
+    appearance: currentAppearance
+  };
+
+  const customLegendColors = legendColors || {};
+
+  for (const [key, spec] of Object.entries(LEGEND_TOKEN_SPECS)) {
+    const variable = spec.variable;
+    if (!variable) continue;
+    const override = normalizeHex(customLegendColors[key]);
+    let color = override;
+    if (!color && typeof spec.derive === 'function') {
+      color = normalizeHex(spec.derive(legendContext));
     }
+    if (!color) {
+      const fallbackKey = spec.fallbackKey || key;
+      color = normalizeHex(FALLBACK_LEGEND_COLORS[fallbackKey]);
+    }
+    if (!color) {
+      color = '#6b7280';
+    }
+    setCSSVariable(root, variable, color);
   }
 
   applyStandardColorVariables(root, standardColors);
