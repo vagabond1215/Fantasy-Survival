@@ -534,10 +534,7 @@ function routeRiverPath(width, height, start, target, filled, types, options) {
     const maxElevation = options.maxElevation ?? Number.POSITIVE_INFINITY;
     cost[start] = 0;
     heap.push({ index: start, value: 0 });
-    while (true) {
-        const current = heap.pop();
-        if (!current)
-            break;
+    for (let current = heap.pop(); current; current = heap.pop()) {
         const { index, value } = current;
         if (value > cost[index])
             continue;
