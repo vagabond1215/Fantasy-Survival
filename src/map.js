@@ -675,16 +675,6 @@ export function generateColorMap(
   );
   const oreScale = clamp(10 + ((adv.oreNoiseScale ?? 50) / 100) * 24, 6, 40);
 
-  const guaranteedWaterRadius = clamp(
-    Math.round(
-      14 +
-        (world.rivers100 + world.lakes100) / 12 +
-        (((adv.waterGuaranteeRadius ?? 50) - 50) / 100) * 20
-    ),
-    6,
-    54
-  );
-
   const tiles = [];
   const terrainTypes = [];
   const elevations = [];
@@ -721,6 +711,8 @@ export function generateColorMap(
     world
   });
 
+  const waterTable = hydrology.waterTable ?? hydrology.filledElevation;
+
   for (let y = 0; y < mapHeight; y++) {
     const row = [];
     const typeRow = [];
@@ -748,6 +740,20 @@ export function generateColorMap(
     terrainTypes.push(typeRow);
   }
 
+  const waterSurfaceThreshold = hydrology.seaLevel + 1e-5;
+  const isHydrologyWaterCell = (row, col) => {
+    const type = terrainTypes[row]?.[col];
+    if (type && isWaterTerrain(type)) {
+      return true;
+    }
+    const tableRow = waterTable?.[row];
+    if (!tableRow) {
+      return false;
+    }
+    const level = tableRow[col];
+    return Number.isFinite(level) && level <= waterSurfaceThreshold;
+  };
+
   const waterLevel = Number.isFinite(waterLevelOverride)
     ? clamp(waterLevelOverride, 0, 1)
     : hydrology.seaLevel;
@@ -764,15 +770,13 @@ export function generateColorMap(
   let originShiftY = 0;
 
   if (originInBounds) {
-    const originType = terrainTypes[originRowIndex]?.[originColIndex];
-    if (isWaterTerrain(originType)) {
+    if (isHydrologyWaterCell(originRowIndex, originColIndex)) {
       let closestLand = null;
       for (let row = 0; row < mapHeight; row++) {
         const rowData = terrainTypes[row];
         if (!rowData) continue;
         for (let col = 0; col < mapWidth; col++) {
-          const type = rowData[col];
-          if (isWaterTerrain(type)) continue;
+          if (isHydrologyWaterCell(row, col)) continue;
           const worldX = effectiveXStart + col;
           const worldY = effectiveYStart + row;
           const distance = Math.hypot(worldX, worldY);
@@ -793,56 +797,6 @@ export function generateColorMap(
         effectiveXStart -= originShiftX;
         effectiveYStart -= originShiftY;
       }
-    }
-  }
-
-  let nearestWaterDistance = Infinity;
-  let bestWaterCandidate = null;
-
-  for (let row = 0; row < mapHeight; row++) {
-    for (let col = 0; col < mapWidth; col++) {
-      const type = terrainTypes[row]?.[col];
-      if (!type) continue;
-      const worldX = effectiveXStart + col;
-      const worldY = effectiveYStart + row;
-      const distance = Math.hypot(worldX, worldY);
-      if (isWaterTerrain(type)) {
-        if (distance < nearestWaterDistance) {
-          nearestWaterDistance = distance;
-        }
-        continue;
-      }
-      if (distance > 0 && distance <= guaranteedWaterRadius) {
-        const elevation = elevations[row]?.[col] ?? 0;
-        if (
-          !bestWaterCandidate ||
-          elevation < bestWaterCandidate.elevation ||
-          (elevation === bestWaterCandidate.elevation && distance < bestWaterCandidate.distance)
-        ) {
-          bestWaterCandidate = { localX: col, localY: row, elevation, distance };
-        }
-      }
-    }
-  }
-
-  if (nearestWaterDistance > guaranteedWaterRadius && bestWaterCandidate) {
-    const { localX, localY } = bestWaterCandidate;
-    terrainTypes[localY][localX] = 'lake';
-    tiles[localY][localX] = TERRAIN_SYMBOLS.lake || TERRAIN_SYMBOLS.water;
-    if (hydrology.types[localY]) {
-      hydrology.types[localY][localX] = 'lake';
-    }
-    if (hydrology.flowDirections[localY]) {
-      hydrology.flowDirections[localY][localX] = null;
-    }
-    if (hydrology.flowAccumulation[localY]) {
-      hydrology.flowAccumulation[localY][localX] = 0;
-    }
-    if (hydrology.filledElevation[localY]) {
-      hydrology.filledElevation[localY][localX] = Math.max(
-        hydrology.filledElevation[localY][localX] ?? elevations[localY][localX],
-        waterLevel
-      );
     }
   }
 

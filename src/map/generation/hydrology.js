@@ -632,6 +632,111 @@ function pruneSingletons(width, height, types, filled, maxFraction) {
         types[singles[i].idx] = 'land';
     }
 }
+
+const WATER_CLASSIFICATIONS = new Set(['water', 'ocean', 'lake', 'river', 'marsh']);
+
+function computeWaterCoverage(width, height, types, filled, elevations, seaLevel) {
+    const size = width * height;
+    const depthThreshold = 1e-4;
+    const epsilon = 1e-6;
+    let waterCells = 0;
+    for (let idx = 0; idx < size; idx += 1) {
+        const type = types[idx];
+        const depth = filled[idx] - elevations[idx];
+        if (elevations[idx] <= seaLevel + epsilon || WATER_CLASSIFICATIONS.has(type)) {
+            waterCells += 1;
+            continue;
+        }
+        if (depth > depthThreshold && type === 'lake') {
+            waterCells += 1;
+        }
+    }
+    return waterCells / size;
+}
+
+function computeElevationCoverage(elevationGrid, seaLevel) {
+    let waterCells = 0;
+    for (let idx = 0; idx < elevationGrid.length; idx += 1) {
+        if (elevationGrid[idx] <= seaLevel) {
+            waterCells += 1;
+        }
+    }
+    return waterCells / Math.max(1, elevationGrid.length);
+}
+
+function buildHydrologyState({ width, height, elevationGrid, rules, seed, seaLevel }) {
+    const filled = priorityFlood(width, height, elevationGrid, seaLevel);
+    const { types, spill } = classifyLakes(width, height, elevationGrid, filled, seaLevel, rules);
+    const flow = computeFlowDirections(width, height, elevationGrid, filled, types, seed);
+    const accumulation = computeAccumulation(width, height, flow, types, filled);
+    const upstream = buildUpstreamGraph(width, height, flow);
+    applyRiverClassification(width, height, types, accumulation, flow, upstream, rules);
+    pruneDisconnectedRivers(width, height, types, flow);
+    layMarshes(width, height, types, rules);
+    bridgeDiagonals(width, height, types);
+    normalizeCoastline(width, height, types);
+    pruneSingletons(width, height, types, spill, rules.maxSingletonFraction);
+    return { filled, types, spill, flow, accumulation };
+}
+
+function pruneDisconnectedRivers(width, height, types, flow) {
+    const size = width * height;
+    const neighbors = D8;
+    const visitedGlobal = new Uint8Array(size);
+    for (let idx = 0; idx < size; idx += 1) {
+        if (types[idx] !== 'river')
+            continue;
+        if (visitedGlobal[idx])
+            continue;
+        const stack = [idx];
+        const component = [];
+        let reachesWater = false;
+        while (stack.length) {
+            const current = stack.pop();
+            if (visitedGlobal[current])
+                continue;
+            visitedGlobal[current] = 1;
+            component.push(current);
+            const cx = current % width;
+            const cy = Math.floor(current / width);
+            if (types[current] === 'lake' || types[current] === 'ocean') {
+                reachesWater = true;
+                continue;
+            }
+            const dir = flow[current];
+            if (dir >= 0) {
+                const nx = cx + neighbors[dir][0];
+                const ny = cy + neighbors[dir][1];
+                if (nx >= 0 && ny >= 0 && nx < width && ny < height) {
+                    const nextIdx = ny * width + nx;
+                    if (!visitedGlobal[nextIdx]) {
+                        stack.push(nextIdx);
+                    }
+                }
+            }
+            for (let n = 0; n < neighbors.length; n += 1) {
+                const nx = cx + neighbors[n][0];
+                const ny = cy + neighbors[n][1];
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height)
+                    continue;
+                const nIdx = ny * width + nx;
+                if (types[nIdx] === 'lake' || types[nIdx] === 'ocean') {
+                    reachesWater = true;
+                }
+                if (types[nIdx] === 'river' && !visitedGlobal[nIdx]) {
+                    stack.push(nIdx);
+                }
+            }
+        }
+        if (!reachesWater) {
+            for (const cell of component) {
+                types[cell] = 'land';
+                flow[cell] = -1;
+            }
+        }
+    }
+}
+
 export function generateHydrology(input) {
     const { width, height, elevations, seed, biome, world } = input;
     const rules = resolveWaterRules(biome, world, width, height);
@@ -643,24 +748,110 @@ export function generateHydrology(input) {
             elevationGrid[y * width + x] = clamp(row[x] ?? 0, 0, 1);
         }
     }
-    const filled = priorityFlood(width, height, elevationGrid, rules.seaLevel);
-    const { types: baseTypes, spill } = classifyLakes(width, height, elevationGrid, filled, rules.seaLevel, rules);
-    const flow = computeFlowDirections(width, height, elevationGrid, filled, baseTypes, seed);
-    const accumulation = computeAccumulation(width, height, flow, baseTypes, filled);
-    const upstream = buildUpstreamGraph(width, height, flow);
-    applyRiverClassification(width, height, baseTypes, accumulation, flow, upstream, rules);
-    layMarshes(width, height, baseTypes, rules);
-    bridgeDiagonals(width, height, baseTypes);
-    normalizeCoastline(width, height, baseTypes);
-    pruneSingletons(width, height, baseTypes, spill, rules.maxSingletonFraction);
-    const typesMatrix = toMatrix(width, height, baseTypes);
-    const filledMatrix = toMatrix(width, height, filled);
+    const targetCoverage = 0.32;
+    const tolerance = 0.05;
+    const maxIterations = 6;
+    const baseStep = 0.012;
+    let seaLevel = clamp(rules.seaLevel, 0.02, 0.95);
+    let bestResult = null;
+    const adjustmentHistory = [];
+    let lowerBound = null;
+    let upperBound = null;
+    let lowerCoverage = null;
+    let upperCoverage = null;
+    let lastSeaLevel = seaLevel;
+    const minOceanFraction = 0.02;
+    for (let iteration = 0; iteration < maxIterations; iteration += 1) {
+        const state = buildHydrologyState({ width, height, elevationGrid, rules, seed, seaLevel });
+        const coverage = computeElevationCoverage(elevationGrid, seaLevel);
+        const surfaceCoverage = computeWaterCoverage(width, height, state.types, state.filled, elevationGrid, seaLevel);
+        const delta = Math.abs(coverage - targetCoverage);
+        let oceanCells = 0;
+        for (let i = 0; i < state.types.length; i += 1) {
+            if (state.types[i] === 'ocean') {
+                oceanCells += 1;
+            }
+        }
+        const oceanFraction = oceanCells / size;
+        adjustmentHistory.push({ iteration: iteration + 1, seaLevel, coverage, surfaceCoverage });
+        if ((!bestResult || delta < bestResult.delta) && (oceanFraction >= minOceanFraction || !bestResult)) {
+            bestResult = {
+                ...state,
+                coverage,
+                surfaceCoverage,
+                delta,
+                seaLevel,
+                iterations: iteration + 1,
+                oceanFraction
+            };
+        }
+        if (delta <= tolerance && oceanFraction >= minOceanFraction) {
+            break;
+        }
+        if (coverage > targetCoverage) {
+            upperBound = seaLevel;
+            upperCoverage = coverage;
+            if (lowerBound !== null) {
+                const span = upperCoverage - lowerCoverage;
+                if (span > 1e-6) {
+                    const estimate = lowerBound + ((targetCoverage - lowerCoverage) / span) * (upperBound - lowerBound);
+                    const clamped = clamp(estimate, 0.02, 0.98);
+                    if (Math.abs(clamped - seaLevel) > 1e-5) {
+                        seaLevel = clamped;
+                    }
+                    else {
+                        seaLevel = clamp((lowerBound + upperBound) / 2, 0.02, 0.98);
+                    }
+                }
+                else {
+                    seaLevel = clamp((lowerBound + upperBound) / 2, 0.02, 0.98);
+                }
+            }
+            else {
+                seaLevel = clamp(seaLevel - baseStep, 0.02, 0.98);
+            }
+        }
+        else {
+            lowerBound = seaLevel;
+            lowerCoverage = coverage;
+            if (upperBound !== null) {
+                const span = upperCoverage - lowerCoverage;
+                if (span > 1e-6) {
+                    const estimate = lowerBound + ((targetCoverage - lowerCoverage) / span) * (upperBound - lowerBound);
+                    const clamped = clamp(estimate, 0.02, 0.98);
+                    if (Math.abs(clamped - seaLevel) > 1e-5) {
+                        seaLevel = clamped;
+                    }
+                    else {
+                        seaLevel = clamp((lowerBound + upperBound) / 2, 0.02, 0.98);
+                    }
+                }
+                else {
+                    seaLevel = clamp((lowerBound + upperBound) / 2, 0.02, 0.98);
+                }
+            }
+            else {
+                seaLevel = clamp(seaLevel + baseStep, 0.02, 0.98);
+            }
+        }
+        if (Math.abs(seaLevel - lastSeaLevel) < 1e-5 && lowerBound !== null && upperBound !== null) {
+            break;
+        }
+        lastSeaLevel = seaLevel;
+    }
+    const finalResult = bestResult ?? buildHydrologyState({ width, height, elevationGrid, rules, seed, seaLevel });
+    const adjustedSeaLevel = finalResult.seaLevel ?? seaLevel;
+    const coverage = finalResult.coverage ?? computeElevationCoverage(elevationGrid, adjustedSeaLevel);
+    const surfaceCoverage = finalResult.surfaceCoverage ?? computeWaterCoverage(width, height, finalResult.types, finalResult.filled, elevationGrid, adjustedSeaLevel);
+    const iterations = finalResult.iterations ?? maxIterations;
+    const filledMatrix = toMatrix(width, height, finalResult.filled);
+    const typesMatrix = toMatrix(width, height, finalResult.types);
     const flowMatrix = [];
-    const accumulationMatrix = toMatrix(width, height, accumulation);
+    const accumulationMatrix = toMatrix(width, height, finalResult.accumulation);
     for (let y = 0; y < height; y += 1) {
         const row = [];
         for (let x = 0; x < width; x += 1) {
-            const dir = flow[y * width + x];
+            const dir = finalResult.flow[y * width + x];
             if (dir < 0) {
                 row.push(null);
             }
@@ -670,12 +861,24 @@ export function generateHydrology(input) {
         }
         flowMatrix.push(row);
     }
+    const waterTableMatrix = filledMatrix;
+    const adjustedRules = { ...rules, seaLevel: adjustedSeaLevel };
+    const percent = (coverage * 100).toFixed(2);
+    const surfacePercent = (surfaceCoverage * 100).toFixed(2);
+    const seaLevelLabel = adjustedSeaLevel.toFixed(3);
+    if (typeof console !== 'undefined' && typeof console.debug === 'function') {
+        console.debug(`[hydrology] water coverage ${percent}% (surface ${surfacePercent}%) after ${iterations} pass(es) (seaLevel=${seaLevelLabel})`);
+    }
     return {
         types: typesMatrix,
         flowDirections: flowMatrix,
         flowAccumulation: accumulationMatrix,
-        filledElevation: filledMatrix,
-        rules,
-        seaLevel: rules.seaLevel
+        filledElevation: waterTableMatrix,
+        waterTable: waterTableMatrix,
+        rules: adjustedRules,
+        seaLevel: adjustedSeaLevel,
+        waterCoverage: coverage,
+        surfaceWaterCoverage: surfaceCoverage,
+        waterAdjustmentHistory: adjustmentHistory
     };
 }
