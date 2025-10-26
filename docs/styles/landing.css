@@ -292,34 +292,31 @@ body.landing-active .setup-appbar__title {
   text-transform: uppercase;
 }
 
-body.landing-active .icon-difficulty {
+body.landing-active .icon-ghost {
   display: inline-flex;
   align-items: center;
   justify-content: center;
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  border: 1px solid color-mix(in srgb, var(--glass-highlight) 45%, transparent);
-  background: color-mix(in srgb, var(--glass-primary) 70%, transparent);
+  padding: 6px;
+  border: none;
+  background: transparent;
   color: inherit;
-  font-size: 1.1rem;
   cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
+  border-radius: 12px;
+  transition: color 0.2s ease;
 }
 
-body.landing-active .icon-difficulty:hover {
-  transform: translateY(-1px);
-  background: color-mix(in srgb, var(--glass-primary-strong) 70%, transparent);
-  box-shadow: 0 0 0 1px color-mix(in srgb, var(--glass-highlight) 35%, transparent);
+body.landing-active .icon-ghost:hover {
+  color: var(--accent);
 }
 
-body.landing-active .icon-difficulty:focus-visible {
+body.landing-active .icon-ghost:focus-visible {
   outline: 2px solid var(--accent);
   outline-offset: 2px;
 }
 
-body.landing-active .icon-difficulty span {
-  pointer-events: none;
+body.landing-active .icon-ghost__glyph {
+  width: 24px;
+  height: 24px;
 }
 
 body.landing-active .modal {

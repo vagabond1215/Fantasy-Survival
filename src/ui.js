@@ -322,20 +322,34 @@ export function initSetupUI(onStart) {
   const template = document.createElement('template');
   template.innerHTML = `
     <header class="setup-appbar" role="banner">
-      <div class="setup-appbar__title">
-        World Setup
-        <button
-          id="difficulty-toggle"
-          type="button"
-          class="icon-difficulty"
-          aria-haspopup="dialog"
-          aria-expanded="false"
-          aria-controls="difficulty-modal"
-          aria-label="Adjust difficulty"
+      <div class="setup-appbar__title">World Setup</div>
+      <button
+        id="difficulty-toggle"
+        type="button"
+        class="icon-ghost"
+        aria-haspopup="dialog"
+        aria-expanded="false"
+        aria-controls="difficulty-modal"
+        aria-label="Adjust difficulty"
+      >
+        <svg
+          aria-hidden="true"
+          viewBox="0 0 24 24"
+          focusable="false"
+          class="icon-ghost__glyph"
         >
-          <span aria-hidden="true">⚙️</span>
-        </button>
-      </div>
+          <path
+            d="M4 6h16M4 12h16M4 18h16"
+            fill="none"
+            stroke="currentColor"
+            stroke-width="1.5"
+            stroke-linecap="round"
+          ></path>
+          <circle cx="9" cy="6" r="2" fill="currentColor"></circle>
+          <circle cx="15" cy="12" r="2" fill="currentColor"></circle>
+          <circle cx="12" cy="18" r="2" fill="currentColor"></circle>
+        </svg>
+      </button>
     </header>
     <dialog
       id="difficulty-modal"
