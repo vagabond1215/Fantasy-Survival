@@ -1,5 +1,6 @@
 // @ts-nocheck
-import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS, getTerrainColors } from './map.js';
+import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS } from './map.js';
+import { getTileColor, resolveTilePalette } from './map/tileColors.ts';
 
 const DEVELOPMENT_STATUS_ALIASES = new Map(
   [
@@ -91,6 +92,21 @@ function normalizeDevelopmentDescriptor(entry, index = 0) {
     emphasis: source.emphasis === true,
     highlight: source.highlight === true
   };
+}
+
+function normalizeTerrainColorOverrides(overrides) {
+  if (!overrides || typeof overrides !== 'object') return null;
+  const normalized = {};
+  for (const [rawKey, rawValue] of Object.entries(overrides)) {
+    if (!rawKey && rawKey !== 0) continue;
+    const key = String(rawKey).trim().toLowerCase();
+    if (!key) continue;
+    if (rawValue === null || rawValue === undefined) continue;
+    const value = String(rawValue).trim();
+    if (!value) continue;
+    normalized[key] = value;
+  }
+  return Object.keys(normalized).length ? normalized : null;
 }
 
 function summarizeStructureGroup(group) {
@@ -339,12 +355,7 @@ export function createMapView(container, {
 } = {}) {
   if (!container) throw new Error('Container is required for map view');
 
-  const baseTerrainColors = getTerrainColors();
-  const terrainColorOverrides =
-    terrainColors && typeof terrainColors === 'object' ? { ...terrainColors } : null;
-  const normalizedTerrainColors = terrainColorOverrides
-    ? { ...baseTerrainColors, ...terrainColorOverrides }
-    : { ...baseTerrainColors };
+  const terrainColorOverrides = normalizeTerrainColorOverrides(terrainColors);
 
   const normalizedBufferMargin = Number.isFinite(bufferMargin)
     ? Math.max(0, Math.trunc(bufferMargin))
@@ -421,7 +432,6 @@ export function createMapView(container, {
     markerDefs: [],
     useTerrainColors: Boolean(useTerrainColors),
     terrainColorOverrides,
-    terrainColors: normalizedTerrainColors,
     pendingZoomSync: false,
     developmentTiles: new Map()
   };
@@ -612,9 +622,15 @@ export function createMapView(container, {
     updateViewportStart(nextXStart, nextYStart);
   }
 
-  function getTerrainColor(type) {
-    if (!state.useTerrainColors || !type) return null;
-    return state.terrainColors?.[type] || null;
+  function resolveTerrainColor(type) {
+    if (!state.useTerrainColors) return null;
+    const normalizedType =
+      typeof type === 'string' && type ? type.trim().toLowerCase() : 'open';
+    const overrides = state.terrainColorOverrides || null;
+    if (overrides && overrides[normalizedType]) {
+      return overrides[normalizedType];
+    }
+    return getTileColor(normalizedType);
   }
 
   function applyTileAppearance(tile, type, symbol) {
@@ -625,7 +641,7 @@ export function createMapView(container, {
       return;
     }
 
-    const fillColor = getTerrainColor(type);
+    const fillColor = resolveTerrainColor(type);
     const defaultSymbol = type ? TERRAIN_SYMBOLS?.[type] : null;
     if (fillColor) {
       tile.classList.add('map-tile--fill');
@@ -3229,14 +3245,14 @@ export function createMapView(container, {
     },
     setTerrainColors(nextColors = null, options = {}) {
       const { forceRefresh = false } = options || {};
-      if (nextColors && typeof nextColors === 'object') {
-        state.terrainColorOverrides = { ...nextColors };
-      } else if (nextColors === false) {
+      if (nextColors === false) {
         state.terrainColorOverrides = null;
+      } else if (nextColors && typeof nextColors === 'object') {
+        state.terrainColorOverrides = normalizeTerrainColorOverrides(nextColors);
       }
-      const basePalette = getTerrainColors({ forceRefresh });
-      const overrides = state.terrainColorOverrides;
-      state.terrainColors = overrides ? { ...basePalette, ...overrides } : { ...basePalette };
+      if (forceRefresh) {
+        resolveTilePalette({ forceRefresh: true });
+      }
       if (state.useTerrainColors && state.map?.tiles?.length) {
         render();
       }
