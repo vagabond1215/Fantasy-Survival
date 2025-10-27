@@ -113,6 +113,7 @@ vi.mock('../src/map.js', () => ({
   DEFAULT_MAP_HEIGHT: PREVIEW_MAP_SIZE,
   DEFAULT_MAP_WIDTH: PREVIEW_MAP_SIZE,
   generateColorMap: vi.fn(() => ({ ...mockMap })),
+  isWaterTerrain: (terrain: string) => terrain === 'water',
   TERRAIN_COLORS: {
     open: '#ffffff',
     forest: '#228b22',

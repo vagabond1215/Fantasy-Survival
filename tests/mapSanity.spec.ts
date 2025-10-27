@@ -1,26 +1,118 @@
 import { describe, expect, it } from 'vitest';
-import {
-  applySanityChecks,
-  findValidSpawn,
-  validateStartingArea,
-  TERRAIN_SYMBOLS
-} from '../src/map.js';
+import { findValidSpawn, validateStartingArea } from '../src/map.js';
+import AdjustmentSolver from '../src/map/generation/adjustmentSolver.js';
 
-function buildContext(
-  terrain,
-  startX = -Math.floor(terrain[0].length / 2),
-  startY = -Math.floor(terrain.length / 2)
+function createSolverForTerrain(
+  terrain: string[][],
+  radius = 3,
+  thresholds = { minLand: 0.5, maxOre: 0.4 }
 ) {
-  const terrainCopy = terrain.map(row => row.slice());
-  const tiles = terrainCopy.map(row => row.map(cell => TERRAIN_SYMBOLS[cell] || '?'));
-  return {
-    terrainTypes: terrainCopy,
-    tiles,
-    effectiveXStart: startX,
-    effectiveYStart: startY,
-    originShiftX: 0,
-    originShiftY: 0
-  };
+  const height = terrain.length;
+  const width = terrain[0]?.length ?? 0;
+  const chunkSize = 4;
+  const chunkRows = Math.max(1, Math.ceil(height / chunkSize));
+  const chunkColumns = Math.max(1, Math.ceil(width / chunkSize));
+  const startX = -Math.floor(width / 2);
+  const startY = -Math.floor(height / 2);
+
+  return new AdjustmentSolver({
+    parameters: {
+      xStart: startX,
+      yStart: startY,
+      originShiftX: 0,
+      originShiftY: 0
+    },
+    maxIterations: 5,
+    chunkSize,
+    chunkRows,
+    chunkColumns,
+    gridWidth: width,
+    gridHeight: height,
+    evaluate: ({ parameters }) => {
+      const validation = validateStartingArea(
+        terrain,
+        parameters.xStart,
+        parameters.yStart,
+        0,
+        0,
+        radius,
+        thresholds
+      );
+      const originCol = -parameters.xStart;
+      const originRow = -parameters.yStart;
+      const inBounds =
+        originCol >= 0 && originCol < width && originRow >= 0 && originRow < height;
+      const cellType = inBounds ? terrain[originRow][originCol] : null;
+      const isWater = cellType === 'lake' || cellType === 'river' || cellType === 'water';
+      return {
+        ...validation,
+        satisfied: validation.meetsLand && validation.meetsOre && !isWater,
+        origin: {
+          col: originCol,
+          row: originRow,
+          inBounds,
+          isWater
+        }
+      };
+    },
+    regenerate: ({ parameters, metrics, context }) => {
+      if (!metrics) return null;
+      const solver = context?.solver as AdjustmentSolver | undefined;
+      const markOrigin = (col: number, row: number) => {
+        solver?.markTileDirty(col, row);
+      };
+
+      if (metrics.origin?.isWater) {
+        let closest: { worldX: number; worldY: number; distance: number } | null = null;
+        for (let row = 0; row < height; row++) {
+          for (let col = 0; col < width; col++) {
+            if (terrain[row][col] === 'lake') continue;
+            const worldX = parameters.xStart + col;
+            const worldY = parameters.yStart + row;
+            const distance = Math.hypot(worldX, worldY);
+            if (!closest || distance < closest.distance) {
+              closest = { worldX, worldY, distance };
+            }
+          }
+        }
+        if (closest) {
+          markOrigin(metrics.origin.col, metrics.origin.row);
+          const next = {
+            xStart: parameters.xStart - closest.worldX,
+            yStart: parameters.yStart - closest.worldY,
+            originShiftX: (parameters.originShiftX || 0) + closest.worldX,
+            originShiftY: (parameters.originShiftY || 0) + closest.worldY
+          };
+          markOrigin(-next.xStart, -next.yStart);
+          return { parameters: next, message: 'moved to land' };
+        }
+      }
+
+      if (!metrics.meetsLand || !metrics.meetsOre) {
+        const fallback = findValidSpawn(
+          terrain,
+          parameters.xStart,
+          parameters.yStart,
+          radius,
+          thresholds,
+          { limit: 200 }
+        );
+        if (fallback) {
+          markOrigin(metrics.origin?.col ?? NaN, metrics.origin?.row ?? NaN);
+          const next = {
+            xStart: parameters.xStart - fallback.worldX,
+            yStart: parameters.yStart - fallback.worldY,
+            originShiftX: (parameters.originShiftX || 0) + fallback.worldX,
+            originShiftY: (parameters.originShiftY || 0) + fallback.worldY
+          };
+          markOrigin(-next.xStart, -next.yStart);
+          return { parameters: next, message: 'rebalanced landing zone' };
+        }
+      }
+
+      return { stop: true };
+    }
+  });
 }
 
 describe('findValidSpawn', () => {
@@ -47,34 +139,25 @@ describe('findValidSpawn', () => {
   });
 });
 
-describe('applySanityChecks', () => {
-  it('raises land ratio to at least 50% within the radius', () => {
+describe('AdjustmentSolver integration', () => {
+  it('moves the origin out of water and tracks dirty chunks', () => {
     const terrain = Array.from({ length: 7 }, () => Array(7).fill('lake'));
-    // Sparse land initially keeps land ratio below threshold.
-    [[3, 3], [3, 2], [2, 3]].forEach(([col, row]) => {
-      terrain[row][col] = 'open';
-    });
-    const context = buildContext(terrain, -3, -3);
+    terrain[4][4] = 'open';
+    terrain[4][5] = 'open';
+    terrain[5][4] = 'open';
 
-    const result = applySanityChecks(context, { radius: 3, seed: 'land-test' });
-    expect(result.adjustments.length).toBeGreaterThan(0);
-
-    const validation = validateStartingArea(
-      context.terrainTypes,
-      context.effectiveXStart,
-      context.effectiveYStart,
-      0,
-      0,
-      3,
-      { minLand: 0.5, maxOre: 0.4 }
-    );
-    expect(validation.landRatio).toBeGreaterThanOrEqual(0.5);
-    expect(validation.meetsLand).toBe(true);
+    const solver = createSolverForTerrain(terrain, 3);
+    const result = solver.solve();
+    expect(result.parameters.xStart).not.toBe(-3);
+    expect(result.parameters.yStart).not.toBe(-3);
+    expect(result.metrics?.origin?.isWater).toBe(false);
+    expect(result.messages.length).toBeGreaterThan(0);
+    expect(result.dirty.full).toBe(false);
+    expect(result.dirty.chunks.length).toBeGreaterThan(0);
   });
 
-  it('reduces ore saturation to 40% or below of usable land', () => {
-    const terrain = Array.from({ length: 7 }, () => Array(7).fill('open'));
-    // Pack the center with ore to exceed the threshold.
+  it('recenters to improve ore ratio when a better landing exists nearby', () => {
+    const terrain = Array.from({ length: 7 }, () => Array(7).fill('ore'));
     const oreCells = [
       [3, 3],
       [3, 2],
@@ -89,21 +172,18 @@ describe('applySanityChecks', () => {
     oreCells.forEach(([col, row]) => {
       terrain[row][col] = 'ore';
     });
+    // Provide a patch of balanced terrain away from the origin.
+    for (let row = 0; row < 3; row++) {
+      for (let col = 0; col < 3; col++) {
+        terrain[row][col] = 'open';
+      }
+    }
 
-    const context = buildContext(terrain, -3, -3);
-    const result = applySanityChecks(context, { radius: 3, seed: 'ore-test' });
-    expect(result.adjustments.length).toBeGreaterThan(0);
-
-    const validation = validateStartingArea(
-      context.terrainTypes,
-      context.effectiveXStart,
-      context.effectiveYStart,
-      0,
-      0,
-      3,
-      { minLand: 0.5, maxOre: 0.4 }
-    );
-    expect(validation.oreRatio).toBeLessThanOrEqual(0.4);
-    expect(validation.meetsOre).toBe(true);
+    const solver = createSolverForTerrain(terrain, 3);
+    const result = solver.solve();
+    expect(result.metrics?.meetsOre).toBe(true);
+    expect(result.metrics?.meetsLand).toBe(true);
+    expect(result.parameters.xStart).not.toBe(-3);
+    expect(result.parameters.yStart).not.toBe(-3);
   });
 });
