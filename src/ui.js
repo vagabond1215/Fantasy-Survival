@@ -326,7 +326,9 @@ export function initSetupUI(onStart) {
       <div class="setup-appbar__seed">
         <div class="seed-row">
           <input id="seed-input" class="input" placeholder="Enter seed or leave blank for random" autocomplete="off">
-          <button id="seed-rand" type="button" class="btn btn--ghost" aria-label="Randomize seed">🎲 Random</button>
+          <button id="seed-rand" type="button" class="btn btn--ghost" aria-label="Randomize seed">
+            <span class="seed-rand__icon" aria-hidden="true">🎲</span>
+          </button>
         </div>
       </div>
       <button

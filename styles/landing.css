@@ -310,6 +310,20 @@ body.landing-active .setup-appbar__seed .btn {
   white-space: nowrap;
 }
 
+body.landing-active #seed-rand {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0;
+}
+
+body.landing-active #seed-rand .seed-rand__icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  line-height: 1;
+}
+
 body.landing-active .icon-ghost {
   display: inline-flex;
   align-items: center;
