@@ -838,6 +838,67 @@ export function initSetupUI(onStart) {
     return mixColors(color, black, amount);
   }
 
+  function relativeLuminance(color) {
+    if (!color) return 0;
+    const [r, g, b] = [color.r ?? 0, color.g ?? 0, color.b ?? 0].map(channel => {
+      const value = channel / 255;
+      if (value <= 0.03928) {
+        return value / 12.92;
+      }
+      return Math.pow((value + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  function computeContrastRatio(foreground, background) {
+    if (!foreground || !background) return 1;
+    const fgLum = relativeLuminance(foreground);
+    const bgLum = relativeLuminance(background);
+    const lighter = Math.max(fgLum, bgLum);
+    const darker = Math.min(fgLum, bgLum);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  function ensureContrastColor(preferredColor, backgroundColor, minimumRatio = 4.5) {
+    if (!backgroundColor) {
+      return preferredColor || parseColor('#ffffff');
+    }
+
+    const backgroundLum = relativeLuminance(backgroundColor);
+    const preferredTarget = parseColor(backgroundLum > 0.5 ? '#111827' : '#f9fafb');
+    const alternateTarget = parseColor(backgroundLum > 0.5 ? '#f9fafb' : '#111827');
+
+    const candidates = [];
+    if (preferredColor) {
+      candidates.push({ color: preferredColor, ratio: computeContrastRatio(preferredColor, backgroundColor) });
+    }
+    if (preferredTarget) {
+      candidates.push({ color: preferredTarget, ratio: computeContrastRatio(preferredTarget, backgroundColor) });
+    }
+    if (alternateTarget) {
+      candidates.push({ color: alternateTarget, ratio: computeContrastRatio(alternateTarget, backgroundColor) });
+    }
+
+    let best = candidates.sort((a, b) => b.ratio - a.ratio)[0];
+    if (!best) {
+      return parseColor('#ffffff');
+    }
+
+    if (best.ratio >= minimumRatio) {
+      return best.color;
+    }
+
+    const blendTarget = parseColor(backgroundLum > 0.5 ? '#000000' : '#ffffff');
+    let adjusted = best.color;
+    let ratio = best.ratio;
+    for (let step = 0; step < 6 && ratio < minimumRatio; step += 1) {
+      adjusted = mixColors(adjusted, blendTarget, 0.35);
+      ratio = computeContrastRatio(adjusted, backgroundColor);
+    }
+
+    return ratio >= minimumRatio ? adjusted : best.color;
+  }
+
   function setActive(list, node) {
     list.forEach(item => {
       item.classList.toggle('is-active', item === node);
@@ -864,8 +925,16 @@ export function initSetupUI(onStart) {
       if (accentColor) {
         const activeColor = lightenColor(accentColor, 0.22);
         button.style.setProperty('--tile-active-bg', formatColor(activeColor));
+        const preferredText = parseColor(currentThemeInfo?.text?.primary);
+        const activeText = ensureContrastColor(preferredText, activeColor);
+        if (activeText) {
+          button.style.setProperty('--tile-active-text', formatColor(activeText));
+        } else {
+          button.style.removeProperty('--tile-active-text');
+        }
       } else {
         button.style.removeProperty('--tile-active-bg');
+        button.style.removeProperty('--tile-active-text');
       }
       return;
     }
@@ -898,8 +967,16 @@ export function initSetupUI(onStart) {
       const accentLift = lightenColor(accentColor, 0.25);
       const activeColor = accentLift ? mixColors(accentColor, accentLift, 0.4) : accentColor;
       button.style.setProperty('--tile-active-bg', formatColor(activeColor));
+      const preferredText = parseColor(currentThemeInfo?.text?.primary);
+      const activeText = ensureContrastColor(preferredText, activeColor);
+      if (activeText) {
+        button.style.setProperty('--tile-active-text', formatColor(activeText));
+      } else {
+        button.style.removeProperty('--tile-active-text');
+      }
     } else {
       button.style.removeProperty('--tile-active-bg');
+      button.style.removeProperty('--tile-active-text');
     }
   }
 

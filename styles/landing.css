@@ -1159,7 +1159,7 @@ body.landing-active .tile.is-active {
   background: var(--tile-active-bg, var(--accent));
   border-color: var(--accent);
   box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 50%, transparent);
-  color: var(--accent-contrast, var(--text, var(--text-strong)));
+  color: var(--tile-active-text, var(--accent-contrast, var(--text, var(--text-strong))));
 }
 
 body.landing-active .tile__name {
