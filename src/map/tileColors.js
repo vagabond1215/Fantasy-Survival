@@ -1,5 +1,16 @@
 /**
- * @typedef {"open" | "forest" | "stone" | "ore" | "water"} TileType
+ * @typedef {(
+ *   | 'open'
+ *   | 'forest'
+ *   | 'stone'
+ *   | 'ore'
+ *   | 'water'
+ *   | 'ocean'
+ *   | 'lake'
+ *   | 'river'
+ *   | 'marsh'
+ *   | 'mangrove'
+ * )} TileType
  * @typedef {Record<TileType, string>} TilePalette
  */
 
@@ -9,7 +20,12 @@ const TILE_VARIABLES = {
   forest: '--tile-forest',
   stone: '--tile-stone',
   ore: '--tile-ore',
-  water: '--tile-water'
+  water: '--tile-water',
+  ocean: '--legend-ocean',
+  lake: '--legend-lake',
+  river: '--legend-river',
+  marsh: '--legend-marsh',
+  mangrove: '--legend-mangrove'
 };
 
 /** @type {TilePalette} */
@@ -18,7 +34,12 @@ const TILE_FALLBACK_COLORS = {
   forest: '#16a34a',
   stone: '#94a3b8',
   ore: '#f97316',
-  water: '#2d7ff9'
+  water: '#2d7ff9',
+  ocean: '#2563eb',
+  lake: '#38bdf8',
+  river: '#0ea5e9',
+  marsh: '#4ade80',
+  mangrove: '#065f46'
 };
 
 /** @type {TilePalette | null} */
