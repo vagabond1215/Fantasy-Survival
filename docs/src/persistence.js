@@ -5,7 +5,7 @@ import { refreshBuildingUnlocks } from './buildings.js';
 import { initializeTechnologyRegistry } from './technology.js';
 import { getStorageItem, removeStorageItem, setStorageItem } from './safeStorage.js';
 
-const SAVE_KEY = 'fantasy-survival-save';
+export const SAVE_KEY = 'fantasy-survival-save';
 
 // Save current game state to localStorage.
 export function saveGame() {

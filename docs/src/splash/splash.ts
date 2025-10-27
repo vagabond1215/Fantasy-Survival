@@ -1,10 +1,11 @@
 /**
  * Splash screen module for Fantasy Survival.
  */
+import { SAVE_KEY as PERSISTED_SAVE_KEY } from "../persistence.js";
 import { getStorageItem } from "../safeStorage.js";
 
 /** Storage key for the serialized game save. */
-export const SAVE_STORAGE_KEY = "gameSave";
+export const SAVE_STORAGE_KEY = PERSISTED_SAVE_KEY;
 /** Supported schema version for saved games. */
 export const SAVE_SCHEMA_VERSION = 1;
 
