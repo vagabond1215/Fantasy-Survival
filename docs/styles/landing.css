@@ -284,6 +284,30 @@ body.landing-active .setup-appbar__title {
   font-weight: 700;
   letter-spacing: 0.08em;
   text-transform: uppercase;
+  flex: 0 0 auto;
+  cursor: pointer;
+}
+
+body.landing-active .setup-appbar__seed {
+  display: flex;
+  align-items: center;
+  flex: 1 1 auto;
+  min-width: 0;
+}
+
+body.landing-active .setup-appbar__seed .seed-row {
+  flex: 1 1 auto;
+  align-items: center;
+  min-width: 0;
+}
+
+body.landing-active .setup-appbar__seed .input {
+  flex: 1 1 220px;
+  min-width: 0;
+}
+
+body.landing-active .setup-appbar__seed .btn {
+  white-space: nowrap;
 }
 
 body.landing-active .icon-ghost {
