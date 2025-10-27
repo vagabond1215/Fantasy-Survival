@@ -196,10 +196,10 @@ const THEME_DEFINITIONS = [
     appearance: 'dark',
     colors: {
       background: { light: '#2d3036', base: '#1f2228', dark: '#111419' },
-      neutral: { light: '#d8dbe2', base: '#b4b8c1', dark: '#828690' },
-      primary: { light: '#c1c4cc', base: '#a0a4ac', dark: '#72757c' },
-      secondary: { light: '#acb0b8', base: '#8e929a', dark: '#63666d' },
-      accent: { light: '#d0d3da', base: '#b1b5bd', dark: '#7f8289' }
+      neutral: { light: '#dfe3eb', base: '#c7cbd3', dark: '#5f646f' },
+      primary: { light: '#d6dae2', base: '#c3c8d0', dark: '#7b808a' },
+      secondary: { light: '#d8dce4', base: '#c3c7cf', dark: '#757a84' },
+      accent: { light: '#dfe3eb', base: '#ccd1d9', dark: '#8b9098' }
     },
     standardColors: {
       red: { light: '#d7dadd', dark: '#6b6e74' },
@@ -213,7 +213,7 @@ const THEME_DEFINITIONS = [
     },
     text: {
       primary: '#f0f2f7',
-      muted: '#b9bdc5'
+      muted: '#dde1e8'
     },
     appearances: {
       light: {

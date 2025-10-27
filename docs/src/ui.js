@@ -322,7 +322,13 @@ export function initSetupUI(onStart) {
   const template = document.createElement('template');
   template.innerHTML = `
     <header class="setup-appbar" role="banner">
-      <div class="setup-appbar__title">World Setup</div>
+      <label class="setup-appbar__title" for="seed-input">World Seed</label>
+      <div class="setup-appbar__seed">
+        <div class="seed-row">
+          <input id="seed-input" class="input" placeholder="Enter seed or leave blank for random" autocomplete="off">
+          <button id="seed-rand" type="button" class="btn btn--ghost" aria-label="Randomize seed">🎲 Random</button>
+        </div>
+      </div>
       <button
         id="difficulty-toggle"
         type="button"
@@ -409,13 +415,6 @@ export function initSetupUI(onStart) {
         </div>
         <div class="setup__column setup__column--preview">
           <div class="card section map-section">
-            <div class="map-seed">
-              <label class="map-seed__label" for="seed-input">World Seed</label>
-              <div class="seed-row">
-                <input id="seed-input" class="input" placeholder="Enter seed or leave blank for random" autocomplete="off">
-                <button id="seed-rand" type="button" class="btn btn--ghost" aria-label="Randomize seed">🎲 Random</button>
-              </div>
-            </div>
             <p class="map-tip" id="map-tip">Explore the terrain and click to choose a spawn point.</p>
             <div id="map-preview" class="map-preview" aria-label="World map preview"></div>
             <p class="sub" id="spawn-info"></p>
@@ -504,8 +503,8 @@ export function initSetupUI(onStart) {
   const biomeGrid = setupRoot.querySelector('#biome-grid');
   const biomeDetails = setupRoot.querySelector('#biome-details');
   const seasonSeg = setupRoot.querySelector('#season-seg');
-  const seedInput = setupRoot.querySelector('#seed-input');
-  const seedRandomBtn = setupRoot.querySelector('#seed-rand');
+  const seedInput = contentRoot.querySelector('#seed-input');
+  const seedRandomBtn = contentRoot.querySelector('#seed-rand');
   const mapPreview = setupRoot.querySelector('#map-preview');
   const spawnInfo = setupRoot.querySelector('#spawn-info');
   const randomizeAllBtn = setupRoot.querySelector('#randomize-all');
