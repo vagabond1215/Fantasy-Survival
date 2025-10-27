@@ -1031,6 +1031,7 @@ body.landing-active .season-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
+  justify-content: center;
   gap: 12px;
   background: transparent;
 }
@@ -1043,7 +1044,7 @@ body.landing-active .season-switch {
   display: inline-flex;
   flex-wrap: wrap;
   gap: 10px;
-  margin-left: auto;
+  justify-content: center;
 }
 
 body.landing-active .season-switch__button {
