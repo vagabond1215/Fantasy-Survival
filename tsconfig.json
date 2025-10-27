@@ -25,7 +25,8 @@
   "include": [
     "scripts/sync-docs.js",
     "src/main.js",
-    "biomes.js"
+    "biomes.js",
+    "src/worldgen/**/*.ts"
   ],
   "exclude": [
     "dist",

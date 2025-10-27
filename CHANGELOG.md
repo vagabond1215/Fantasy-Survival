@@ -14,6 +14,9 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Repository standards files: `.editorconfig`, `CONTRIBUTING.md`, and `CHANGELOG.md`.
 - Continuous integration workflow that runs linting, tests, and type-checking.
 - Hydrology modules for elevation, water rules, and flow simulation powering rivers, lakes, wetlands, and coastal shaping with automated coverage tests.
+- Deterministic world-generation solver with reusable parameter utilities, curated habitat profiles, and a `buildWorld` entry point for downstream systems.
+- Shared random helpers that unify seeding across map generation and world building.
+- Vitest coverage for the world-generation pipeline to guard deterministic outputs and profile selection.
 
 ### Changed
 - Map generation now consumes the hydrology pipeline for water placement, with biome-aware marshes, widened river mouths, and richer terrain symbols.
