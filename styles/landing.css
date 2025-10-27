@@ -543,30 +543,18 @@ body.landing-active .difficulty-param__label {
   font-size: 0.95rem;
 }
 
-body.landing-active .difficulty-param__number {
-  width: 72px;
-  padding: 4px 10px;
-  border-radius: 10px;
-  border: 1px solid var(--seg-border);
-  background: color-mix(in srgb, var(--background-glass-light) 55%, transparent);
-  color: inherit;
-  font: inherit;
-  text-align: right;
-}
-
-body.landing-active .difficulty-param__number:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
 body.landing-active .difficulty-param__range-group {
   display: flex;
   align-items: center;
   gap: 12px;
+  width: 100%;
+  justify-content: space-between;
 }
 
 body.landing-active .difficulty-param__range {
-  flex: 1;
+  flex: 1 1 240px;
+  min-width: 0;
+  max-width: 100%;
 }
 
 body.landing-active .range,
@@ -653,66 +641,12 @@ body.landing-active .range__value {
   color: inherit;
   font: inherit;
   font-weight: 600;
-  cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease;
-}
-
-body.landing-active .range__value:hover {
-  transform: translateY(-1px);
-  background:
-    color-mix(
-      in srgb,
-      var(--glass-primary-strong, color-mix(in srgb, var(--surface-2, var(--surface)) 65%, transparent)) 65%,
-      transparent
-    );
-}
-
-body.landing-active .range__value:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-body.landing-active .range__chips {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 8px;
-}
-
-body.landing-active .range__chip {
-  border: 1px solid color-mix(in srgb, var(--glass-highlight) 30%, transparent);
-  border-radius: 999px;
-  padding: 4px 12px;
-  background:
-    color-mix(
-      in srgb,
-      var(--glass-secondary, color-mix(in srgb, var(--surface-3, var(--surface-2)) 45%, transparent)) 40%,
-      transparent
-    );
-  color: inherit;
-  font: inherit;
-  font-size: 0.82rem;
-  cursor: pointer;
-  transition: transform 0.2s ease, background 0.2s ease, box-shadow 0.2s ease;
-}
-
-body.landing-active .range__chip:hover {
-  transform: translateY(-1px);
-  background:
-    color-mix(
-      in srgb,
-      var(--glass-secondary, color-mix(in srgb, var(--surface-3, var(--surface-2)) 55%, transparent)) 55%,
-      transparent
-    );
-}
-
-body.landing-active .range__chip.is-active {
-  background: color-mix(in srgb, var(--color-secondary) 55%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--glass-highlight) 35%, transparent);
-}
-
-body.landing-active .difficulty-param__hint {
-  font-size: 0.78rem;
-  color: var(--text-muted);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 48px;
+  white-space: nowrap;
+  cursor: default;
 }
 
 body.landing-active .modal__footer {
