@@ -100,6 +100,7 @@ describe('loadGame', () => {
     const location = store.locations.get('loc1');
     expect(location?.map?.tiles?.length).toBeGreaterThan(0);
     expect(location?.siteCapacities?.forest).toBe(10);
+    expect(store.worldSettings).toEqual({ oreDensity: 50 });
 
     errorSpy.mockRestore();
   });
