@@ -3,7 +3,7 @@ import { getBiome } from './biomes.js';
 import store from './state.js';
 import { resolveWorldParameters } from './difficulty.js';
 import { notifySanityCheck } from './notifications.js';
-import AdjustmentSolver from './map/generation/adjustmentSolver.js';
+import { AdjustmentSolver } from './map/generation/adjustmentSolver.js';
 import { createElevationSampler } from './map/generation/elevation.js';
 import { generateHydrology } from './map/generation/hydrology.js';
 import { applyMangroveZones } from './map/generation/vegetation.js';
@@ -849,11 +849,8 @@ export function generateColorMap(
       const sy = cy < targetY ? 1 : -1;
       let err = dx - dy;
 
-      while (true) {
+      while (cx !== targetX || cy !== targetY) {
         points.push([cx, cy]);
-        if (cx === targetX && cy === targetY) {
-          break;
-        }
         const e2 = err * 2;
         if (e2 > -dy) {
           err -= dy;
@@ -864,6 +861,7 @@ export function generateColorMap(
           cy += sy;
         }
       }
+      points.push([cx, cy]);
       return points;
     };
 
