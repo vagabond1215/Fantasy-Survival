@@ -80,6 +80,10 @@ export function loadGame() {
       if (!loc.worldSettings && loc.map?.worldSettings) {
         loc.worldSettings = loc.map.worldSettings;
       }
+
+      if (!store.worldSettings && storedWorld) {
+        store.worldSettings = storedWorld;
+      }
     }
     refreshStats();
     refreshBuildingUnlocks();
