@@ -1347,20 +1347,8 @@ body.landing-active .map-nav-grid button:disabled {
 body.landing-active .map-zoom-reset {
   align-items: center;
   text-transform: none;
-}
-
-body.landing-active .map-zoom-reset__label {
-  font-size: 13px;
-  font-weight: 700;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-}
-
-body.landing-active .map-zoom-reset__value {
-  font-size: 12px;
-  font-weight: 600;
-  letter-spacing: 0.04em;
-  color: color-mix(in srgb, var(--map-control-fg) 94%, var(--text-muted, var(--text)) 6%);
+  font-size: 15px;
+  letter-spacing: 0.02em;
 }
 
 body.landing-active .difficulty-tip {

@@ -1322,13 +1322,15 @@ export function createMapView(container, {
     zoomControls = document.createElement('div');
     zoomControls.className = `${idPrefix}-zoom map-zoom-controls`;
     zoomControls.style.display = 'grid';
-    zoomControls.style.gridTemplateColumns = 'repeat(3, minmax(72px, 1fr))';
-    zoomControls.style.gridAutoRows = 'minmax(48px, auto)';
+    zoomControls.style.gridTemplateColumns = 'repeat(2, 48px)';
+    zoomControls.style.gridAutoRows = '48px';
     zoomControls.style.gap = '6px';
     zoomControls.style.justifyContent = 'center';
     zoomControls.style.alignItems = 'stretch';
     zoomControls.style.justifyItems = 'stretch';
     zoomControls.style.alignContent = 'center';
+    zoomControls.style.width = 'calc(2 * 48px + 6px)';
+    zoomControls.style.alignSelf = 'center';
     controlColumn.appendChild(zoomControls);
 
     const createZoomButton = (label, aria, fontSize, variant = 'chip') => {
@@ -1340,28 +1342,23 @@ export function createMapView(container, {
       return button;
     };
 
-    zoomOutButton = createZoomButton('Zoom −', 'Zoom out', '15px');
+    zoomOutButton = createZoomButton('−', 'Zoom out', '22px');
+
+    zoomInButton = createZoomButton('+', 'Zoom in', '22px');
 
     zoomResetButton = document.createElement('button');
     zoomResetButton.type = 'button';
     zoomResetButton.className = 'map-zoom-reset';
-    const resetLabel = document.createElement('span');
-    resetLabel.className = 'map-zoom-reset__label';
-    resetLabel.textContent = 'Reset';
-    const resetValue = document.createElement('span');
-    resetValue.className = 'map-zoom-reset__value';
-    resetValue.textContent = '100%';
-    zoomResetButton.appendChild(resetLabel);
-    zoomResetButton.appendChild(resetValue);
-    zoomResetValue = resetValue;
-    applyControlButtonStyle(zoomResetButton, { fontSize: '14px', variant: 'stacked' });
-    zoomResetButton.setAttribute('aria-label', 'Reset zoom to 100%');
-
-    zoomInButton = createZoomButton('Zoom +', 'Zoom in', '15px');
+    zoomResetButton.textContent = '100%';
+    applyControlButtonStyle(zoomResetButton, { fontSize: '15px', variant: 'chip' });
+    zoomResetButton.style.width = '100%';
+    zoomResetButton.style.gridColumn = '1 / span 2';
+    zoomResetButton.setAttribute('aria-label', 'Set zoom to 100%');
+    zoomResetValue = zoomResetButton;
 
     zoomControls.appendChild(zoomOutButton);
-    zoomControls.appendChild(zoomResetButton);
     zoomControls.appendChild(zoomInButton);
+    zoomControls.appendChild(zoomResetButton);
 
     zoomOutButton.addEventListener('click', () => {
       zoomBy(-0.1);
@@ -2789,7 +2786,7 @@ export function createMapView(container, {
     }
     zoomResetButton.setAttribute(
       'aria-label',
-      `Reset zoom to ${baselinePercent}% (current ${currentPercent}%)`
+      `Set zoom to ${baselinePercent}% (current ${currentPercent}%)`
     );
     if (zoomOutButton) {
       zoomOutButton.disabled = state.zoom <= state.minZoom + 0.001;
