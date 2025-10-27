@@ -74,13 +74,7 @@ function computeTilePalette() {
   }
 
   /** @type {TilePalette} */
-  const palette = {
-    open: TILE_FALLBACK_COLORS.open,
-    forest: TILE_FALLBACK_COLORS.forest,
-    stone: TILE_FALLBACK_COLORS.stone,
-    ore: TILE_FALLBACK_COLORS.ore,
-    water: TILE_FALLBACK_COLORS.water
-  };
+  const palette = { ...TILE_FALLBACK_COLORS };
 
   Object.keys(TILE_VARIABLES).forEach(key => {
     const type = /** @type {TileType} */ (key);
