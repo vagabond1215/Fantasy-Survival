@@ -3,6 +3,7 @@ import { getBiome } from './biomes.js';
 import store from './state.js';
 import { resolveWorldParameters } from './difficulty.js';
 import { notifySanityCheck } from './notifications.js';
+import AdjustmentSolver from './map/generation/adjustmentSolver.js';
 import { createElevationSampler } from './map/generation/elevation.js';
 import { generateHydrology } from './map/generation/hydrology.js';
 import { applyMangroveZones } from './map/generation/vegetation.js';
@@ -230,11 +231,6 @@ function lerp(a, b, t) {
   return a + (b - a) * t;
 }
 
-function createSanityRng(seedKey = 'default') {
-  const seeded = xmur3(`${seedKey}:sanity-check`);
-  return mulberry32(seeded());
-}
-
 export function scanRadius(
   terrainTypes,
   startX,
@@ -349,18 +345,74 @@ function collectTilesWithinRadius(
   return tiles;
 }
 
-function shuffleDeterministic(items, rng) {
-  const arr = items.slice();
-  for (let i = arr.length - 1; i > 0; i--) {
-    const j = Math.floor(rng() * (i + 1));
-    [arr[i], arr[j]] = [arr[j], arr[i]];
-  }
-  return arr;
-}
-
 function formatDistance(dx, dy) {
   const dist = Math.round(Math.hypot(dx, dy));
   return dist;
+}
+
+const DEFAULT_CHUNK_SIZE = 16;
+
+function createChunkRenderer({ width, height, tiles, terrainTypes, chunkSize = DEFAULT_CHUNK_SIZE }) {
+  const size = Math.max(1, Math.trunc(chunkSize));
+  const columns = Math.ceil(Math.max(1, Math.trunc(width)) / size);
+  const rows = Math.ceil(Math.max(1, Math.trunc(height)) / size);
+
+  function renderChunk(rowIndex, columnIndex) {
+    const rowStart = rowIndex * size;
+    const columnStart = columnIndex * size;
+    for (let localY = 0; localY < size; localY++) {
+      const y = rowStart + localY;
+      if (y >= height) break;
+      const typeRow = terrainTypes[y];
+      const tileRow = tiles[y];
+      if (!typeRow || !tileRow) continue;
+      for (let localX = 0; localX < size; localX++) {
+        const x = columnStart + localX;
+        if (x >= width) break;
+        const type = typeRow[x];
+        tileRow[x] = TERRAIN_SYMBOLS[type] || '?';
+      }
+    }
+  }
+
+  function renderAll() {
+    for (let row = 0; row < rows; row++) {
+      for (let column = 0; column < columns; column++) {
+        renderChunk(row, column);
+      }
+    }
+  }
+
+  function renderDirty({ full = false, chunks = [] } = {}) {
+    if (full) {
+      renderAll();
+      return;
+    }
+    if (!Array.isArray(chunks) || chunks.length === 0) {
+      return;
+    }
+    chunks.forEach(entry => {
+      if (!entry) return;
+      const row = Math.trunc(entry.row);
+      const column = Math.trunc(entry.column);
+      if (Number.isNaN(row) || Number.isNaN(column)) {
+        return;
+      }
+      if (row < 0 || column < 0 || row >= rows || column >= columns) {
+        return;
+      }
+      renderChunk(row, column);
+    });
+  }
+
+  return {
+    chunkSize: size,
+    chunkRows: rows,
+    chunkColumns: columns,
+    renderAll,
+    renderDirty,
+    renderChunk
+  };
 }
 
 export function findValidSpawn(
@@ -422,159 +474,6 @@ export function findValidSpawn(
   return best;
 }
 
-function convertWaterToLand(context, radius, thresholds, validation, rng) {
-  const { terrainTypes, tiles, effectiveXStart, effectiveYStart } = context;
-  const stats = validation?.stats;
-  if (!stats || !stats.total) return 0;
-  const targetLand = Math.ceil(clamp(thresholds.minLand ?? 0.5, 0, 1) * stats.total);
-  const deficit = targetLand - stats.land;
-  if (deficit <= 0) return 0;
-  const candidates = collectTilesWithinRadius(
-    terrainTypes,
-    effectiveXStart,
-    effectiveYStart,
-    radius,
-    0,
-    0,
-    'water'
-  );
-  if (!candidates.length) return 0;
-  const toConvert = Math.min(deficit, candidates.length);
-  const selection = shuffleDeterministic(candidates, rng).slice(0, toConvert);
-  selection.forEach(tile => {
-    terrainTypes[tile.row][tile.col] = 'open';
-    if (tiles?.[tile.row]) {
-      tiles[tile.row][tile.col] = TERRAIN_SYMBOLS.open;
-    }
-  });
-  return selection.length;
-}
-
-function softenOreDeposits(context, radius, thresholds, validation, rng) {
-  const { terrainTypes, tiles, effectiveXStart, effectiveYStart } = context;
-  const stats = validation?.stats;
-  if (!stats) return 0;
-  const usable = Math.max(1, stats.usable);
-  const maxOre = Math.floor(clamp(thresholds.maxOre ?? 0.4, 0, 1) * usable);
-  const excess = stats.ore - maxOre;
-  if (excess <= 0) return 0;
-  const candidates = collectTilesWithinRadius(
-    terrainTypes,
-    effectiveXStart,
-    effectiveYStart,
-    radius,
-    0,
-    0,
-    'ore'
-  );
-  if (!candidates.length) return 0;
-  const toConvert = Math.min(Math.max(1, excess), candidates.length);
-  const selection = shuffleDeterministic(candidates, rng).slice(0, toConvert);
-  selection.forEach(tile => {
-    terrainTypes[tile.row][tile.col] = 'open';
-    if (tiles?.[tile.row]) {
-      tiles[tile.row][tile.col] = TERRAIN_SYMBOLS.open;
-    }
-  });
-  return selection.length;
-}
-
-export function applySanityChecks(context, options = {}) {
-  if (!context || typeof context !== 'object') {
-    return { adjustments: [], validation: null };
-  }
-
-  const thresholds = {
-    minLand: 0.5,
-    maxOre: 0.4,
-    ...(options?.thresholds || {})
-  };
-  const radius = Number.isFinite(options?.radius) ? Math.max(1, Math.trunc(options.radius)) : 100;
-  const maxAttempts = clamp(Number.isFinite(options?.maxAttempts) ? Math.trunc(options.maxAttempts) : 5, 0, 10);
-  const seedKey = options?.seed ?? options?.fallbackSeed ?? 'default';
-  const rng = createSanityRng(seedKey);
-  const adjustments = [];
-
-  const validate = () =>
-    validateStartingArea(
-      context.terrainTypes,
-      context.effectiveXStart,
-      context.effectiveYStart,
-      0,
-      0,
-      radius,
-      thresholds
-    );
-
-  let validation = validate();
-  let attempts = 0;
-
-  while (
-    attempts < maxAttempts &&
-    validation &&
-    (!validation.meetsLand || !validation.meetsOre)
-  ) {
-    attempts++;
-    let changed = false;
-
-    if (!validation.meetsLand) {
-      const converted = convertWaterToLand(context, radius, thresholds, validation, rng);
-      if (converted > 0) {
-        adjustments.push(
-          converted === 1
-            ? 'Drained a nearby water tile to create stable footing.'
-            : `Drained ${converted} nearby water tiles to create stable footing.`
-        );
-        changed = true;
-      }
-    }
-
-    if (!changed && !validation.meetsOre) {
-      const softened = softenOreDeposits(context, radius, thresholds, validation, rng);
-      if (softened > 0) {
-        adjustments.push(
-          softened === 1
-            ? 'Reduced a rich ore pocket to keep the landing viable.'
-            : `Reduced ${softened} ore pockets to keep the landing viable.`
-        );
-        changed = true;
-      }
-    }
-
-    if (!changed) {
-      const fallback = findValidSpawn(
-        context.terrainTypes,
-        context.effectiveXStart,
-        context.effectiveYStart,
-        radius,
-        thresholds,
-        { limit: 400 }
-      );
-      if (fallback && (fallback.worldX !== 0 || fallback.worldY !== 0)) {
-        context.effectiveXStart -= fallback.worldX;
-        context.effectiveYStart -= fallback.worldY;
-        context.originShiftX = (context.originShiftX || 0) + fallback.worldX;
-        context.originShiftY = (context.originShiftY || 0) + fallback.worldY;
-        const distance = formatDistance(fallback.worldX, fallback.worldY);
-        adjustments.push(
-          distance > 0
-            ? `Relocated the spawn ${distance} tiles toward balanced terrain.`
-            : 'Relocated the spawn toward balanced terrain.'
-        );
-        changed = true;
-      }
-    }
-
-    if (!changed) {
-      break;
-    }
-
-    validation = validate();
-  }
-
-  return { adjustments, validation };
-}
-
 function noise2D(seed, x, y, scale, salt) {
   const nx = x / scale;
   const ny = y / scale;
@@ -620,6 +519,8 @@ export function generateColorMap(
   const { xStart: defaultX, yStart: defaultY } = computeCenteredStart(mapWidth, mapHeight);
   let effectiveXStart = Number.isFinite(xStart) ? Math.trunc(xStart) : defaultX;
   let effectiveYStart = Number.isFinite(yStart) ? Math.trunc(yStart) : defaultY;
+  const baseXStart = effectiveXStart;
+  const baseYStart = effectiveYStart;
   const biome = getBiome(biomeId);
   const world = resolveWorldParameters(worldSettings || {});
   const adv = world.advanced || {};
@@ -681,8 +582,8 @@ export function generateColorMap(
   );
   const oreScale = clamp(10 + ((adv.oreNoiseScale ?? 50) / 100) * 24, 6, 40);
 
-  const tiles = [];
-  const terrainTypes = [];
+  const tiles = Array.from({ length: mapHeight }, () => Array(mapWidth).fill('?'));
+  const terrainTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
   const elevations = [];
 
   const worldScale = Math.max(mapWidth, mapHeight) * 1.2;
@@ -698,8 +599,8 @@ export function generateColorMap(
   for (let y = 0; y < mapHeight; y++) {
     const eRow = [];
     for (let x = 0; x < mapWidth; x++) {
-      const gx = effectiveXStart + x;
-      const gy = effectiveYStart + y;
+      const gx = baseXStart + x;
+      const gy = baseYStart + y;
       const elevation = elevationSampler.sample(gx, gy);
       eRow.push(elevation);
     }
@@ -722,7 +623,7 @@ export function generateColorMap(
     elevations,
     seed,
     random: (x, y, salt = '') =>
-      coordinateRandom(seed, effectiveXStart + x, effectiveYStart + y, `mangrove:${salt}`)
+      coordinateRandom(seed, baseXStart + x, baseYStart + y, `mangrove:${salt}`)
   });
 
   if (mangroveReport) {
@@ -730,35 +631,294 @@ export function generateColorMap(
   }
 
   const waterTable = hydrology.waterTable ?? hydrology.filledElevation;
+  let seaLevelAdjustment = 0;
 
-  for (let y = 0; y < mapHeight; y++) {
-    const row = [];
-    const typeRow = [];
-    for (let x = 0; x < mapWidth; x++) {
-      const gx = effectiveXStart + x;
-      const gy = effectiveYStart + y;
-      const elevation = elevations[y][x];
-      const hydroType = hydrology.types[y]?.[x] ?? 'land';
-      let type;
-      if (hydroType && hydroType !== 'land') {
-        type = hydroType;
-      } else {
-        const vegNoise = vegetationNoise(seed, gx, gy, vegScale);
-        type = vegNoise < openLand ? 'open' : 'forest';
-        const oreVal = oreNoise(seed, gx, gy, oreScale);
-        if (oreVal > oreThreshold && elevation >= hydrology.seaLevel) {
-          type = 'ore';
-        }
-      }
-      const symbol = TERRAIN_SYMBOLS[type] || '?';
-      row.push(symbol);
-      typeRow.push(type);
+  const baseHydroTypes = hydrology.types.map(row => row.slice());
+
+  function classifyTerrain(seaLevel) {
+    const adjustedSeaLevel = clamp(seaLevel, 0, 1);
+    hydrology.seaLevel = adjustedSeaLevel;
+    if (hydrology.rules) {
+      hydrology.rules.seaLevel = adjustedSeaLevel;
     }
-    tiles.push(row);
-    terrainTypes.push(typeRow);
+    for (let y = 0; y < mapHeight; y++) {
+      const typeRow = terrainTypes[y];
+      for (let x = 0; x < mapWidth; x++) {
+        const gx = baseXStart + x;
+        const gy = baseYStart + y;
+        const elevation = elevations[y][x];
+        const originalHydro = baseHydroTypes[y]?.[x] ?? 'land';
+        let hydroType = originalHydro ?? 'land';
+        if (hydroType === 'ocean' || hydroType === 'lake') {
+          if (elevation >= adjustedSeaLevel) {
+            hydroType = 'land';
+          }
+        } else if (hydroType === 'land' || hydroType === 'coast' || hydroType === 'marsh') {
+          if (elevation < adjustedSeaLevel) {
+            hydroType = 'ocean';
+          }
+        }
+        hydrology.types[y][x] = hydroType;
+        let type;
+        if (hydroType && hydroType !== 'land') {
+          type = hydroType;
+        } else {
+          const vegNoise = vegetationNoise(seed, gx, gy, vegScale);
+          type = vegNoise < openLand ? 'open' : 'forest';
+          const oreVal = oreNoise(seed, gx, gy, oreScale);
+          if (oreVal > oreThreshold && elevation >= adjustedSeaLevel) {
+            type = 'ore';
+          }
+        }
+        typeRow[x] = type;
+      }
+    }
   }
 
-  const waterSurfaceThreshold = hydrology.seaLevel + 1e-5;
+  classifyTerrain(hydrology.seaLevel);
+
+  const COAST_NEIGHBORS = [
+    [-1, -1],
+    [0, -1],
+    [1, -1],
+    [-1, 0],
+    [1, 0],
+    [-1, 1],
+    [0, 1],
+    [1, 1]
+  ];
+
+  function computeCoastlineRatio({ includeClusters = false } = {}) {
+    const coastline = [];
+    for (let y = 0; y < mapHeight; y++) {
+      for (let x = 0; x < mapWidth; x++) {
+        const terrain = terrainTypes[y]?.[x];
+        if (!terrain || isWaterTerrain(terrain)) continue;
+        const touchesOcean = COAST_NEIGHBORS.some(([dx, dy]) => {
+          const nx = x + dx;
+          const ny = y + dy;
+          if (nx < 0 || ny < 0 || nx >= mapWidth || ny >= mapHeight) return false;
+          return hydrology.types[ny]?.[nx] === 'ocean';
+        });
+        if (touchesOcean) {
+          coastline.push([x, y]);
+        }
+      }
+    }
+
+    if (!coastline.length) {
+      return { length: 0, largest: 0, ratio: 1, clusters: [], largestIndex: -1 };
+    }
+
+    const visited = new Set();
+    const coastlineSet = new Set(coastline.map(([x, y]) => y * mapWidth + x));
+    let largest = 0;
+    let largestIndex = -1;
+    const clusters = includeClusters ? [] : null;
+    let clusterIndex = 0;
+
+    for (const [sx, sy] of coastline) {
+      const startKey = sy * mapWidth + sx;
+      if (visited.has(startKey)) continue;
+      const queue = [[sx, sy]];
+      visited.add(startKey);
+      let size = 0;
+      const tiles = includeClusters ? [] : null;
+      while (queue.length) {
+        const [cx, cy] = queue.shift();
+        size += 1;
+        if (tiles) {
+          tiles.push([cx, cy]);
+        }
+        for (const [dx, dy] of COAST_NEIGHBORS) {
+          const nx = cx + dx;
+          const ny = cy + dy;
+          if (nx < 0 || ny < 0 || nx >= mapWidth || ny >= mapHeight) continue;
+          const key = ny * mapWidth + nx;
+          if (!coastlineSet.has(key) || visited.has(key)) continue;
+          visited.add(key);
+          queue.push([nx, ny]);
+        }
+      }
+      if (size > largest) {
+        largest = size;
+        largestIndex = clusterIndex;
+      }
+      if (tiles) {
+        clusters.push({ size, tiles });
+        clusterIndex += 1;
+      }
+    }
+
+    return {
+      length: coastline.length,
+      largest,
+      ratio: largest / coastline.length,
+      clusters: clusters ?? [],
+      largestIndex
+    };
+  }
+
+  const chunkRenderer = createChunkRenderer({
+    width: mapWidth,
+    height: mapHeight,
+    tiles,
+    terrainTypes,
+    chunkSize: DEFAULT_CHUNK_SIZE
+  });
+
+  chunkRenderer.renderAll();
+
+  const baseSeaLevel = hydrology.seaLevel;
+
+  function setSeaLevelAdjustment(adjustment) {
+    const clamped = clamp(adjustment, -0.2, 0.2);
+    if (Math.abs(clamped - seaLevelAdjustment) < 1e-6) {
+      return false;
+    }
+    seaLevelAdjustment = clamped;
+    classifyTerrain(baseSeaLevel + seaLevelAdjustment);
+    chunkRenderer.renderAll();
+    return true;
+  }
+
+  function smoothCoastlineClusters() {
+    const coastline = computeCoastlineRatio({ includeClusters: true });
+    if (!coastline.clusters.length || coastline.largestIndex < 0) {
+      return false;
+    }
+
+    const largestCluster = coastline.clusters[coastline.largestIndex];
+    if (!largestCluster || !largestCluster.tiles?.length) {
+      return false;
+    }
+
+    const changedChunks = new Set();
+
+    const markChunkForTile = (x, y) => {
+      if (x < 0 || y < 0 || x >= mapWidth || y >= mapHeight) {
+        return;
+      }
+      const chunkRow = Math.floor(y / chunkRenderer.chunkSize);
+      const chunkColumn = Math.floor(x / chunkRenderer.chunkSize);
+      if (
+        chunkRow < 0 ||
+        chunkColumn < 0 ||
+        chunkRow >= chunkRenderer.chunkRows ||
+        chunkColumn >= chunkRenderer.chunkColumns
+      ) {
+        return;
+      }
+      changedChunks.add(`${chunkRow}:${chunkColumn}`);
+    };
+
+    const ensureLandTile = (x, y) => {
+      if (x < 0 || y < 0 || x >= mapWidth || y >= mapHeight) {
+        return false;
+      }
+      const terrainRow = terrainTypes[y];
+      const hydroRow = hydrology.types[y];
+      if (!terrainRow || !hydroRow) {
+        return false;
+      }
+      let updated = false;
+      const current = terrainRow[x];
+      if (!current || isWaterTerrain(current)) {
+        terrainRow[x] = 'open';
+        updated = true;
+      }
+      if (hydroRow[x] !== 'land') {
+        hydroRow[x] = 'land';
+        updated = true;
+      }
+      if (updated) {
+        markChunkForTile(x, y);
+      }
+      return updated;
+    };
+
+    const traceLine = (x0, y0, x1, y1) => {
+      const points = [];
+      let cx = Math.trunc(x0);
+      let cy = Math.trunc(y0);
+      const targetX = Math.trunc(x1);
+      const targetY = Math.trunc(y1);
+      let dx = Math.abs(targetX - cx);
+      let dy = Math.abs(targetY - cy);
+      const sx = cx < targetX ? 1 : -1;
+      const sy = cy < targetY ? 1 : -1;
+      let err = dx - dy;
+
+      while (true) {
+        points.push([cx, cy]);
+        if (cx === targetX && cy === targetY) {
+          break;
+        }
+        const e2 = err * 2;
+        if (e2 > -dy) {
+          err -= dy;
+          cx += sx;
+        }
+        if (e2 < dx) {
+          err += dx;
+          cy += sy;
+        }
+      }
+      return points;
+    };
+
+    let changed = false;
+
+    coastline.clusters.forEach((cluster, index) => {
+      if (!cluster?.tiles?.length || index === coastline.largestIndex) {
+        return;
+      }
+
+      let bestPair = null;
+      let bestDistance = Infinity;
+      for (const [cx, cy] of cluster.tiles) {
+        for (const [lx, ly] of largestCluster.tiles) {
+          const dx = cx - lx;
+          const dy = cy - ly;
+          const distance = dx * dx + dy * dy;
+          if (distance < bestDistance) {
+            bestDistance = distance;
+            bestPair = {
+              from: [cx, cy],
+              to: [lx, ly]
+            };
+          }
+        }
+      }
+
+      if (!bestPair) {
+        return;
+      }
+
+      const path = traceLine(bestPair.from[0], bestPair.from[1], bestPair.to[0], bestPair.to[1]);
+      let clusterChanged = false;
+      for (let i = 1; i < path.length - 1; i++) {
+        const [px, py] = path[i];
+        clusterChanged = ensureLandTile(px, py) || clusterChanged;
+      }
+
+      if (clusterChanged) {
+        changed = true;
+      }
+    });
+
+    if (changed) {
+      const chunks = Array.from(changedChunks).map(key => {
+        const [row, column] = key.split(':').map(value => Number.parseInt(value, 10));
+        return { row, column };
+      });
+      chunkRenderer.renderDirty({ chunks, full: false });
+    }
+
+    return changed;
+  }
+
+  const waterSurfaceThreshold = () => hydrology.seaLevel + 1e-5;
   const isHydrologyWaterCell = (row, col) => {
     const type = terrainTypes[row]?.[col];
     if (type && isWaterTerrain(type)) {
@@ -769,95 +929,304 @@ export function generateColorMap(
       return false;
     }
     const level = tableRow[col];
-    return Number.isFinite(level) && level <= waterSurfaceThreshold;
+    return Number.isFinite(level) && level <= waterSurfaceThreshold();
   };
 
-  const waterLevel = Number.isFinite(waterLevelOverride)
+  function findNearestLandAnchor(currentXStart, currentYStart) {
+    let closestLand = null;
+    for (let row = 0; row < mapHeight; row++) {
+      const rowData = terrainTypes[row];
+      if (!rowData) continue;
+      for (let col = 0; col < mapWidth; col++) {
+        if (isHydrologyWaterCell(row, col)) continue;
+        const worldX = currentXStart + col;
+        const worldY = currentYStart + row;
+        const distance = Math.hypot(worldX, worldY);
+        if (
+          !closestLand ||
+          distance < closestLand.distance ||
+          (distance === closestLand.distance &&
+            (Math.abs(worldY) < Math.abs(closestLand.worldY) ||
+              (Math.abs(worldY) === Math.abs(closestLand.worldY) &&
+                Math.abs(worldX) < Math.abs(closestLand.worldX))))
+        ) {
+          closestLand = { worldX, worldY, distance };
+        }
+      }
+    }
+    return closestLand;
+  }
+
+  let waterLevel = Number.isFinite(waterLevelOverride)
     ? clamp(waterLevelOverride, 0, 1)
     : hydrology.seaLevel;
-
-  const originColIndex = -effectiveXStart;
-  const originRowIndex = -effectiveYStart;
-  const originInBounds =
-    originColIndex >= 0 &&
-    originColIndex < mapWidth &&
-    originRowIndex >= 0 &&
-    originRowIndex < mapHeight;
 
   let originShiftX = 0;
   let originShiftY = 0;
 
-  if (originInBounds) {
-    if (isHydrologyWaterCell(originRowIndex, originColIndex)) {
-      let closestLand = null;
-      for (let row = 0; row < mapHeight; row++) {
-        const rowData = terrainTypes[row];
-        if (!rowData) continue;
-        for (let col = 0; col < mapWidth; col++) {
-          if (isHydrologyWaterCell(row, col)) continue;
-          const worldX = effectiveXStart + col;
-          const worldY = effectiveYStart + row;
-          const distance = Math.hypot(worldX, worldY);
-          if (
-            !closestLand ||
-            distance < closestLand.distance ||
-            (distance === closestLand.distance &&
-              (Math.abs(worldY) < Math.abs(closestLand.worldY) ||
-                (Math.abs(worldY) === Math.abs(closestLand.worldY) && Math.abs(worldX) < Math.abs(closestLand.worldX))))
-          ) {
-            closestLand = { localX: col, localY: row, worldX, worldY, distance };
+  const fairnessThresholds = { minLand: 0.5, maxOre: 0.4 };
+  const fairnessRadius = 100;
+  const solverSeed = worldSettings?.seed ?? seed;
+  const solver = new AdjustmentSolver({
+    parameters: {
+      xStart: effectiveXStart,
+      yStart: effectiveYStart,
+      originShiftX,
+      originShiftY,
+      seaLevelAdjustment
+    },
+    maxIterations: 6,
+    chunkSize: chunkRenderer.chunkSize,
+    chunkRows: chunkRenderer.chunkRows,
+    chunkColumns: chunkRenderer.chunkColumns,
+    gridWidth: mapWidth,
+    gridHeight: mapHeight,
+    evaluate: ({ parameters }) => {
+      const shiftX = parameters.originShiftX || 0;
+      const shiftY = parameters.originShiftY || 0;
+      const adjustedXStart = parameters.xStart - shiftX;
+      const adjustedYStart = parameters.yStart - shiftY;
+      const validation = validateStartingArea(
+        terrainTypes,
+        adjustedXStart,
+        adjustedYStart,
+        0,
+        0,
+        fairnessRadius,
+        fairnessThresholds
+      );
+      const coastline = computeCoastlineRatio();
+      const originCol = -adjustedXStart;
+      const originRow = -adjustedYStart;
+      const inBounds =
+        originCol >= 0 && originCol < mapWidth && originRow >= 0 && originRow < mapHeight;
+      const originIsWater = inBounds && isHydrologyWaterCell(originRow, originCol);
+      const coastlineSatisfied = coastline.ratio >= 0.95;
+      const score =
+        validation.landRatio - validation.oreRatio * 0.2 - (originIsWater ? 0.25 : 0);
+      return {
+        ...validation,
+        satisfied: validation.meetsLand && validation.meetsOre && !originIsWater && coastlineSatisfied,
+        xStart: adjustedXStart,
+        yStart: adjustedYStart,
+        originShiftX: parameters.originShiftX,
+        originShiftY: parameters.originShiftY,
+        seaLevelAdjustment: parameters.seaLevelAdjustment || 0,
+        coastline,
+        coastlineSatisfied,
+        coastlineRatio: coastline.ratio,
+        origin: {
+          col: originCol,
+          row: originRow,
+          inBounds,
+          isWater: originIsWater
+        },
+        thresholds: fairnessThresholds,
+        radius: fairnessRadius,
+        seed: solverSeed,
+        baseXStart: parameters.xStart,
+        baseYStart: parameters.yStart,
+        score
+      };
+    },
+    regenerate: ({ parameters, metrics, context }) => {
+      if (!metrics) {
+        return null;
+      }
+
+      const solverRef = context?.solver;
+      const markOriginChunk = (col, row) => {
+        if (!solverRef) return;
+        if (!Number.isFinite(col) || !Number.isFinite(row)) return;
+        solverRef.markTileDirty(col, row);
+      };
+
+      const shiftX = parameters.originShiftX || 0;
+      const shiftY = parameters.originShiftY || 0;
+      const adjustedXStart = parameters.xStart - shiftX;
+      const adjustedYStart = parameters.yStart - shiftY;
+
+      if (metrics.origin?.isWater) {
+        const fallback = findNearestLandAnchor(adjustedXStart, adjustedYStart);
+        if (fallback) {
+          markOriginChunk(metrics.origin.col, metrics.origin.row);
+          const next = {
+            originShiftX: shiftX + fallback.worldX,
+            originShiftY: shiftY + fallback.worldY,
+            seaLevelAdjustment: parameters.seaLevelAdjustment || 0
+          };
+          const nextAdjustedXStart = parameters.xStart - next.originShiftX;
+          const nextAdjustedYStart = parameters.yStart - next.originShiftY;
+          markOriginChunk(-nextAdjustedXStart, -nextAdjustedYStart);
+          const distance = formatDistance(fallback.worldX, fallback.worldY);
+          const message =
+            distance > 0
+              ? `Shifted the landing ${distance} tiles to escape flooded ground.`
+              : 'Shifted the landing away from flooded ground.';
+          return { parameters: next, message };
+        }
+      }
+
+      if (!metrics.meetsLand) {
+        const currentAdjustment = parameters.seaLevelAdjustment || 0;
+        const nextAdjustment = clamp(currentAdjustment - 0.02, -0.3, 0.2);
+        if (nextAdjustment !== currentAdjustment) {
+          const adjusted = context.applySeaLevelAdjustment?.(nextAdjustment);
+          if (adjusted) {
+            return {
+              parameters: {
+                xStart: parameters.xStart,
+                yStart: parameters.yStart,
+                originShiftX: shiftX,
+                originShiftY: shiftY,
+                seaLevelAdjustment: nextAdjustment
+              },
+              message: 'Lowered the sea level to reveal additional shoreline.',
+              markAllDirty: true
+            };
           }
         }
       }
-      if (closestLand) {
-        originShiftX = closestLand.worldX;
-        originShiftY = closestLand.worldY;
-        effectiveXStart -= originShiftX;
-        effectiveYStart -= originShiftY;
+
+      if (!metrics.meetsLand || !metrics.meetsOre) {
+        const fallback = findValidSpawn(
+          terrainTypes,
+          adjustedXStart,
+          adjustedYStart,
+          fairnessRadius,
+          fairnessThresholds,
+          { limit: 400 }
+        );
+        const fallbackValid = fallback?.validation;
+        if (
+          fallback &&
+          fallbackValid?.meetsLand &&
+          fallbackValid?.meetsOre &&
+          (fallback.worldX !== 0 || fallback.worldY !== 0)
+        ) {
+          markOriginChunk(metrics.origin?.col, metrics.origin?.row);
+          const next = {
+            originShiftX: shiftX + fallback.worldX,
+            originShiftY: shiftY + fallback.worldY,
+            seaLevelAdjustment: parameters.seaLevelAdjustment || 0
+          };
+          const nextAdjustedXStart = parameters.xStart - next.originShiftX;
+          const nextAdjustedYStart = parameters.yStart - next.originShiftY;
+          markOriginChunk(-nextAdjustedXStart, -nextAdjustedYStart);
+          const distance = formatDistance(fallback.worldX, fallback.worldY);
+          const message =
+            distance > 0
+              ? `Relocated the spawn ${distance} tiles toward balanced terrain.`
+              : 'Relocated the spawn toward balanced terrain.';
+          return { parameters: next, message };
+        }
       }
+
+      if (Number.isFinite(metrics.coastlineRatio) && metrics.coastlineRatio < 0.95) {
+        const currentAdjustment = parameters.seaLevelAdjustment || 0;
+        const nextAdjustment = clamp(currentAdjustment + 0.02, -0.3, 0.3);
+        if (nextAdjustment !== currentAdjustment) {
+          const adjusted = context.applySeaLevelAdjustment?.(nextAdjustment);
+          if (adjusted) {
+            return {
+              parameters: {
+                xStart: parameters.xStart,
+                yStart: parameters.yStart,
+                originShiftX: shiftX,
+                originShiftY: shiftY,
+                seaLevelAdjustment: nextAdjustment
+              },
+              message: 'Raised the sea level to smooth the coastline.',
+              markAllDirty: true
+            };
+          }
+        }
+      }
+
+      return { stop: true };
     }
+  });
+
+  const solverResult = solver.solve({ applySeaLevelAdjustment: setSeaLevelAdjustment });
+  const solverMessages = solverResult?.messages ? [...solverResult.messages] : [];
+  if (solverResult?.dirty) {
+    chunkRenderer.renderDirty(solverResult.dirty);
   }
 
-  const sanityContext = {
+  const smoothingApplied = smoothCoastlineClusters();
+  if (smoothingApplied) {
+    solverMessages.push('Smoothed minor coastline fragments for continuity.');
+  }
+
+  if (solverResult?.parameters) {
+    originShiftX = solverResult.parameters.originShiftX || 0;
+    originShiftY = solverResult.parameters.originShiftY || 0;
+    effectiveXStart = solverResult.parameters.xStart - originShiftX;
+    effectiveYStart = solverResult.parameters.yStart - originShiftY;
+  }
+
+  if (!Number.isFinite(waterLevelOverride)) {
+    waterLevel = hydrology.seaLevel;
+  }
+
+  const finalCoastline = computeCoastlineRatio();
+  const finalValidation = validateStartingArea(
     terrainTypes,
-    tiles,
     effectiveXStart,
     effectiveYStart,
+    0,
+    0,
+    fairnessRadius,
+    fairnessThresholds
+  );
+  const finalOriginCol = -effectiveXStart;
+  const finalOriginRow = -effectiveYStart;
+  const finalOriginInBounds =
+    finalOriginCol >= 0 && finalOriginCol < mapWidth && finalOriginRow >= 0 && finalOriginRow < mapHeight;
+  const finalOriginWater = finalOriginInBounds && isHydrologyWaterCell(finalOriginRow, finalOriginCol);
+  const finalMetrics = {
+    ...finalValidation,
+    xStart: effectiveXStart,
+    yStart: effectiveYStart,
     originShiftX,
     originShiftY,
-    hydrology
+    seaLevelAdjustment: solverResult?.parameters?.seaLevelAdjustment || 0,
+    coastline: finalCoastline,
+    coastlineRatio: finalCoastline.ratio,
+    coastlineSatisfied: finalCoastline.ratio >= 0.95,
+    origin: {
+      col: finalOriginCol,
+      row: finalOriginRow,
+      inBounds: finalOriginInBounds,
+      isWater: finalOriginWater
+    },
+    satisfied:
+      finalValidation.meetsLand &&
+      finalValidation.meetsOre &&
+      !finalOriginWater &&
+      finalCoastline.ratio >= 0.95
   };
-  const sanitySeed = worldSettings?.seed ?? seed;
-  const { adjustments: sanityAdjustments, validation: sanityValidation } = applySanityChecks(
-    sanityContext,
-    {
-      radius: 100,
-      maxAttempts: 5,
-      seed: sanitySeed,
-      fallbackSeed: seed
-    }
-  );
 
-  effectiveXStart = sanityContext.effectiveXStart;
-  effectiveYStart = sanityContext.effectiveYStart;
-  originShiftX = sanityContext.originShiftX;
-  originShiftY = sanityContext.originShiftY;
-
-  if (sanityAdjustments.length) {
-    const ratioSummary = sanityValidation
-      ? ` (land ${Math.round(sanityValidation.landRatio * 100)}% • ore ${Math.round(
-          sanityValidation.oreRatio * 100
+  if (solverMessages.length) {
+    const ratioSummary = finalMetrics
+      ? ` (land ${Math.round(finalMetrics.landRatio * 100)}% • ore ${Math.round(
+          finalMetrics.oreRatio * 100
         )}% of usable land)`
       : '';
-    const detail = sanityAdjustments.join(' ');
+    const detail = solverMessages.join(' ');
     notifySanityCheck(`Adjusted landing zone for fairness: ${detail}${ratioSummary}`, {
-      adjustments: sanityAdjustments,
-      validation: sanityValidation
+      metrics: finalMetrics,
+      history: solverResult.history,
+      iterations: solverResult.iterations
     });
   }
 
-  const flagColIndex = -effectiveXStart;
-  const flagRowIndex = -effectiveYStart;
+  let flagColIndex = -effectiveXStart;
+  let flagRowIndex = -effectiveYStart;
+  if (finalMetrics?.origin?.inBounds) {
+    flagColIndex = finalMetrics.origin.col;
+    flagRowIndex = finalMetrics.origin.row;
+  }
   if (
     flagColIndex >= 0 &&
     flagColIndex < mapWidth &&
@@ -899,6 +1268,12 @@ export function generateColorMap(
     season,
     waterLevel,
     hydrology,
+    solver: {
+      metrics: finalMetrics,
+      history: solverResult?.history ?? [],
+      iterations: solverResult?.iterations ?? 0,
+      messages: solverMessages
+    },
     worldSettings: world,
     viewport: viewportDetails
   };
