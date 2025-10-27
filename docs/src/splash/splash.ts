@@ -1,6 +1,7 @@
 /**
  * Splash screen module for Fantasy Survival.
  */
+import { getStorageItem } from "../safeStorage.js";
 
 /** Storage key for the serialized game save. */
 export const SAVE_STORAGE_KEY = "gameSave";
@@ -61,15 +62,7 @@ let mountedSplashRoot: HTMLElement | null = null;
 
 function checkStoredSave(): SaveCheckResult {
   try {
-    if (typeof window === "undefined" || !("localStorage" in window)) {
-      return { valid: false, mismatchedVersion: false };
-    }
-
-    const storage = window.localStorage;
-    if (!storage) {
-      return { valid: false, mismatchedVersion: false };
-    }
-    const raw = storage.getItem(SAVE_STORAGE_KEY);
+    const raw = getStorageItem(SAVE_STORAGE_KEY);
     if (!raw) {
       return { valid: false, mismatchedVersion: false };
     }

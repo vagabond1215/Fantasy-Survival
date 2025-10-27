@@ -3,6 +3,7 @@ import { refreshStats } from './people.js';
 import { computeCenteredStart, DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, generateColorMap } from './map.js';
 import { refreshBuildingUnlocks } from './buildings.js';
 import { initializeTechnologyRegistry } from './technology.js';
+import { getStorageItem, removeStorageItem, setStorageItem } from './safeStorage.js';
 
 const SAVE_KEY = 'fantasy-survival-save';
 
@@ -10,7 +11,7 @@ const SAVE_KEY = 'fantasy-survival-save';
 export function saveGame() {
   try {
     const data = store.serialize();
-    localStorage.setItem(SAVE_KEY, JSON.stringify(data));
+    setStorageItem(SAVE_KEY, JSON.stringify(data));
   } catch (err) {
     console.error('Failed to save game', err);
   }
@@ -20,7 +21,7 @@ export function saveGame() {
 // Returns true if a save was loaded.
 export function loadGame() {
   try {
-    const data = localStorage.getItem(SAVE_KEY);
+    const data = getStorageItem(SAVE_KEY);
     if (!data) return false;
     store.deserialize(JSON.parse(data));
     initializeTechnologyRegistry();
@@ -97,7 +98,7 @@ export function loadGame() {
 // Remove any saved game data.
 export function clearSave() {
   try {
-    localStorage.removeItem(SAVE_KEY);
+    removeStorageItem(SAVE_KEY);
   } catch (err) {
     console.warn('Failed to clear saved game data.', err);
   }
