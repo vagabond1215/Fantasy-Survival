@@ -1,6 +1,6 @@
 // @ts-nocheck
 import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS } from './map.js';
-import { getTileColor, resolveTilePalette } from './map/tileColors.ts';
+import { getTileColor, resolveTilePalette } from './map/tileColors.js';
 
 const DEVELOPMENT_STATUS_ALIASES = new Map(
   [
