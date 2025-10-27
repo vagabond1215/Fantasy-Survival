@@ -1770,14 +1770,9 @@ export function initSetupUI(onStart) {
     const sliderId = `difficulty-slider-${key}`;
     label.setAttribute('for', sliderId);
     label.textContent = def.label;
-
-    const number = document.createElement('input');
-    number.type = 'number';
-    number.inputMode = 'numeric';
-    number.min = String(def.min);
-    number.max = String(def.max);
-    number.step = String(def.step ?? 1);
-    number.className = 'difficulty-param__number';
+    if (def.hint) {
+      label.title = def.hint;
+    }
 
     const slider = document.createElement('input');
     slider.type = 'range';
@@ -1791,55 +1786,15 @@ export function initSetupUI(onStart) {
     rangeWrapper.className = 'difficulty-param__range';
     rangeWrapper.appendChild(slider);
 
-    const valueBadge = document.createElement('button');
-    valueBadge.type = 'button';
+    const valueBadge = document.createElement('output');
     valueBadge.className = 'range__value';
-    valueBadge.addEventListener('click', () => {
-      number.focus();
-    });
+    valueBadge.setAttribute('for', sliderId);
+    valueBadge.setAttribute('aria-live', 'polite');
 
     const rangeGroup = document.createElement('div');
     rangeGroup.className = 'difficulty-param__range-group';
     rangeGroup.appendChild(rangeWrapper);
     rangeGroup.appendChild(valueBadge);
-
-    const quickValues = Array.from(
-      new Set([
-        def.min,
-        Math.round((def.min + def.max) / 2),
-        def.max
-      ])
-    );
-    const quickButtons = [];
-    const quickContainer = document.createElement('div');
-    quickContainer.className = 'range__chips';
-    quickValues.forEach(value => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'range__chip';
-      chip.dataset.value = String(value);
-      chip.textContent = String(value);
-      chip.setAttribute('aria-label', `Set ${def.label} to ${value}`);
-      chip.addEventListener('click', () => {
-        slider.value = String(value);
-        number.value = String(value);
-        updateRangeVisuals(value);
-        onChange(Number(value));
-      });
-      quickButtons.push(chip);
-      quickContainer.appendChild(chip);
-    });
-
-    const hintId = `difficulty-hint-${key}`;
-    let hintElement = null;
-    if (def.hint) {
-      hintElement = document.createElement('div');
-      hintElement.className = 'difficulty-param__hint';
-      hintElement.id = hintId;
-      hintElement.textContent = def.hint;
-      slider.setAttribute('aria-describedby', hintId);
-      number.setAttribute('aria-describedby', hintId);
-    }
 
     let isSyncing = false;
 
@@ -1852,7 +1807,6 @@ export function initSetupUI(onStart) {
         const stringValue = String(normalized);
         isSyncing = true;
         slider.value = stringValue;
-        number.value = stringValue;
         updateRangeVisuals(normalized);
         isSyncing = false;
       }
@@ -1869,14 +1823,6 @@ export function initSetupUI(onStart) {
       const percent = ((resolvedValue - def.min) / percentDenominator) * 100;
       slider.style.setProperty('--range-progress', `${percent}%`);
       valueBadge.textContent = String(resolvedValue);
-      quickButtons.forEach(button => {
-        const buttonValue = Number(button.dataset.value);
-        if (buttonValue === resolvedValue) {
-          button.classList.add('is-active');
-        } else {
-          button.classList.remove('is-active');
-        }
-      });
     };
 
     slider.addEventListener('input', () => {
@@ -1884,27 +1830,10 @@ export function initSetupUI(onStart) {
       updateRangeVisuals(nextValue);
       onChange(nextValue);
     });
-    number.addEventListener('change', () => {
-      const nextValue = Number(number.value);
-      updateRangeVisuals(nextValue);
-      onChange(nextValue);
-    });
-    number.addEventListener('input', () => {
-      if (isSyncing) return;
-      if (number.value === '') return;
-      const nextValue = Number(number.value);
-      updateRangeVisuals(nextValue);
-      onChange(nextValue);
-    });
 
     header.appendChild(label);
-    header.appendChild(number);
     wrapper.appendChild(header);
     wrapper.appendChild(rangeGroup);
-    wrapper.appendChild(quickContainer);
-    if (hintElement) {
-      wrapper.appendChild(hintElement);
-    }
 
     control.update(getPathValue(worldParameters, def.path));
     parameterControls.set(parameterKeyFromPath(def.path), control);
