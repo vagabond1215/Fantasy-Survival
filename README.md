@@ -39,6 +39,31 @@ that supports ES modules. The default entry point is `index.html` which loads
 
 ## Gameplay systems
 
+### World generation solver
+
+The procedural world builder lives under `src/worldgen/` and exposes a
+`buildWorld` helper that seeds parameters, iteratively tunes them with the
+`AdjustmentSolver`, and returns the scored parameter vector plus breakdown
+metrics. Habitat profiles in `src/worldgen/habitatProfiles.ts` define curated
+starting seeds and objective targets for each difficulty tier. The solver
+adjusts ore, rainfall, elevation, and hydrology parameters to minimise weighted
+deviation from those objectives while respecting the configured bounds and step
+sizes in `parameterDefinitions`.
+
+```ts
+import { buildWorld } from './src/worldgen';
+
+const result = buildWorld({ difficulty: 'hard', seed: 'weekly-challenge' });
+console.log(result.parameters.oreDensity, result.metrics['advanced.elevationScale']);
+```
+
+Pass a `profileId` to lock a specific habitat template or supply
+`overrides`/custom `objectives` to steer the solver toward bespoke targets. The
+API is deterministic when called with the same `seed`, making it safe for
+tests and reproducible scenarios. When tweaking solver behaviour, update the
+mirrored files under `docs/src/worldgen/` by running `npm run sync-docs` so the
+documentation build stays synchronised.
+
 ### Travel distance and time
 
 Each map tile represents `GRID_DISTANCE_METERS` metres (currently 100 m). Movement between
