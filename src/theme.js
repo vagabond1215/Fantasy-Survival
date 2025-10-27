@@ -1,3 +1,5 @@
+import { getStorageItem, setStorageItem } from './safeStorage.js';
+
 const THEME_SELECTION_STORAGE_KEY = 'theme:selected';
 const THEME_APPEARANCE_STORAGE_KEY = 'theme:appearance';
 const LEGACY_THEME_STORAGE_KEYS = ['theme'];
@@ -782,14 +784,10 @@ function resolveSystemPreferenceQuery() {
 function detectPreferredAppearance() {
   const keys = [THEME_APPEARANCE_STORAGE_KEY, ...LEGACY_THEME_STORAGE_KEYS];
   for (const key of keys) {
-    try {
-      const stored = localStorage.getItem(key);
-      if (stored && APPEARANCE_VALUES.has(stored)) {
-        hasStoredAppearancePreference = true;
-        return stored;
-      }
-    } catch (error) {
-      console.warn('Unable to access theme appearance preference.', error);
+    const stored = getStorageItem(key);
+    if (stored && APPEARANCE_VALUES.has(stored)) {
+      hasStoredAppearancePreference = true;
+      return stored;
     }
   }
   const query = resolveSystemPreferenceQuery();
@@ -807,19 +805,15 @@ function detectPreferredTheme(preferredAppearance) {
 function readStoredThemeSelection() {
   const keys = [THEME_SELECTION_STORAGE_KEY, ...LEGACY_THEME_STORAGE_KEYS];
   for (const key of keys) {
-    try {
-      const stored = localStorage.getItem(key);
-      if (stored) {
-        if (VALID_THEMES.has(stored)) {
-          return stored;
-        }
-        const alias = LEGACY_THEME_ALIASES.get(stored);
-        if (alias && VALID_THEMES.has(alias)) {
-          return alias;
-        }
+    const stored = getStorageItem(key);
+    if (stored) {
+      if (VALID_THEMES.has(stored)) {
+        return stored;
       }
-    } catch (error) {
-      console.warn('Unable to access theme preference storage.', error);
+      const alias = LEGACY_THEME_ALIASES.get(stored);
+      if (alias && VALID_THEMES.has(alias)) {
+        return alias;
+      }
     }
   }
   return null;
@@ -1067,13 +1061,9 @@ function updateTheme(nextTheme, { persist = true } = {}) {
 
   if (persist) {
     hasStoredThemePreference = true;
-    try {
-      localStorage.setItem(THEME_SELECTION_STORAGE_KEY, nextTheme);
-      if (LEGACY_THEME_STORAGE_KEYS[0]) {
-        localStorage.setItem(LEGACY_THEME_STORAGE_KEYS[0], nextTheme);
-      }
-    } catch (error) {
-      console.warn('Unable to persist theme preference.', error);
+    setStorageItem(THEME_SELECTION_STORAGE_KEY, nextTheme);
+    if (LEGACY_THEME_STORAGE_KEYS[0]) {
+      setStorageItem(LEGACY_THEME_STORAGE_KEYS[0], nextTheme);
     }
   }
 
@@ -1092,11 +1082,7 @@ function applyAppearance(nextAppearance, { persist = true, notify = true } = {})
   }
   if (persist) {
     hasStoredAppearancePreference = true;
-    try {
-      localStorage.setItem(THEME_APPEARANCE_STORAGE_KEY, nextAppearance);
-    } catch (error) {
-      console.warn('Unable to persist theme appearance preference.', error);
-    }
+    setStorageItem(THEME_APPEARANCE_STORAGE_KEY, nextAppearance);
   }
   currentAppearance = nextAppearance;
   applyThemeVariables();
