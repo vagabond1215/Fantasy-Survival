@@ -1,5 +1,79 @@
+/**
+ * @typedef {{
+ *   xStart?: number,
+ *   yStart?: number,
+ *   originShiftX?: number,
+ *   originShiftY?: number,
+ *   [key: string]: any
+ * }} SolverParameters
+ */
+
+/**
+ * @typedef {{
+ *   satisfied?: boolean,
+ *   score?: number,
+ *   landRatio?: number,
+ *   oreRatio?: number,
+ *   origin?: {
+ *     isWater?: boolean
+ *   },
+ *   stats?: Record<string, any>
+ * }} SolverMetrics
+ */
+
+/**
+ * @typedef {{
+ *   parameters: SolverParameters,
+ *   iteration: number,
+ *   context: Record<string, any>
+ * }} EvaluatePayload
+ */
+
+/**
+ * @typedef {{
+ *   parameters: SolverParameters,
+ *   metrics: SolverMetrics,
+ *   iteration: number,
+ *   context: Record<string, any>
+ * }} RegeneratePayload
+ */
+
+/**
+ * @typedef {{
+ *   parameters?: SolverParameters,
+ *   message?: string,
+ *   messages?: string[],
+ *   markAllDirty?: boolean,
+ *   markTiles?: Array<{x: number, y: number}>,
+ *   markChunks?: Array<{row: number, column: number}>,
+ *   stop?: boolean
+ * }} RegenerateUpdate
+ */
+
+/**
+ * @typedef {(payload: EvaluatePayload) => (SolverMetrics | null | undefined)} AdjustmentEvaluateFn
+ */
+
+/**
+ * @typedef {(payload: RegeneratePayload) => (RegenerateUpdate | null | undefined)} AdjustmentRegenerateFn
+ */
+
+/**
+ * @typedef {{
+ *   parameters?: SolverParameters,
+ *   evaluate?: AdjustmentEvaluateFn,
+ *   regenerate?: AdjustmentRegenerateFn,
+ *   maxIterations?: number,
+ *   chunkSize?: number,
+ *   chunkRows?: number,
+ *   chunkColumns?: number,
+ *   gridWidth?: number,
+ *   gridHeight?: number
+ * }} AdjustmentSolverOptions
+ */
+
 export class AdjustmentSolver {
-  constructor({
+  constructor(/** @type {AdjustmentSolverOptions} */ {
     parameters = {},
     evaluate,
     regenerate,
@@ -10,8 +84,11 @@ export class AdjustmentSolver {
     gridWidth = 0,
     gridHeight = 0
   } = {}) {
+    /** @type {SolverParameters} */
     this.parameters = { ...parameters };
+    /** @type {AdjustmentEvaluateFn} */
     this.evaluate = typeof evaluate === 'function' ? evaluate : () => null;
+    /** @type {AdjustmentRegenerateFn} */
     this.regenerate = typeof regenerate === 'function' ? regenerate : () => null;
     this.maxIterations = Math.max(1, Math.trunc(maxIterations));
     this.chunkSize = Math.max(1, Math.trunc(chunkSize));
