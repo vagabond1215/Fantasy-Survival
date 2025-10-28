@@ -1,6 +1,8 @@
 // @ts-nocheck
 import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS } from './map.js';
 import { getTileColor, resolveTilePalette } from './map/tileColors.js';
+import { createCamera } from './map/camera.ts';
+import { createMapRenderer } from './map/renderer.ts';
 
 const DEVELOPMENT_STATUS_ALIASES = new Map(
   [
@@ -257,7 +259,6 @@ const LEGEND_DEFAULTS = {
 
 const BUFFER_MARGIN = 12;
 const DEFAULT_TILE_BASE_SIZE = 32;
-const MARKER_LAYER_BASE_TRANSFORM = 'translate(-50%, -50%)';
 
 function computeBufferPadding(dimensions, viewportWidth, viewportHeight) {
   const cols = Math.max(0, dimensions?.cols ?? 0);
@@ -454,7 +455,11 @@ export function createMapView(container, {
     zoomBase: { width: 0, height: 0 },
     zoomDisplayFactor: 1,
     tileBaseSize: DEFAULT_TILE_BASE_SIZE,
+    camera: null,
+    renderer: null,
+    renderScheduled: false,
     markerLayer: null,
+    dataLayer: null,
     markerElements: new Map(),
     markerDefs: [],
     useTerrainColors: Boolean(useTerrainColors),
@@ -661,34 +666,6 @@ export function createMapView(container, {
     return getTileColor(normalizedType);
   }
 
-  function applyTileAppearance(tile, type, symbol) {
-    if (!tile) return;
-    const symbolEl = tile.firstElementChild;
-    if (!symbolEl) {
-      tile.textContent = symbol ?? '';
-      return;
-    }
-
-    const fillColor = resolveTerrainColor(type);
-    const defaultSymbol = type ? TERRAIN_SYMBOLS?.[type] : null;
-    if (fillColor) {
-      tile.classList.add('map-tile--fill');
-      symbolEl.style.backgroundColor = fillColor;
-      symbolEl.style.borderRadius = '6px';
-      symbolEl.style.boxSizing = 'border-box';
-      symbolEl.style.width = '100%';
-      symbolEl.style.height = '100%';
-      symbolEl.style.boxShadow = 'inset 0 0 0 1px rgba(0, 0, 0, 0.18)';
-      symbolEl.textContent = symbol && symbol !== defaultSymbol ? symbol : '';
-    } else {
-      tile.classList.remove('map-tile--fill');
-      symbolEl.style.backgroundColor = 'transparent';
-      symbolEl.style.borderRadius = '0';
-      symbolEl.style.boxShadow = 'none';
-      symbolEl.textContent = symbol ?? '';
-    }
-  }
-
   const DEVELOPMENT_CLASSNAMES = [
     'map-tile--developed',
     'map-tile--developed-pending',
@@ -784,72 +761,6 @@ export function createMapView(container, {
     };
   }
 
-  function clearTileDevelopment(tile) {
-    if (!tile || !(tile instanceof Element)) return;
-    DEVELOPMENT_CLASSNAMES.forEach(className => tile.classList.remove(className));
-    delete tile.dataset.development;
-    delete tile.dataset.developmentLabel;
-    delete tile.dataset.developmentStatus;
-    delete tile.dataset.developmentDetails;
-    delete tile.dataset.developmentCount;
-  }
-
-  function applyTileDevelopment(tile, worldX, worldY) {
-    if (!tile) return;
-    clearTileDevelopment(tile);
-    const info = getDevelopmentInfo(worldX, worldY);
-    if (!info) return;
-    tile.classList.add('map-tile--developed');
-    if (info.status === 'under-construction') {
-      tile.classList.add('map-tile--developed-pending');
-    } else if (info.status === 'completed') {
-      tile.classList.add('map-tile--developed-complete');
-    } else if (info.status === 'planned') {
-      tile.classList.add('map-tile--developed-planned');
-    } else {
-      tile.classList.add('map-tile--developed-mixed');
-    }
-    if (info.emphasis || info.highlight) {
-      tile.classList.add('map-tile--developed-emphasis');
-    }
-    tile.dataset.development = 'true';
-    if (info.label) {
-      tile.dataset.developmentLabel = info.label;
-    }
-    if (info.status) {
-      tile.dataset.developmentStatus = info.status;
-    }
-    const detailText = info.tooltip || (info.structures?.length ? info.structures.join(', ') : '');
-    if (detailText) {
-      tile.dataset.developmentDetails = detailText;
-    }
-    if (Number.isFinite(info.count) && info.count > 0) {
-      tile.dataset.developmentCount = `${info.count}`;
-    }
-  }
-
-  function syncDevelopmentOverlay() {
-    if (!mapDisplay || typeof mapDisplay.children === 'undefined') return;
-    if (!state.map?.tiles?.length) {
-      Array.from(mapDisplay.children).forEach(tile => clearTileDevelopment(tile));
-      return;
-    }
-    const rows = state.map.tiles.length;
-    const cols = state.map.tiles[0].length;
-    const tiles = mapDisplay.children;
-    if (!tiles || !tiles.length) return;
-    let index = 0;
-    for (let row = 0; row < rows; row++) {
-      for (let col = 0; col < cols; col++) {
-        const tile = tiles[index++];
-        if (!tile) continue;
-        const worldX = state.map.xStart + col;
-        const worldY = state.map.yStart + row;
-        applyTileDevelopment(tile, worldX, worldY);
-      }
-    }
-  }
-
   function applyDevelopments(entries = []) {
     const normalized = Array.isArray(entries)
       ? entries.map((entry, index) => normalizeDevelopment(entry, index)).filter(Boolean)
@@ -859,7 +770,11 @@ export function createMapView(container, {
       next.set(info.key, info);
     });
     state.developmentTiles = next;
-    syncDevelopmentOverlay();
+    if (state.renderer) {
+      state.renderer.setDevelopments(state.developmentTiles);
+    }
+    updateTileDataLayer();
+    scheduleRender();
   }
 
   function commitMapUpdate() {
@@ -888,8 +803,10 @@ export function createMapView(container, {
     }
 
     updateZoomDisplayFactor();
-    render();
+    updateWrapperSize();
+    syncCameraToViewport({ snap: true });
     applyZoomTransform();
+    updateTileDataLayer();
 
     if (state.pendingZoomSync) {
       const needsSync = Math.abs(state.zoomDisplayFactor - 1) >= 0.001;
@@ -1043,64 +960,85 @@ export function createMapView(container, {
   mapCanvas.className = `${idPrefix}-canvas map-canvas`;
   mapCanvas.style.position = 'absolute';
   mapCanvas.style.inset = '0';
-  mapCanvas.style.display = 'flex';
-  mapCanvas.style.alignItems = 'center';
-  mapCanvas.style.justifyContent = 'center';
-  mapCanvas.style.overflow = 'visible';
+  mapCanvas.style.display = 'block';
+  mapCanvas.style.overflow = 'hidden';
   mapCanvas.style.boxSizing = 'border-box';
   mapWrapper.appendChild(mapCanvas);
 
-  const mapDisplay = document.createElement('div');
+  const mapDisplay = document.createElement('canvas');
   mapDisplay.className = `${idPrefix}-display map-display`;
-  mapDisplay.style.display = 'grid';
-  mapDisplay.style.gridTemplateColumns = 'none';
-  mapDisplay.style.gridAutoRows = 'var(--tile-size, 24px)';
-  mapDisplay.style.alignItems = 'center';
-  mapDisplay.style.justifyItems = 'center';
-  mapDisplay.style.fontFamily = '"Apple Color Emoji", "Noto Color Emoji", "Segoe UI Emoji", sans-serif';
-  mapDisplay.style.lineHeight = '1';
-  mapDisplay.style.margin = '0';
-  mapDisplay.style.padding = '0';
-  mapDisplay.style.position = 'relative';
-  mapDisplay.style.flex = '0 0 auto';
-  mapDisplay.style.transform = 'scale(1)';
-  mapDisplay.style.transformOrigin = 'center center';
+  mapDisplay.style.position = 'absolute';
+  mapDisplay.style.inset = '0';
+  mapDisplay.style.width = '100%';
+  mapDisplay.style.height = '100%';
+  mapDisplay.style.display = 'block';
   mapDisplay.style.boxSizing = 'border-box';
-  mapDisplay.style.setProperty('--tile-size', '24px');
+  mapDisplay.style.touchAction = 'none';
   mapCanvas.appendChild(mapDisplay);
+
+  const mapDataLayer = document.createElement('div');
+  mapDataLayer.className = `${idPrefix}-data map-display-data`;
+  mapDataLayer.style.display = 'none';
+  mapDataLayer.style.visibility = 'hidden';
+  mapDataLayer.style.pointerEvents = 'none';
+  mapDataLayer.setAttribute('aria-hidden', 'true');
+  mapCanvas.appendChild(mapDataLayer);
+
+  state.camera = createCamera({
+    viewportWidth: mapWrapper.clientWidth || 0,
+    viewportHeight: mapWrapper.clientHeight || 0,
+    minZoom: state.minZoom,
+    maxZoom: state.maxZoom,
+    initialZoom: state.zoom,
+    centerTile: { x: state.focus.x, y: state.focus.y }
+  });
+
+  state.renderer = createMapRenderer(mapDisplay, {
+    camera: state.camera,
+    tileBaseSize: state.tileBaseSize,
+    useTerrainColors: state.useTerrainColors,
+    getTerrainColor: type => resolveTerrainColor(type)
+  });
+  state.renderer.setDevelopments(state.developmentTiles);
+  state.dataLayer = mapDataLayer;
 
   const markerLayer = document.createElement('div');
   markerLayer.className = `${idPrefix}-marker-layer map-marker-layer`;
   markerLayer.style.position = 'absolute';
-  markerLayer.style.left = '50%';
-  markerLayer.style.top = '50%';
+  markerLayer.style.left = '0';
+  markerLayer.style.top = '0';
   markerLayer.style.pointerEvents = 'none';
   markerLayer.style.zIndex = '3';
   markerLayer.style.display = 'block';
-  markerLayer.style.transformOrigin = 'center center';
+  markerLayer.style.transformOrigin = 'top left';
   markerLayer.style.width = '100%';
   markerLayer.style.height = '100%';
-  markerLayer.style.transform = `${MARKER_LAYER_BASE_TRANSFORM} scale(1)`;
+  markerLayer.style.transform = 'none';
   mapCanvas.appendChild(markerLayer);
   state.markerLayer = markerLayer;
   syncMarkers();
 
+  const resolveTileFromEvent = event => {
+    if (!state.renderer || !state.map) return null;
+    const rect = mapDisplay.getBoundingClientRect();
+    const localX = event.clientX - rect.left;
+    const localY = event.clientY - rect.top;
+    if (localX < 0 || localY < 0 || localX > rect.width || localY > rect.height) {
+      return null;
+    }
+    return state.renderer.hitTest(localX, localY);
+  };
+
   mapDisplay.addEventListener('click', event => {
     if (typeof state.onTileClick !== 'function') return;
-    const target = event.target instanceof Element ? event.target.closest('.map-tile') : null;
-    if (!target || !mapDisplay.contains(target)) return;
-    const worldX = Number(target.dataset.worldX);
-    const worldY = Number(target.dataset.worldY);
-    if (!Number.isFinite(worldX) || !Number.isFinite(worldY)) return;
-    const colIndex = Number(target.dataset.col);
-    const rowIndex = Number(target.dataset.row);
+    const tileInfo = resolveTileFromEvent(event);
+    if (!tileInfo) return;
     const detail = {
-      x: worldX,
-      y: worldY,
-      col: Number.isFinite(colIndex) ? colIndex : null,
-      row: Number.isFinite(rowIndex) ? rowIndex : null,
-      terrain: target.dataset.terrain || null,
-      element: target,
+      x: tileInfo.x,
+      y: tileInfo.y,
+      col: tileInfo.col,
+      row: tileInfo.row,
+      terrain: tileInfo.type || null,
       event,
       map: state.map,
       context: { ...state.context }
@@ -1147,7 +1085,7 @@ export function createMapView(container, {
     tileTooltip.style.display = 'none';
   };
 
-  const updateTooltipPosition = (clientX, clientY, tile) => {
+  const updateTooltipPosition = (clientX, clientY, tileInfo) => {
     if (!tooltipState.visible) return;
     const rect = mapWrapper.getBoundingClientRect();
     let localX;
@@ -1155,10 +1093,10 @@ export function createMapView(container, {
     if (Number.isFinite(clientX) && Number.isFinite(clientY)) {
       localX = clientX - rect.left;
       localY = clientY - rect.top;
-    } else if (tile) {
-      const tileRect = tile.getBoundingClientRect();
-      localX = tileRect.left - rect.left + tileRect.width / 2;
-      localY = tileRect.top - rect.top + tileRect.height / 2;
+    } else if (tileInfo && state.camera) {
+      const center = state.camera.worldToScreenCenter(tileInfo.x, tileInfo.y, state.tileBaseSize);
+      localX = center.x;
+      localY = center.y;
     } else {
       localX = rect.width / 2;
       localY = rect.height / 2;
@@ -1169,35 +1107,37 @@ export function createMapView(container, {
     tileTooltip.style.top = `${clampedY}px`;
   };
 
-  const describeTile = tile => {
-    if (!tile) return 'Unknown terrain';
-    const type = tile.dataset.terrain || '';
+  const describeTile = tileInfo => {
+    if (!tileInfo) return 'Unknown terrain';
+    const type = tileInfo.type || '';
     const label = legendLabels[type] || type || 'Unknown terrain';
-    const symbolEl = tile.querySelector('.map-tile-symbol');
-    const symbol = symbolEl?.textContent?.trim() || tile.textContent?.trim() || '';
-    const worldX = Number.isFinite(Number(tile.dataset.worldX)) ? Number(tile.dataset.worldX) : null;
-    const worldY = Number.isFinite(Number(tile.dataset.worldY)) ? Number(tile.dataset.worldY) : null;
-    const coordText = worldX !== null && worldY !== null ? ` (${worldX}, ${worldY})` : '';
+    const symbol = tileInfo.symbol?.trim() || '';
+    const coordText = ` (${tileInfo.x}, ${tileInfo.y})`;
+    const developmentDetail = tileInfo.development?.tooltip || tileInfo.development?.structures?.join(', ');
     let developmentText = '';
-    if (worldX !== null && worldY !== null) {
-      const info = getDevelopmentInfo(worldX, worldY);
-      const detail = tile.dataset.developmentDetails || info?.tooltip || null;
+    if (tileInfo.development?.tooltip) {
+      developmentText = ` — ${tileInfo.development.tooltip}`;
+    } else if (!developmentDetail) {
+      const info = getDevelopmentInfo(tileInfo.x, tileInfo.y);
+      const detail = info?.tooltip || (info?.structures?.length ? info.structures.join(', ') : '');
       if (detail) {
         developmentText = ` — ${detail}`;
       }
+    } else {
+      developmentText = ` — ${developmentDetail}`;
     }
     return `${symbol ? `${symbol} ` : ''}${label}${coordText}${developmentText}`;
   };
 
-  const showTooltip = (tile, event = null) => {
-    if (!tile) return;
-    tileTooltip.textContent = describeTile(tile);
+  const showTooltip = (tileInfo, event = null) => {
+    if (!tileInfo) return;
+    tileTooltip.textContent = describeTile(tileInfo);
     tileTooltip.style.display = 'block';
     tooltipState.visible = true;
-    tooltipState.tile = tile;
+    tooltipState.tile = tileInfo;
     tooltipState.pointerId = event?.pointerId ?? null;
     tooltipState.pointerType = event?.pointerType ?? null;
-    updateTooltipPosition(event?.clientX, event?.clientY, tile);
+    updateTooltipPosition(event?.clientX, event?.clientY, tileInfo);
   };
 
   const clearHoldTimer = () => {
@@ -1210,29 +1150,29 @@ export function createMapView(container, {
     tooltipState.pointerType = null;
   };
 
-  const scheduleHoldTooltip = (event, tile) => {
+  const scheduleHoldTooltip = (event, tileInfo) => {
     clearHoldTimer();
-    tooltipState.holdTarget = tile;
+    tooltipState.holdTarget = tileInfo;
     tooltipState.pointerId = event.pointerId;
     tooltipState.pointerType = event.pointerType;
     tooltipState.holdOriginX = event.clientX;
     tooltipState.holdOriginY = event.clientY;
     tooltipState.holdTimer = setTimeout(() => {
       tooltipState.holdTimer = null;
-      showTooltip(tile, event);
+      showTooltip(tileInfo, event);
     }, 450);
   };
 
   const handlePointerOver = event => {
-    const tile = event.target instanceof Element ? event.target.closest('.map-tile') : null;
-    if (!tile) return;
+    const tileInfo = resolveTileFromEvent(event);
+    if (!tileInfo) return;
     if (event.pointerType === 'mouse') {
-      showTooltip(tile, event);
+      showTooltip(tileInfo, event);
     }
   };
 
   const handlePointerMove = event => {
-    const tile = event.target instanceof Element ? event.target.closest('.map-tile') : null;
+    const tileInfo = resolveTileFromEvent(event);
     if (tooltipState.holdTimer && tooltipState.pointerId === event.pointerId) {
       const dx = event.clientX - tooltipState.holdOriginX;
       const dy = event.clientY - tooltipState.holdOriginY;
@@ -1242,28 +1182,25 @@ export function createMapView(container, {
     }
     if (tooltipState.visible && tooltipState.pointerId === event.pointerId) {
       updateTooltipPosition(event.clientX, event.clientY, tooltipState.tile);
-    } else if (event.pointerType === 'mouse' && tile) {
-      showTooltip(tile, event);
+    } else if (event.pointerType === 'mouse' && tileInfo) {
+      showTooltip(tileInfo, event);
     }
   };
 
   const handlePointerOut = event => {
     if (event.pointerType === 'mouse') {
-      const relatedTile = event.relatedTarget instanceof Element ? event.relatedTarget.closest('.map-tile') : null;
-      if (!relatedTile) {
-        hideTooltip();
-      }
+      hideTooltip();
     }
   };
 
   const handlePointerDown = event => {
-    const tile = event.target instanceof Element ? event.target.closest('.map-tile') : null;
-    if (!tile) return;
+    const tileInfo = resolveTileFromEvent(event);
+    if (!tileInfo) return;
     if (event.pointerType === 'mouse') {
       hideTooltip();
       return;
     }
-    scheduleHoldTooltip(event, tile);
+    scheduleHoldTooltip(event, tileInfo);
   };
 
   const handlePointerUp = event => {
@@ -2846,9 +2783,9 @@ export function createMapView(container, {
       return;
     }
 
-    const width = state.map.width || 0;
-    const height = state.map.height || 0;
-    if (!width || !height) {
+    const width = state.map.width || state.map.tiles?.[0]?.length || 0;
+    const height = state.map.height || state.map.tiles?.length || 0;
+    if (!width || !height || !state.camera) {
       state.markerElements.forEach(element => {
         if (element) element.style.display = 'none';
       });
@@ -2894,10 +2831,21 @@ export function createMapView(container, {
       if (marker.emphasis) classNames.push('map-marker--emphasis');
       element.className = classNames.join(' ');
 
-      const left = ((col + 0.5) / width) * 100;
-      const top = ((row + 0.5) / height) * 100;
-      element.style.left = `${left}%`;
-      element.style.top = `${top}%`;
+      const center = state.camera.worldToScreenCenter(marker.x, marker.y, state.tileBaseSize);
+      const withinBounds =
+        Number.isFinite(center.x) &&
+        Number.isFinite(center.y) &&
+        center.x >= 0 &&
+        center.y >= 0 &&
+        center.x <= state.camera.viewportWidth &&
+        center.y <= state.camera.viewportHeight;
+      if (!withinBounds) {
+        element.style.display = 'none';
+        return;
+      }
+
+      element.style.left = `${center.x}px`;
+      element.style.top = `${center.y}px`;
       element.style.display = 'block';
       activeIds.add(marker.id);
     });
@@ -2942,10 +2890,13 @@ export function createMapView(container, {
 
   function applyZoomTransform() {
     const scale = Number.isFinite(state.zoomDisplayFactor) ? state.zoomDisplayFactor : 1;
-    mapDisplay.style.transform = `scale(${scale})`;
-    if (state.markerLayer) {
-      state.markerLayer.style.transform = `${MARKER_LAYER_BASE_TRANSFORM} scale(${scale})`;
+    if (state.camera) {
+      state.camera.setZoom(scale);
     }
+    if (state.renderer) {
+      state.renderer.setScale(scale);
+    }
+    scheduleRender();
     updateZoomControls();
   }
 
@@ -2960,7 +2911,6 @@ export function createMapView(container, {
     adjustViewportForZoom({ forceFetch: Boolean(options.force) });
     updateZoomDisplayFactor();
     applyZoomTransform();
-    requestFrame(updateTileSizing);
   }
 
   function zoomBy(delta) {
@@ -2971,70 +2921,15 @@ export function createMapView(container, {
     setZoom(state.initialZoom || 1);
   }
 
-  function ensureTileElements(cols, rows) {
-    if (!cols || !rows) {
-      mapDisplay.replaceChildren();
-      mapDisplay.style.gridTemplateColumns = 'none';
-      return;
-    }
-
-    const required = cols * rows;
-    const current = mapDisplay.children.length;
-    if (current !== required) {
-      const fragment = document.createDocumentFragment();
-      for (let i = 0; i < required; i++) {
-        const tile = document.createElement('span');
-        tile.className = 'map-tile';
-        tile.style.display = 'flex';
-        tile.style.alignItems = 'center';
-        tile.style.justifyContent = 'center';
-        tile.style.width = '100%';
-        tile.style.height = '100%';
-        tile.style.fontSize = '1em';
-        tile.style.lineHeight = '1';
-        tile.style.position = 'relative';
-        const terrainSymbol = document.createElement('span');
-        terrainSymbol.className = 'map-tile-symbol';
-        terrainSymbol.style.display = 'inline-flex';
-        terrainSymbol.style.alignItems = 'center';
-        terrainSymbol.style.justifyContent = 'center';
-        terrainSymbol.style.width = '100%';
-        terrainSymbol.style.height = '100%';
-        terrainSymbol.style.pointerEvents = 'none';
-        terrainSymbol.style.boxSizing = 'border-box';
-        tile.appendChild(terrainSymbol);
-        fragment.appendChild(tile);
-      }
-      mapDisplay.replaceChildren(fragment);
-    }
-
-    mapDisplay.style.gridTemplateColumns = `repeat(${cols}, var(--tile-size))`;
-    mapDisplay.style.gridAutoRows = 'var(--tile-size)';
-  }
-
   function updateTileSizing() {
-    if (!state.map) return;
-    const rows = state.map.tiles?.length || 0;
-    const cols = rows ? state.map.tiles[0].length : 0;
-    if (!rows || !cols) return;
+    if (!state.renderer) return;
     const baseSize = Number.isFinite(state.tileBaseSize) && state.tileBaseSize > 0
       ? state.tileBaseSize
       : DEFAULT_TILE_BASE_SIZE;
-    const targetSize = baseSize;
-    const widthPx = cols * targetSize;
-    const heightPx = rows * targetSize;
-    const iconSize = Math.max(2, targetSize * 0.92);
-    mapDisplay.style.setProperty('--tile-size', `${targetSize}px`);
-    mapDisplay.style.fontSize = `${iconSize}px`;
-    mapDisplay.style.lineHeight = '1';
-    mapDisplay.style.width = `${widthPx}px`;
-    mapDisplay.style.height = `${heightPx}px`;
-    mapDisplay.style.minWidth = `${widthPx}px`;
-    mapDisplay.style.minHeight = `${heightPx}px`;
-    if (state.markerLayer) {
-      state.markerLayer.style.width = `${widthPx}px`;
-      state.markerLayer.style.height = `${heightPx}px`;
-    }
+    state.renderer.setTileBaseSize(baseSize);
+    state.renderer.setUseTerrainColors(state.useTerrainColors);
+    state.renderer.setScale(state.camera ? state.camera.zoom : state.zoomDisplayFactor || 1);
+    scheduleRender();
   }
 
   function updateWrapperSize() {
@@ -3059,8 +2954,16 @@ export function createMapView(container, {
     mapWrapper.style.width = `${width}px`;
     mapWrapper.style.height = `${height}px`;
 
+    if (state.renderer) {
+      state.renderer.resize(width, height);
+    }
+    if (state.camera) {
+      state.camera.setViewportSize(width, height);
+    }
+
+    updateTileSizing();
+
     requestFrame(() => {
-      updateTileSizing();
       syncLayoutMetrics();
       syncMarkers();
     });
@@ -3080,42 +2983,153 @@ export function createMapView(container, {
     }
   }
 
-  function render() {
+  function syncCameraToViewport({ snap = false } = {}) {
+    if (!state.camera) return;
+    const width = Number.isFinite(state.viewport.width)
+      ? state.viewport.width
+      : state.map?.width || state.map?.tiles?.[0]?.length || 0;
+    const height = Number.isFinite(state.viewport.height)
+      ? state.viewport.height
+      : state.map?.height || state.map?.tiles?.length || 0;
+    if (!width || !height) return;
+    const centerX = state.viewport.xStart + width / 2;
+    const centerY = state.viewport.yStart + height / 2;
+    state.camera.setCenterTile({ x: centerX, y: centerY }, { snap });
+  }
+
+  function applyDevelopmentData(tile, worldX, worldY) {
+    if (!tile) return;
+    DEVELOPMENT_CLASSNAMES.forEach(className => tile.classList.remove(className));
+    delete tile.dataset.development;
+    delete tile.dataset.developmentLabel;
+    delete tile.dataset.developmentStatus;
+    delete tile.dataset.developmentDetails;
+    delete tile.dataset.developmentCount;
+
+    const info = getDevelopmentInfo(worldX, worldY);
+    if (!info) return;
+    tile.classList.add('map-tile--developed');
+    if (info.status === 'under-construction') {
+      tile.classList.add('map-tile--developed-pending');
+    } else if (info.status === 'completed') {
+      tile.classList.add('map-tile--developed-complete');
+    } else if (info.status === 'planned') {
+      tile.classList.add('map-tile--developed-planned');
+    } else {
+      tile.classList.add('map-tile--developed-mixed');
+    }
+    if (info.emphasis || info.highlight) {
+      tile.classList.add('map-tile--developed-emphasis');
+    }
+    tile.dataset.development = 'true';
+    if (info.label) tile.dataset.developmentLabel = info.label;
+    if (info.status) tile.dataset.developmentStatus = info.status;
+    const detailText = info.tooltip || (info.structures?.length ? info.structures.join(', ') : '');
+    if (detailText) tile.dataset.developmentDetails = detailText;
+    if (Number.isFinite(info.count) && info.count > 0) {
+      tile.dataset.developmentCount = `${info.count}`;
+    }
+  }
+
+  function updateTileDataLayer() {
+    const layer = state.dataLayer;
+    if (!layer) return;
     if (!state.map?.tiles?.length) {
-      mapDisplay.replaceChildren();
-      mapDisplay.style.gridTemplateColumns = 'none';
-      updateWrapperSize();
-      syncMarkers();
+      layer.replaceChildren();
       return;
     }
+
     const rows = state.map.tiles.length;
-    const cols = state.map.tiles[0].length;
-    ensureTileElements(cols, rows);
-    const tiles = mapDisplay.children;
+    const cols = state.map.tiles[0]?.length || 0;
+    if (!rows || !cols) {
+      layer.replaceChildren();
+      return;
+    }
+
+    const required = rows * cols;
+    if (layer.children.length !== required) {
+      const fragment = document.createDocumentFragment();
+      for (let i = 0; i < required; i++) {
+        const tile = document.createElement('span');
+        tile.className = 'map-tile';
+        const symbol = document.createElement('span');
+        symbol.className = 'map-tile-symbol';
+        tile.appendChild(symbol);
+        fragment.appendChild(tile);
+      }
+      layer.replaceChildren(fragment);
+    }
+
+    const tiles = layer.children;
     let index = 0;
-    state.map.tiles.forEach((row, rowIndex) => {
-      row.forEach((symbol, colIndex) => {
-        const tile = tiles[index++];
+    for (let rowIndex = 0; rowIndex < rows; rowIndex++) {
+      for (let colIndex = 0; colIndex < cols; colIndex++) {
+        const tileNode = tiles[index++];
+        if (!(tileNode instanceof HTMLElement)) continue;
+        const tile = tileNode;
+        let symbolEl = tile.firstElementChild;
+        if (!(symbolEl instanceof HTMLElement)) {
+          symbolEl = document.createElement('span');
+          symbolEl.className = 'map-tile-symbol';
+          tile.appendChild(symbolEl);
+        }
+
         const worldX = state.map.xStart + colIndex;
         const worldY = state.map.yStart + rowIndex;
         tile.dataset.col = `${colIndex}`;
         tile.dataset.row = `${rowIndex}`;
         tile.dataset.worldX = `${worldX}`;
         tile.dataset.worldY = `${worldY}`;
-        const type = state.map.types?.[rowIndex]?.[colIndex];
+
+        const type = state.map.types?.[rowIndex]?.[colIndex] ?? null;
         if (type) {
           tile.dataset.terrain = type;
         } else {
           delete tile.dataset.terrain;
         }
-        applyTileAppearance(tile, type, symbol);
-        applyTileDevelopment(tile, worldX, worldY);
-      });
+
+        const symbol = state.map.tiles[rowIndex]?.[colIndex] ?? '';
+        const fillColor = resolveTerrainColor(type);
+        if (symbolEl) {
+          symbolEl.textContent = symbol ?? '';
+          symbolEl.style.backgroundColor = fillColor || 'transparent';
+          symbolEl.style.borderRadius = fillColor ? '6px' : '';
+          symbolEl.style.boxShadow = fillColor ? 'inset 0 0 0 1px rgba(0, 0, 0, 0.18)' : '';
+        }
+
+        if (fillColor) {
+          tile.classList.add('map-tile--fill');
+        } else {
+          tile.classList.remove('map-tile--fill');
+        }
+
+        applyDevelopmentData(tile, worldX, worldY);
+      }
+    }
+  }
+
+  function scheduleRender() {
+    if (!state.renderer || state.renderScheduled) return;
+    state.renderScheduled = true;
+    requestFrame(() => {
+      state.renderScheduled = false;
+      render();
     });
-    updateWrapperSize();
+  }
+
+  function render() {
+    if (!state.renderer) return;
+    if (!state.map?.tiles?.length) {
+      state.renderer.setMap(null);
+      state.renderer.render();
+      syncMarkers();
+      updateTileDataLayer();
+      return;
+    }
+    state.renderer.setMap({ ...state.map });
+    state.renderer.render();
+    updateTileDataLayer();
     syncMarkers();
-    requestFrame(updateTileSizing);
-    requestFrame(syncMarkers);
   }
 
   function getViewportStepLimits() {
@@ -3159,6 +3173,9 @@ export function createMapView(container, {
     const clampedX = clampNumber(dxTiles, -maxX, maxX);
     const clampedY = clampNumber(dyTiles, -maxY, maxY);
     if (!clampedX && !clampedY) return;
+    if (state.camera) {
+      state.camera.panBy(clampedX, clampedY);
+    }
     const baseX = Number.isFinite(state.viewport.xStart) ? state.viewport.xStart : state.map?.xStart || 0;
     const baseY = Number.isFinite(state.viewport.yStart) ? state.viewport.yStart : state.map?.yStart || 0;
     const nextX = baseX + clampedX;
@@ -3241,12 +3258,13 @@ export function createMapView(container, {
     state.drag.lastY = clientY;
     state.drag.pendingX -= dx;
     state.drag.pendingY -= dy;
-    const cols = state.map?.tiles?.[0]?.length || 0;
-    const rows = state.map?.tiles?.length || 0;
+    const cols = state.map?.tiles?.[0]?.length || state.viewport.width || 0;
+    const rows = state.map?.tiles?.length || state.viewport.height || 0;
     if (!cols || !rows) return;
-    const rect = mapDisplay.getBoundingClientRect();
-    const tileWidth = cols ? rect.width / cols : 0;
-    const tileHeight = rows ? rect.height / rows : 0;
+    const rectSource = state.dataLayer || mapCanvas;
+    const rect = rectSource.getBoundingClientRect();
+    const tileWidth = rect.width / cols;
+    const tileHeight = rect.height / rows;
     if (!tileWidth || !tileHeight) return;
     const tilesX = Math.trunc(state.drag.pendingX / tileWidth);
     const tilesY = Math.trunc(state.drag.pendingY / tileHeight);
@@ -3341,8 +3359,17 @@ export function createMapView(container, {
         state.zoom = 1;
         state.pendingZoomSync = false;
         applyDevelopments([]);
-        render();
+        if (state.camera) {
+          state.camera.setCenterTile({ x: state.focus.x, y: state.focus.y }, { snap: true });
+          state.camera.setZoom(1);
+        }
+        if (state.renderer) {
+          state.renderer.setMap(null);
+          state.renderer.setScale(1);
+        }
+        scheduleRender();
         applyZoomTransform();
+        updateTileDataLayer();
         return;
       }
 
@@ -3406,6 +3433,8 @@ export function createMapView(container, {
         state.viewport.yStart = state.home.yStart;
       }
 
+      syncCameraToViewport({ snap: true });
+
       if (buffer) {
         if (!updateVisibleFromBuffer()) {
           updateViewportStart(state.viewport.xStart, state.viewport.yStart, { forceFetch: true });
@@ -3423,7 +3452,7 @@ export function createMapView(container, {
         return;
       }
 
-      render();
+      scheduleRender();
       updateViewportStart(state.viewport.xStart, state.viewport.yStart, { forceFetch: true });
     },
     refresh() {
@@ -3442,7 +3471,8 @@ export function createMapView(container, {
         resolveTilePalette({ forceRefresh: true });
       }
       if (state.useTerrainColors && state.map?.tiles?.length) {
-        render();
+        updateTileDataLayer();
+        scheduleRender();
       }
     },
     setJobOptions(options = [], context = {}) {
@@ -3499,7 +3529,8 @@ export function createMapView(container, {
       layout: layoutRoot,
       mapContainer,
       wrapper: mapWrapper,
-      display: mapDisplay,
+      display: mapDataLayer,
+      canvas: mapDisplay,
       markers: markerLayer,
       controls,
       nav: navGrid,
