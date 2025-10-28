@@ -670,13 +670,10 @@ export function generateColorMap(
     const oreField = Array.from({ length: mapHeight }, () => new Array(mapWidth).fill(0));
     const stoneThreshold = clamp(oreThreshold - 0.08, 0.3, 0.92);
     const oreCells = [];
+    const newHydroTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
+
     for (let y = 0; y < mapHeight; y++) {
-      const typeRow = terrainTypes[y];
-      const substrateRow = substrateTypes[y];
-      const oreRow = oreField[y];
       for (let x = 0; x < mapWidth; x++) {
-        const gx = baseXStart + x;
-        const gy = baseYStart + y;
         const elevation = elevations[y][x];
         const originalHydro = baseHydroTypes[y]?.[x] ?? 'land';
         let hydroType = originalHydro ?? 'land';
@@ -689,6 +686,62 @@ export function generateColorMap(
             hydroType = 'ocean';
           }
         }
+        newHydroTypes[y][x] = hydroType;
+      }
+    }
+
+    const ORTHOGONAL_DIRECTIONS = [
+      [-1, 0],
+      [1, 0],
+      [0, -1],
+      [0, 1]
+    ];
+
+    const hasLandOrRiverNeighbor = (types, x, y) => {
+      let touchesLand = false;
+      let touchesRiver = false;
+      for (let i = 0; i < ORTHOGONAL_DIRECTIONS.length; i += 1) {
+        const dx = ORTHOGONAL_DIRECTIONS[i][0];
+        const dy = ORTHOGONAL_DIRECTIONS[i][1];
+        const nx = x + dx;
+        const ny = y + dy;
+        if (nx < 0 || ny < 0 || nx >= mapWidth || ny >= mapHeight) continue;
+        const neighbor = types[ny]?.[nx];
+        if (!WATER_TERRAIN_TYPES.has(neighbor)) {
+          touchesLand = true;
+        } else if (neighbor === 'river') {
+          touchesRiver = true;
+        }
+        if (touchesLand && touchesRiver) {
+          break;
+        }
+      }
+      return { touchesLand, touchesRiver };
+    };
+
+    for (let y = 0; y < mapHeight; y++) {
+      for (let x = 0; x < mapWidth; x++) {
+        if (baseHydroTypes[y]?.[x] !== 'mangrove') continue;
+        const elevation = elevations[y][x];
+        if (elevation < adjustedSeaLevel) {
+          newHydroTypes[y][x] = 'ocean';
+          continue;
+        }
+        const { touchesLand, touchesRiver } = hasLandOrRiverNeighbor(newHydroTypes, x, y);
+        if (!touchesLand && !touchesRiver) {
+          newHydroTypes[y][x] = 'ocean';
+        }
+      }
+    }
+
+    for (let y = 0; y < mapHeight; y++) {
+      const typeRow = terrainTypes[y];
+      const substrateRow = substrateTypes[y];
+      const oreRow = oreField[y];
+      for (let x = 0; x < mapWidth; x++) {
+        const gx = baseXStart + x;
+        const gy = baseYStart + y;
+        const hydroType = newHydroTypes[y]?.[x] ?? 'land';
         hydrology.types[y][x] = hydroType;
         let baseType;
         let oreVal = 0;
