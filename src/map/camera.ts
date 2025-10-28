@@ -7,6 +7,8 @@ export interface CameraOptions {
   centerTile?: { x: number; y: number };
 }
 
+export type CameraSnapPivot = 'centerTile' | 'viewport';
+
 export interface CameraState {
   readonly centerTile: Readonly<{ x: number; y: number }>;
   readonly zoom: number;
@@ -16,9 +18,15 @@ export interface CameraState {
   readonly viewportHeight: number;
   setViewportSize(width: number, height: number): void;
   setCenterTile(tile: { x?: number; y?: number }, options?: { snap?: boolean }): void;
-  setZoom(nextZoom: number): number;
+  setZoom(nextZoom: number, pivot?: CameraSnapPivot): number;
   panBy(dx: number, dy: number, options?: { snap?: boolean }): void;
-  commitSnap(): void;
+  commitSnap(options?: {
+    animate?: boolean;
+    duration?: number;
+    easing?: (progress: number) => number;
+    onUpdate?: (center: { x: number; y: number }) => void;
+    onComplete?: (center: { x: number; y: number }) => void;
+  }): { targetX: number; targetY: number; changed: boolean };
   worldToScreen(tileX: number, tileY: number, tileSize: number): { x: number; y: number };
   worldToScreenCenter(tileX: number, tileY: number, tileSize: number): { x: number; y: number };
   screenToTile(x: number, y: number, tileSize: number): { x: number; y: number };
@@ -44,9 +52,7 @@ function normalizeTileValue(value: number | undefined | null, fallback: number):
   return value as number;
 }
 
-function snapToHalf(value: number): number {
-  return Math.round(value * 2) / 2;
-}
+type FrameHandle = number | ReturnType<typeof setTimeout>;
 
 export function createCamera(options: CameraOptions): CameraState {
   const minZoom = options.minZoom && Number.isFinite(options.minZoom) ? Math.max(0.05, options.minZoom) : 0.1;
@@ -60,6 +66,98 @@ export function createCamera(options: CameraOptions): CameraState {
     minZoom,
     maxZoom
   );
+  let animationFrame: FrameHandle | null = null;
+  let animationStartTime: number | null = null;
+  let animationDuration = 0;
+  let animationStartX = centerX;
+  let animationStartY = centerY;
+  let animationTargetX = centerX;
+  let animationTargetY = centerY;
+  let animationEasing: ((progress: number) => number) | null = null;
+  let animationOnUpdate: ((center: { x: number; y: number }) => void) | null = null;
+  let animationOnComplete: ((center: { x: number; y: number }) => void) | null = null;
+
+  const requestFrame = (callback: (timestamp: number) => void): FrameHandle => {
+    if (typeof window !== 'undefined' && typeof window.requestAnimationFrame === 'function') {
+      return window.requestAnimationFrame(callback);
+    }
+    return setTimeout(() => callback(Date.now()), 16);
+  };
+
+  const cancelFrame = (handle: FrameHandle) => {
+    if (handle === null || handle === undefined) return;
+    if (typeof window !== 'undefined' && typeof window.cancelAnimationFrame === 'function' && typeof handle === 'number') {
+      window.cancelAnimationFrame(handle);
+      return;
+    }
+    clearTimeout(handle as ReturnType<typeof setTimeout>);
+  };
+
+  function stopAnimation(finalize = false) {
+    if (animationFrame !== null) {
+      cancelFrame(animationFrame);
+      animationFrame = null;
+    }
+    animationStartTime = null;
+    if (finalize) {
+      centerX = animationTargetX;
+      centerY = animationTargetY;
+    }
+    animationOnUpdate = null;
+    animationOnComplete = null;
+    animationEasing = null;
+  }
+
+  function easeOutCubic(progress: number): number {
+    const normalized = progress < 0 ? 0 : progress > 1 ? 1 : progress;
+    const inverted = 1 - normalized;
+    return 1 - inverted * inverted * inverted;
+  }
+
+  function startSnapAnimation(duration: number, easing: (progress: number) => number) {
+    animationDuration = duration;
+    animationStartX = centerX;
+    animationStartY = centerY;
+    animationStartTime = null;
+    animationEasing = easing;
+
+    const step = (timestamp: number) => {
+      if (animationStartTime === null) {
+        animationStartTime = timestamp;
+      }
+      const elapsed = timestamp - animationStartTime;
+      const progress = animationDuration > 0 ? Math.min(1, elapsed / animationDuration) : 1;
+      const eased = animationEasing ? animationEasing(progress) : progress;
+      const nextX = animationStartX + (animationTargetX - animationStartX) * eased;
+      const nextY = animationStartY + (animationTargetY - animationStartY) * eased;
+      centerX = Number.isFinite(nextX) ? nextX : animationTargetX;
+      centerY = Number.isFinite(nextY) ? nextY : animationTargetY;
+      if (animationOnUpdate) {
+        animationOnUpdate({ x: centerX, y: centerY });
+      }
+      if (progress >= 1 - 1e-6) {
+        centerX = animationTargetX;
+        centerY = animationTargetY;
+        animationFrame = null;
+        animationStartTime = null;
+        const completionUpdate = animationOnUpdate;
+        const completionHandler = animationOnComplete;
+        animationOnUpdate = null;
+        animationOnComplete = null;
+        animationEasing = null;
+        if (completionUpdate) {
+          completionUpdate({ x: centerX, y: centerY });
+        }
+        if (completionHandler) {
+          completionHandler({ x: centerX, y: centerY });
+        }
+        return;
+      }
+      animationFrame = requestFrame(step);
+    };
+
+    animationFrame = requestFrame(step);
+  }
 
   const state: CameraState = {
     get centerTile() {
@@ -89,21 +187,27 @@ export function createCamera(options: CameraOptions): CameraState {
       }
     },
     setCenterTile(tile: { x?: number; y?: number }, options = {}) {
+      if (animationFrame !== null) {
+        stopAnimation(false);
+      }
       const nextX = normalizeTileValue(tile?.x, centerX);
       const nextY = normalizeTileValue(tile?.y, centerY);
       centerX = Number.isFinite(nextX) ? nextX : centerX;
       centerY = Number.isFinite(nextY) ? nextY : centerY;
       if (options.snap) {
-        centerX = snapToHalf(centerX);
-        centerY = snapToHalf(centerY);
+        centerX = Math.round(centerX);
+        centerY = Math.round(centerY);
       }
     },
-    setZoom(nextZoom: number) {
+    setZoom(nextZoom: number, _pivot: CameraSnapPivot = 'viewport') {
       const previous = zoom;
       zoom = clamp(Number.isFinite(nextZoom) ? (nextZoom as number) : previous, minZoom, maxZoom);
       return zoom;
     },
     panBy(dx: number, dy: number, options = {}) {
+      if (animationFrame !== null) {
+        stopAnimation(false);
+      }
       if (Number.isFinite(dx)) {
         centerX += dx;
       }
@@ -114,9 +218,53 @@ export function createCamera(options: CameraOptions): CameraState {
         state.commitSnap();
       }
     },
-    commitSnap() {
-      centerX = snapToHalf(centerX);
-      centerY = snapToHalf(centerY);
+    commitSnap(options = {}) {
+      const targetX = Math.round(centerX);
+      const targetY = Math.round(centerY);
+      const changed = Math.abs(targetX - centerX) > 1e-6 || Math.abs(targetY - centerY) > 1e-6;
+      const updateHandler = typeof options.onUpdate === 'function' ? options.onUpdate : null;
+      const completeHandler = typeof options.onComplete === 'function' ? options.onComplete : null;
+
+      stopAnimation(false);
+
+      if (!changed) {
+        if (updateHandler) {
+          updateHandler({ x: centerX, y: centerY });
+        }
+        if (completeHandler) {
+          completeHandler({ x: centerX, y: centerY });
+        }
+        return { targetX, targetY, changed: false };
+      }
+
+      const shouldAnimate = options.animate !== false;
+      if (!shouldAnimate) {
+        centerX = targetX;
+        centerY = targetY;
+        if (updateHandler) {
+          updateHandler({ x: centerX, y: centerY });
+        }
+        if (completeHandler) {
+          completeHandler({ x: centerX, y: centerY });
+        }
+        return { targetX, targetY, changed: true };
+      }
+
+      const distance = Math.max(Math.abs(targetX - centerX), Math.abs(targetY - centerY));
+      const minDuration = 150;
+      const maxDuration = 250;
+      const suggested = Number.isFinite(options.duration)
+        ? (options.duration as number)
+        : minDuration + Math.min(maxDuration - minDuration, distance * 40);
+      const duration = Math.max(minDuration, Math.min(maxDuration, suggested));
+      const easing = typeof options.easing === 'function' ? options.easing : easeOutCubic;
+
+      animationTargetX = targetX;
+      animationTargetY = targetY;
+      animationOnUpdate = updateHandler;
+      animationOnComplete = completeHandler;
+      startSnapAnimation(duration, easing);
+      return { targetX, targetY, changed: true };
     },
     worldToScreen(tileX: number, tileY: number, tileSize: number) {
       const scale = state.getScaledTileSize(tileSize);
