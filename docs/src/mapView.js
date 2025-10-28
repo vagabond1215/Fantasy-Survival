@@ -1324,6 +1324,20 @@ export function createMapView(container, {
   mapContainer.style.width = '100%';
   mapContainer.style.maxWidth = '100%';
 
+  const mapPrimaryStack = document.createElement('div');
+  mapPrimaryStack.className = `${idPrefix}-primary map-primary-stack`;
+  mapPrimaryStack.style.display = 'flex';
+  mapPrimaryStack.style.flexDirection = 'column';
+  mapPrimaryStack.style.alignItems = 'flex-start';
+  mapPrimaryStack.style.gap = '8px';
+  mapPrimaryStack.style.width = '100%';
+  mapPrimaryStack.style.maxWidth = '100%';
+  mapPrimaryStack.style.flex = '1 1 auto';
+  mapPrimaryStack.style.minWidth = '0';
+
+  mapPrimaryStack.appendChild(mapWrapper);
+  mapContainer.appendChild(mapPrimaryStack);
+
   const sideStack = document.createElement('div');
   sideStack.className = `${idPrefix}-control-stack map-control-stack`;
   sideStack.style.display = 'flex';
@@ -1331,7 +1345,6 @@ export function createMapView(container, {
   sideStack.style.alignItems = 'stretch';
   sideStack.style.gap = '12px';
 
-  mapContainer.appendChild(mapWrapper);
   layoutRoot.appendChild(mapContainer);
   container.appendChild(layoutRoot);
 
@@ -1445,17 +1458,15 @@ export function createMapView(container, {
 
     zoomControls = document.createElement('div');
     zoomControls.className = `${idPrefix}-zoom map-zoom-controls`;
-    zoomControls.style.display = 'grid';
-    zoomControls.style.gridTemplateColumns = 'repeat(2, 48px)';
-    zoomControls.style.gridAutoRows = '48px';
-    zoomControls.style.gap = '6px';
-    zoomControls.style.justifyContent = 'center';
+    zoomControls.style.display = 'flex';
+    zoomControls.style.flexDirection = 'row';
+    zoomControls.style.flexWrap = 'wrap';
     zoomControls.style.alignItems = 'stretch';
-    zoomControls.style.justifyItems = 'stretch';
-    zoomControls.style.alignContent = 'center';
-    zoomControls.style.width = 'calc(2 * 48px + 6px)';
-    zoomControls.style.alignSelf = 'center';
-    controlColumn.appendChild(zoomControls);
+    zoomControls.style.justifyContent = 'flex-start';
+    zoomControls.style.gap = '6px';
+    zoomControls.style.alignSelf = 'flex-start';
+    zoomControls.style.marginTop = '4px';
+    mapPrimaryStack.appendChild(zoomControls);
 
     const createZoomButton = (label, aria, fontSize, variant = 'chip') => {
       const button = document.createElement('button');
@@ -1475,8 +1486,9 @@ export function createMapView(container, {
     zoomResetButton.className = 'map-zoom-reset';
     zoomResetButton.textContent = '100%';
     applyControlButtonStyle(zoomResetButton, { fontSize: '15px', variant: 'chip' });
-    zoomResetButton.style.width = '100%';
-    zoomResetButton.style.gridColumn = '1 / span 2';
+    zoomResetButton.style.width = 'auto';
+    zoomResetButton.style.flex = '0 0 auto';
+    zoomResetButton.style.minWidth = '64px';
     zoomResetButton.setAttribute('aria-label', 'Set zoom to 100%');
     zoomResetValue = zoomResetButton;
 
@@ -2710,12 +2722,20 @@ export function createMapView(container, {
     layoutRoot.style.alignItems = 'stretch';
     layoutRoot.style.flexWrap = 'nowrap';
 
+    if (mapPrimaryStack.parentElement !== mapContainer) {
+      mapContainer.insertBefore(mapPrimaryStack, mapContainer.firstChild);
+    }
+
+    mapPrimaryStack.style.alignSelf = isLandscape && hasControls ? 'flex-start' : 'stretch';
+    mapPrimaryStack.style.width = '100%';
+    mapPrimaryStack.style.maxWidth = '100%';
+
     if (isLandscape && hasControls) {
       mapContainer.style.flexDirection = 'row';
       mapContainer.style.flexWrap = 'nowrap';
       mapContainer.style.gap = '16px';
       mapContainer.style.justifyContent = 'flex-start';
-      mapContainer.style.alignItems = 'stretch';
+      mapContainer.style.alignItems = 'flex-start';
       if (!sideStack.parentElement) {
         mapContainer.appendChild(sideStack);
       }
@@ -2747,7 +2767,7 @@ export function createMapView(container, {
         if (controls.parentElement !== mapContainer) {
           mapContainer.appendChild(controls);
         }
-        controls.style.margin = '8px 0 0';
+        controls.style.margin = '16px 0 0';
         controls.style.alignItems = 'flex-start';
         controls.style.alignSelf = 'flex-start';
         controls.style.justifyContent = 'flex-start';
