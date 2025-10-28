@@ -32,6 +32,8 @@ const ARROW_KEY_MOVES = Object.freeze({
   ArrowRight: { dx: 1, dy: 0 }
 });
 
+const KEYBOARD_SNAP_DELAY = 220;
+
 function toFiniteInteger(value) {
   return Number.isFinite(value) ? Math.trunc(value) : null;
 }
@@ -437,7 +439,12 @@ export function createMapView(container, {
       lastX: 0,
       lastY: 0,
       pendingX: 0,
-      pendingY: 0
+      pendingY: 0,
+      fractionalX: 0,
+      fractionalY: 0
+    },
+    keyboardPan: {
+      timer: null,
     },
     resizeHandler: null,
     fetchMap,
@@ -2891,7 +2898,7 @@ export function createMapView(container, {
   function applyZoomTransform() {
     const scale = Number.isFinite(state.zoomDisplayFactor) ? state.zoomDisplayFactor : 1;
     if (state.camera) {
-      state.camera.setZoom(scale);
+      state.camera.setZoom(scale, 'centerTile');
     }
     if (state.renderer) {
       state.renderer.setScale(scale);
@@ -2995,6 +3002,65 @@ export function createMapView(container, {
     const centerX = state.viewport.xStart + width / 2;
     const centerY = state.viewport.yStart + height / 2;
     state.camera.setCenterTile({ x: centerX, y: centerY }, { snap });
+  }
+
+  function alignViewportToCamera(options = {}) {
+    if (!state.camera) return;
+    const center = options.center || null;
+    const forceFetch = options.forceFetch === true;
+    const width = Number.isFinite(state.viewport.width)
+      ? state.viewport.width
+      : state.map?.width || state.map?.tiles?.[0]?.length || 0;
+    const height = Number.isFinite(state.viewport.height)
+      ? state.viewport.height
+      : state.map?.height || state.map?.tiles?.length || 0;
+    if (!width || !height) return;
+    const centerTile = center || state.camera.centerTile;
+    const nextXStart = Math.round(centerTile.x - width / 2);
+    const nextYStart = Math.round(centerTile.y - height / 2);
+    const currentX = Number.isFinite(state.viewport.xStart) ? state.viewport.xStart : state.map?.xStart || 0;
+    const currentY = Number.isFinite(state.viewport.yStart) ? state.viewport.yStart : state.map?.yStart || 0;
+    if (nextXStart === currentX && nextYStart === currentY) {
+      return;
+    }
+    updateViewportStart(nextXStart, nextYStart, { forceFetch });
+  }
+
+  function cancelKeyboardSnap() {
+    if (state.keyboardPan?.timer) {
+      clearTimeout(state.keyboardPan.timer);
+      state.keyboardPan.timer = null;
+    }
+  }
+
+  function scheduleKeyboardSnap() {
+    cancelKeyboardSnap();
+    state.keyboardPan.timer = setTimeout(() => {
+      state.keyboardPan.timer = null;
+      commitCameraSnap();
+    }, KEYBOARD_SNAP_DELAY);
+  }
+
+  function commitCameraSnap(options = {}) {
+    if (!state.camera) return null;
+    cancelKeyboardSnap();
+    let completed = false;
+    const result = state.camera.commitSnap({
+      animate: options.animate !== false,
+      duration: options.duration,
+      onUpdate: () => {
+        scheduleRender();
+      },
+      onComplete: center => {
+        completed = true;
+        scheduleRender();
+        alignViewportToCamera({ center, forceFetch: Boolean(options.forceFetch) });
+      }
+    });
+    if (!completed && !result?.changed) {
+      alignViewportToCamera({ forceFetch: Boolean(options.forceFetch) });
+    }
+    return result;
   }
 
   function applyDevelopmentData(tile, worldX, worldY) {
@@ -3157,17 +3223,21 @@ export function createMapView(container, {
     };
   }
 
-  function moveViewportBySteps(dx, dy) {
+  function moveViewportBySteps(dx, dy, options = {}) {
     if (!dx && !dy) return;
     const steps = getPanStepSize();
     if (!steps) return;
     const deltaX = steps.stepX * dx;
     const deltaY = steps.stepY * dy;
     if (!deltaX && !deltaY) return;
-    shiftViewport(deltaX, deltaY);
+    if (state.camera) {
+      shiftViewport(deltaX, deltaY, options);
+      return;
+    }
+    shiftViewport(deltaX, deltaY, options);
   }
 
-  function shiftViewport(dxTiles, dyTiles) {
+  function shiftViewport(dxTiles, dyTiles, options = {}) {
     if (!dxTiles && !dyTiles) return;
     const { maxX, maxY } = getViewportStepLimits();
     const clampedX = clampNumber(dxTiles, -maxX, maxX);
@@ -3175,12 +3245,27 @@ export function createMapView(container, {
     if (!clampedX && !clampedY) return;
     if (state.camera) {
       state.camera.panBy(clampedX, clampedY);
+      const desiredCenter = state.camera.centerTile;
+      alignViewportToCamera({ center: desiredCenter, forceFetch: options.forceFetch });
+      const snappedCenter = state.camera.centerTile;
+      const offsetX = desiredCenter.x - snappedCenter.x;
+      const offsetY = desiredCenter.y - snappedCenter.y;
+      if ((Math.abs(offsetX) > 1e-6 || Math.abs(offsetY) > 1e-6) && state.camera) {
+        state.camera.panBy(offsetX, offsetY);
+      }
+      scheduleRender();
+      if (options.deferCommit) {
+        scheduleKeyboardSnap();
+      } else if (options.commit !== false) {
+        commitCameraSnap({ animate: options.animate !== false, forceFetch: options.forceFetch });
+      }
+      return;
     }
     const baseX = Number.isFinite(state.viewport.xStart) ? state.viewport.xStart : state.map?.xStart || 0;
     const baseY = Number.isFinite(state.viewport.yStart) ? state.viewport.yStart : state.map?.yStart || 0;
     const nextX = baseX + clampedX;
     const nextY = baseY + clampedY;
-    updateViewportStart(nextX, nextY);
+    updateViewportStart(nextX, nextY, options);
   }
 
   function pan(dx, dy) {
@@ -3235,7 +3320,7 @@ export function createMapView(container, {
       return;
     }
     event.preventDefault();
-    moveViewportBySteps(movement.dx, movement.dy);
+    moveViewportBySteps(movement.dx, movement.dy, { deferCommit: true });
   }
 
   function handleDragStart(clientX, clientY) {
@@ -3247,6 +3332,9 @@ export function createMapView(container, {
     state.drag.lastY = clientY;
     state.drag.pendingX = 0;
     state.drag.pendingY = 0;
+    state.drag.fractionalX = 0;
+    state.drag.fractionalY = 0;
+    cancelKeyboardSnap();
     mapWrapper.style.cursor = 'grabbing';
   }
 
@@ -3266,6 +3354,39 @@ export function createMapView(container, {
     const tileWidth = rect.width / cols;
     const tileHeight = rect.height / rows;
     if (!tileWidth || !tileHeight) return;
+    if (state.camera) {
+      let renderNeeded = false;
+      const tilesX = Math.trunc(state.drag.pendingX / tileWidth);
+      const tilesY = Math.trunc(state.drag.pendingY / tileHeight);
+      if (tilesX || tilesY) {
+        const { maxX, maxY } = getViewportStepLimits();
+        const limitedTilesX = clampNumber(tilesX, -maxX, maxX);
+        const limitedTilesY = clampNumber(tilesY, -maxY, maxY);
+        if (limitedTilesX || limitedTilesY) {
+          state.drag.pendingX -= limitedTilesX * tileWidth;
+          state.drag.pendingY -= limitedTilesY * tileHeight;
+          shiftViewport(limitedTilesX, limitedTilesY, { commit: false });
+          renderNeeded = true;
+        } else {
+          state.drag.pendingX = Math.sign(state.drag.pendingX) * Math.min(Math.abs(state.drag.pendingX), tileWidth);
+          state.drag.pendingY = Math.sign(state.drag.pendingY) * Math.min(Math.abs(state.drag.pendingY), tileHeight);
+        }
+      }
+      const residualTilesX = tileWidth ? state.drag.pendingX / tileWidth : 0;
+      const residualTilesY = tileHeight ? state.drag.pendingY / tileHeight : 0;
+      const fractionalDeltaX = residualTilesX - state.drag.fractionalX;
+      const fractionalDeltaY = residualTilesY - state.drag.fractionalY;
+      if (fractionalDeltaX || fractionalDeltaY) {
+        state.camera.panBy(fractionalDeltaX, fractionalDeltaY);
+        renderNeeded = true;
+      }
+      if (renderNeeded) {
+        scheduleRender();
+      }
+      state.drag.fractionalX = residualTilesX;
+      state.drag.fractionalY = residualTilesY;
+      return;
+    }
     const tilesX = Math.trunc(state.drag.pendingX / tileWidth);
     const tilesY = Math.trunc(state.drag.pendingY / tileHeight);
     if (!tilesX && !tilesY) return;
@@ -3282,6 +3403,13 @@ export function createMapView(container, {
     if (!state.drag.active) return;
     state.drag.active = false;
     mapWrapper.style.cursor = allowDrag ? 'grab' : 'default';
+    state.drag.pendingX = 0;
+    state.drag.pendingY = 0;
+    state.drag.fractionalX = 0;
+    state.drag.fractionalY = 0;
+    if (state.camera) {
+      commitCameraSnap();
+    }
   }
 
   function attachDragHandlers() {
@@ -3361,7 +3489,7 @@ export function createMapView(container, {
         applyDevelopments([]);
         if (state.camera) {
           state.camera.setCenterTile({ x: state.focus.x, y: state.focus.y }, { snap: true });
-          state.camera.setZoom(1);
+          state.camera.setZoom(1, 'centerTile');
         }
         if (state.renderer) {
           state.renderer.setMap(null);
@@ -3486,6 +3614,7 @@ export function createMapView(container, {
     setMarkers: applyMarkers,
     setDevelopments: applyDevelopments,
     destroy() {
+      cancelKeyboardSnap();
       if (typeof window !== 'undefined') {
         if (state.resizeHandler) {
           window.removeEventListener('resize', state.resizeHandler);
