@@ -102,6 +102,7 @@
   --legend-marsh: #4ade80;
   --legend-mangrove: #065f46;
   --legend-open: var(--tile-open);
+  --legend-sand: #fcd34d;
   --legend-forest: var(--tile-forest);
   --legend-ore: var(--tile-ore);
   --legend-stone: var(--tile-stone);
