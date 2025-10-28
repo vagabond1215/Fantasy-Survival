@@ -21,3 +21,4 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Changed
 - Map generation now consumes the hydrology pipeline for water placement, with biome-aware marshes, widened river mouths, and richer terrain symbols.
 - Difficulty settings expose a water-flow multiplier slider that feeds new hydrology thresholds in both the UI and presets.
+- Landing map legend now opens from a floating help toggle with an accessible overlay, improving focus handling on the preview map.

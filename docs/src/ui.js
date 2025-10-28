@@ -840,6 +840,67 @@ export function initSetupUI(onStart) {
     return mixColors(color, black, amount);
   }
 
+  function relativeLuminance(color) {
+    if (!color) return 0;
+    const [r, g, b] = [color.r ?? 0, color.g ?? 0, color.b ?? 0].map(channel => {
+      const value = channel / 255;
+      if (value <= 0.03928) {
+        return value / 12.92;
+      }
+      return Math.pow((value + 0.055) / 1.055, 2.4);
+    });
+    return 0.2126 * r + 0.7152 * g + 0.0722 * b;
+  }
+
+  function computeContrastRatio(foreground, background) {
+    if (!foreground || !background) return 1;
+    const fgLum = relativeLuminance(foreground);
+    const bgLum = relativeLuminance(background);
+    const lighter = Math.max(fgLum, bgLum);
+    const darker = Math.min(fgLum, bgLum);
+    return (lighter + 0.05) / (darker + 0.05);
+  }
+
+  function ensureContrastColor(preferredColor, backgroundColor, minimumRatio = 4.5) {
+    if (!backgroundColor) {
+      return preferredColor || parseColor('#ffffff');
+    }
+
+    const backgroundLum = relativeLuminance(backgroundColor);
+    const preferredTarget = parseColor(backgroundLum > 0.5 ? '#111827' : '#f9fafb');
+    const alternateTarget = parseColor(backgroundLum > 0.5 ? '#f9fafb' : '#111827');
+
+    const candidates = [];
+    if (preferredColor) {
+      candidates.push({ color: preferredColor, ratio: computeContrastRatio(preferredColor, backgroundColor) });
+    }
+    if (preferredTarget) {
+      candidates.push({ color: preferredTarget, ratio: computeContrastRatio(preferredTarget, backgroundColor) });
+    }
+    if (alternateTarget) {
+      candidates.push({ color: alternateTarget, ratio: computeContrastRatio(alternateTarget, backgroundColor) });
+    }
+
+    let best = candidates.sort((a, b) => b.ratio - a.ratio)[0];
+    if (!best) {
+      return parseColor('#ffffff');
+    }
+
+    if (best.ratio >= minimumRatio) {
+      return best.color;
+    }
+
+    const blendTarget = parseColor(backgroundLum > 0.5 ? '#000000' : '#ffffff');
+    let adjusted = best.color;
+    let ratio = best.ratio;
+    for (let step = 0; step < 6 && ratio < minimumRatio; step += 1) {
+      adjusted = mixColors(adjusted, blendTarget, 0.35);
+      ratio = computeContrastRatio(adjusted, backgroundColor);
+    }
+
+    return ratio >= minimumRatio ? adjusted : best.color;
+  }
+
   function setActive(list, node) {
     list.forEach(item => {
       item.classList.toggle('is-active', item === node);
@@ -866,8 +927,16 @@ export function initSetupUI(onStart) {
       if (accentColor) {
         const activeColor = lightenColor(accentColor, 0.22);
         button.style.setProperty('--tile-active-bg', formatColor(activeColor));
+        const preferredText = parseColor(currentThemeInfo?.text?.primary);
+        const activeText = ensureContrastColor(preferredText, activeColor);
+        if (activeText) {
+          button.style.setProperty('--tile-active-text', formatColor(activeText));
+        } else {
+          button.style.removeProperty('--tile-active-text');
+        }
       } else {
         button.style.removeProperty('--tile-active-bg');
+        button.style.removeProperty('--tile-active-text');
       }
       return;
     }
@@ -900,8 +969,16 @@ export function initSetupUI(onStart) {
       const accentLift = lightenColor(accentColor, 0.25);
       const activeColor = accentLift ? mixColors(accentColor, accentLift, 0.4) : accentColor;
       button.style.setProperty('--tile-active-bg', formatColor(activeColor));
+      const preferredText = parseColor(currentThemeInfo?.text?.primary);
+      const activeText = ensureContrastColor(preferredText, activeColor);
+      if (activeText) {
+        button.style.setProperty('--tile-active-text', formatColor(activeText));
+      } else {
+        button.style.removeProperty('--tile-active-text');
+      }
     } else {
       button.style.removeProperty('--tile-active-bg');
+      button.style.removeProperty('--tile-active-text');
     }
   }
 
@@ -1178,7 +1255,8 @@ export function initSetupUI(onStart) {
       selectedSeason,
       undefined,
       undefined,
-      worldParameters
+      worldParameters,
+      false
     );
     const defaultSpawn = computeDefaultSpawn(mapData);
     if (defaultSpawn) {
@@ -1192,37 +1270,58 @@ export function initSetupUI(onStart) {
   }
 
   function attachSetupLegend() {
-    if (!mapView?.elements?.controls) return;
-    const controlsRoot = mapView.elements.controls;
-    const navGrid = controlsRoot.querySelector('.map-nav-grid');
-    if (!navGrid) return;
-    const host = navGrid.parentElement || controlsRoot;
-    const existing = host.querySelector('.map-legend');
-    if (existing?.parentElement) {
-      existing.parentElement.removeChild(existing);
+    if (!mapView?.elements?.wrapper) return;
+    const mapWrapper = mapView.elements.wrapper;
+    if (!mapWrapper) return;
+
+    const existingToggle = mapWrapper.querySelector('[data-role="legend-toggle"]');
+    if (existingToggle?.parentElement) {
+      existingToggle.parentElement.removeChild(existingToggle);
     }
 
-    const legend = document.createElement('div');
-    legend.className = 'map-legend';
-    legend.setAttribute('aria-label', 'Terrain legend');
-    legend.dataset.role = 'map-legend';
-    if (navGrid.style.width) {
-      legend.style.width = navGrid.style.width;
-      legend.style.maxWidth = navGrid.style.width;
-    } else {
-      legend.style.width = '100%';
+    const existingOverlay = mapWrapper.querySelector('[data-role="map-legend-overlay"]');
+    if (existingOverlay?.parentElement) {
+      existingOverlay.parentElement.removeChild(existingOverlay);
     }
+
+    const legendId = 'setup-map-legend';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'map-legend-overlay';
+    overlay.dataset.role = 'map-legend-overlay';
+    overlay.id = legendId;
+    overlay.hidden = true;
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Terrain legend');
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.tabIndex = -1;
+
+    const legendSurface = document.createElement('div');
+    legendSurface.className = 'map-legend';
+    legendSurface.dataset.role = 'map-legend';
+    legendSurface.setAttribute('role', 'document');
+    legendSurface.tabIndex = -1;
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'map-legend__close';
+    closeButton.setAttribute('aria-label', 'Close terrain legend');
+    closeButton.innerHTML = '<span aria-hidden="true">×</span>';
+    legendSurface.appendChild(closeButton);
 
     const title = document.createElement('div');
     title.className = 'map-legend__title';
     title.textContent = 'Terrain Legend';
-    legend.appendChild(title);
+    legendSurface.appendChild(title);
 
     const list = document.createElement('div');
     list.className = 'map-legend__list';
+    list.setAttribute('role', 'list');
     legendEntries.forEach(entry => {
       const item = document.createElement('div');
       item.className = 'map-legend__item';
+      item.setAttribute('role', 'listitem');
 
       const swatch = document.createElement('span');
       swatch.className = 'map-legend__swatch';
@@ -1238,9 +1337,132 @@ export function initSetupUI(onStart) {
 
       list.appendChild(item);
     });
-    legend.appendChild(list);
+    legendSurface.appendChild(list);
 
-    navGrid.insertAdjacentElement('afterend', legend);
+    overlay.appendChild(legendSurface);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'map-legend-toggle';
+    toggle.dataset.role = 'legend-toggle';
+    toggle.setAttribute('aria-label', 'Show terrain legend');
+    toggle.setAttribute('aria-controls', legendId);
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-haspopup', 'dialog');
+
+    const toggleIcon = document.createElement('span');
+    toggleIcon.className = 'map-legend-toggle__icon';
+    toggleIcon.setAttribute('aria-hidden', 'true');
+    toggleIcon.textContent = '?';
+    toggle.appendChild(toggleIcon);
+
+    const updateToggleState = isOpen => {
+      toggle.setAttribute('aria-expanded', String(isOpen));
+      toggle.setAttribute('aria-label', isOpen ? 'Hide terrain legend' : 'Show terrain legend');
+      toggle.classList.toggle('is-active', isOpen);
+      overlay.setAttribute('aria-hidden', String(!isOpen));
+    };
+
+    const focusableSelector = [
+      'button:not([disabled])',
+      '[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])'
+    ].join(',');
+
+    const getFocusableElements = () =>
+      Array.from(overlay.querySelectorAll(focusableSelector)).filter(element => {
+        return (
+          element.offsetParent !== null ||
+          element.getClientRects().length > 0 ||
+          element === document.activeElement
+        );
+      });
+
+    const focusFirstElement = () => {
+      const focusable = getFocusableElements();
+      const target = focusable.length ? focusable[0] : overlay;
+      requestAnimationFrame(() => {
+        target.focus();
+      });
+    };
+
+    const closeLegend = () => {
+      if (overlay.hidden) return;
+      overlay.hidden = true;
+      updateToggleState(false);
+      toggle.focus();
+    };
+
+    const openLegend = () => {
+      if (!overlay.hidden) return;
+      overlay.hidden = false;
+      updateToggleState(true);
+      focusFirstElement();
+    };
+
+    const handleToggle = event => {
+      if (event) {
+        event.preventDefault();
+      }
+      if (overlay.hidden) {
+        openLegend();
+      } else {
+        closeLegend();
+      }
+    };
+
+    toggle.addEventListener('click', handleToggle);
+    toggle.addEventListener('keydown', event => {
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        handleToggle(event);
+      }
+    });
+
+    closeButton.addEventListener('click', () => {
+      closeLegend();
+    });
+
+    overlay.addEventListener('pointerdown', event => {
+      if (event.target === overlay) {
+        event.preventDefault();
+        closeLegend();
+      }
+    });
+
+    overlay.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeLegend();
+        return;
+      }
+      if (event.key === 'Tab') {
+        const focusable = getFocusableElements();
+        if (!focusable.length) {
+          event.preventDefault();
+          overlay.focus();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        if (event.shiftKey) {
+          if (active === first || !overlay.contains(active)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (active === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    });
+
+    mapWrapper.appendChild(toggle);
+    mapWrapper.appendChild(overlay);
   }
 
   function activateDifficultyCategory(categoryId) {
@@ -1423,7 +1645,7 @@ export function initSetupUI(onStart) {
     useTerrainColors: true,
     bufferMargin: 8,
     minZoom: 0.4,
-    fetchMap: ({ xStart, yStart, width, height, seed, season, viewport }) => {
+    fetchMap: ({ xStart, yStart, width, height, seed, season, viewport, skipSanityChecks }) => {
       const biomeId = selectedBiome;
       const nextSeed = seed ?? mapSeed;
       const nextSeason = season ?? selectedSeason;
@@ -1437,7 +1659,8 @@ export function initSetupUI(onStart) {
         nextSeason,
         mapData?.waterLevel,
         viewport,
-        worldParameters
+        worldParameters,
+        Boolean(skipSanityChecks)
       );
     },
     onMapUpdate: updated => {
@@ -1693,14 +1916,9 @@ export function initSetupUI(onStart) {
     const sliderId = `difficulty-slider-${key}`;
     label.setAttribute('for', sliderId);
     label.textContent = def.label;
-
-    const number = document.createElement('input');
-    number.type = 'number';
-    number.inputMode = 'numeric';
-    number.min = String(def.min);
-    number.max = String(def.max);
-    number.step = String(def.step ?? 1);
-    number.className = 'difficulty-param__number';
+    if (def.hint) {
+      label.title = def.hint;
+    }
 
     const slider = document.createElement('input');
     slider.type = 'range';
@@ -1714,55 +1932,15 @@ export function initSetupUI(onStart) {
     rangeWrapper.className = 'difficulty-param__range';
     rangeWrapper.appendChild(slider);
 
-    const valueBadge = document.createElement('button');
-    valueBadge.type = 'button';
+    const valueBadge = document.createElement('output');
     valueBadge.className = 'range__value';
-    valueBadge.addEventListener('click', () => {
-      number.focus();
-    });
+    valueBadge.setAttribute('for', sliderId);
+    valueBadge.setAttribute('aria-live', 'polite');
 
     const rangeGroup = document.createElement('div');
     rangeGroup.className = 'difficulty-param__range-group';
     rangeGroup.appendChild(rangeWrapper);
     rangeGroup.appendChild(valueBadge);
-
-    const quickValues = Array.from(
-      new Set([
-        def.min,
-        Math.round((def.min + def.max) / 2),
-        def.max
-      ])
-    );
-    const quickButtons = [];
-    const quickContainer = document.createElement('div');
-    quickContainer.className = 'range__chips';
-    quickValues.forEach(value => {
-      const chip = document.createElement('button');
-      chip.type = 'button';
-      chip.className = 'range__chip';
-      chip.dataset.value = String(value);
-      chip.textContent = String(value);
-      chip.setAttribute('aria-label', `Set ${def.label} to ${value}`);
-      chip.addEventListener('click', () => {
-        slider.value = String(value);
-        number.value = String(value);
-        updateRangeVisuals(value);
-        onChange(Number(value));
-      });
-      quickButtons.push(chip);
-      quickContainer.appendChild(chip);
-    });
-
-    const hintId = `difficulty-hint-${key}`;
-    let hintElement = null;
-    if (def.hint) {
-      hintElement = document.createElement('div');
-      hintElement.className = 'difficulty-param__hint';
-      hintElement.id = hintId;
-      hintElement.textContent = def.hint;
-      slider.setAttribute('aria-describedby', hintId);
-      number.setAttribute('aria-describedby', hintId);
-    }
 
     let isSyncing = false;
 
@@ -1775,7 +1953,6 @@ export function initSetupUI(onStart) {
         const stringValue = String(normalized);
         isSyncing = true;
         slider.value = stringValue;
-        number.value = stringValue;
         updateRangeVisuals(normalized);
         isSyncing = false;
       }
@@ -1792,14 +1969,6 @@ export function initSetupUI(onStart) {
       const percent = ((resolvedValue - def.min) / percentDenominator) * 100;
       slider.style.setProperty('--range-progress', `${percent}%`);
       valueBadge.textContent = String(resolvedValue);
-      quickButtons.forEach(button => {
-        const buttonValue = Number(button.dataset.value);
-        if (buttonValue === resolvedValue) {
-          button.classList.add('is-active');
-        } else {
-          button.classList.remove('is-active');
-        }
-      });
     };
 
     slider.addEventListener('input', () => {
@@ -1807,27 +1976,10 @@ export function initSetupUI(onStart) {
       updateRangeVisuals(nextValue);
       onChange(nextValue);
     });
-    number.addEventListener('change', () => {
-      const nextValue = Number(number.value);
-      updateRangeVisuals(nextValue);
-      onChange(nextValue);
-    });
-    number.addEventListener('input', () => {
-      if (isSyncing) return;
-      if (number.value === '') return;
-      const nextValue = Number(number.value);
-      updateRangeVisuals(nextValue);
-      onChange(nextValue);
-    });
 
     header.appendChild(label);
-    header.appendChild(number);
     wrapper.appendChild(header);
     wrapper.appendChild(rangeGroup);
-    wrapper.appendChild(quickContainer);
-    if (hintElement) {
-      wrapper.appendChild(hintElement);
-    }
 
     control.update(getPathValue(worldParameters, def.path));
     parameterControls.set(parameterKeyFromPath(def.path), control);
