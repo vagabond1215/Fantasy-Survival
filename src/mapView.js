@@ -256,6 +256,8 @@ const LEGEND_DEFAULTS = {
 };
 
 const BUFFER_MARGIN = 12;
+const DEFAULT_TILE_BASE_SIZE = 32;
+const MARKER_LAYER_BASE_TRANSFORM = 'translate(-50%, -50%)';
 
 function computeBufferPadding(dimensions, viewportWidth, viewportHeight) {
   const cols = Math.max(0, dimensions?.cols ?? 0);
@@ -268,7 +270,6 @@ function computeBufferPadding(dimensions, viewportWidth, viewportHeight) {
   };
 }
 const DEFAULT_VIEWPORT_SIZE = DEFAULT_MAP_WIDTH;
-const MAX_TILE_SIZE_RETRIES = 8;
 
 function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
   const MIN_SIZE = 220;
@@ -452,7 +453,7 @@ export function createMapView(container, {
     initialZoom: clampedInitialZoom,
     zoomBase: { width: 0, height: 0 },
     zoomDisplayFactor: 1,
-    sizeRetryCount: 0,
+    tileBaseSize: DEFAULT_TILE_BASE_SIZE,
     markerLayer: null,
     markerElements: new Map(),
     markerDefs: [],
@@ -1032,7 +1033,7 @@ export function createMapView(container, {
   mapWrapper.style.userSelect = 'none';
   mapWrapper.style.touchAction = allowDrag ? 'none' : 'auto';
   mapWrapper.style.boxSizing = 'border-box';
-  mapWrapper.style.aspectRatio = '1 / 1';
+  mapWrapper.style.aspectRatio = 'auto';
   mapWrapper.style.flexShrink = '0';
   if (!mapWrapper.hasAttribute('tabindex')) {
     mapWrapper.setAttribute('tabindex', '0');
@@ -1043,8 +1044,9 @@ export function createMapView(container, {
   mapCanvas.style.position = 'absolute';
   mapCanvas.style.inset = '0';
   mapCanvas.style.display = 'flex';
-  mapCanvas.style.alignItems = 'flex-start';
-  mapCanvas.style.justifyContent = 'flex-start';
+  mapCanvas.style.alignItems = 'center';
+  mapCanvas.style.justifyContent = 'center';
+  mapCanvas.style.overflow = 'visible';
   mapCanvas.style.boxSizing = 'border-box';
   mapWrapper.appendChild(mapCanvas);
 
@@ -1060,6 +1062,7 @@ export function createMapView(container, {
   mapDisplay.style.margin = '0';
   mapDisplay.style.padding = '0';
   mapDisplay.style.position = 'relative';
+  mapDisplay.style.flex = '0 0 auto';
   mapDisplay.style.transform = 'scale(1)';
   mapDisplay.style.transformOrigin = 'center center';
   mapDisplay.style.boxSizing = 'border-box';
@@ -1069,11 +1072,15 @@ export function createMapView(container, {
   const markerLayer = document.createElement('div');
   markerLayer.className = `${idPrefix}-marker-layer map-marker-layer`;
   markerLayer.style.position = 'absolute';
-  markerLayer.style.inset = '0';
+  markerLayer.style.left = '50%';
+  markerLayer.style.top = '50%';
   markerLayer.style.pointerEvents = 'none';
   markerLayer.style.zIndex = '3';
   markerLayer.style.display = 'block';
   markerLayer.style.transformOrigin = 'center center';
+  markerLayer.style.width = '100%';
+  markerLayer.style.height = '100%';
+  markerLayer.style.transform = `${MARKER_LAYER_BASE_TRANSFORM} scale(1)`;
   mapCanvas.appendChild(markerLayer);
   state.markerLayer = markerLayer;
   syncMarkers();
@@ -2855,7 +2862,7 @@ export function createMapView(container, {
     const scale = Number.isFinite(state.zoomDisplayFactor) ? state.zoomDisplayFactor : 1;
     mapDisplay.style.transform = `scale(${scale})`;
     if (state.markerLayer) {
-      state.markerLayer.style.transform = `scale(${scale})`;
+      state.markerLayer.style.transform = `${MARKER_LAYER_BASE_TRANSFORM} scale(${scale})`;
     }
     updateZoomControls();
   }
@@ -2928,23 +2935,10 @@ export function createMapView(container, {
     const rows = state.map.tiles?.length || 0;
     const cols = rows ? state.map.tiles[0].length : 0;
     if (!rows || !cols) return;
-    const rect = typeof mapWrapper?.getBoundingClientRect === 'function'
-      ? mapWrapper.getBoundingClientRect()
-      : null;
-    const availableWidth = Math.max(0, rect?.width || mapWrapper.clientWidth);
-    const availableHeight = Math.max(0, rect?.height || mapWrapper.clientHeight);
-    if (!availableWidth || !availableHeight) {
-      if (state.sizeRetryCount < MAX_TILE_SIZE_RETRIES) {
-        state.sizeRetryCount += 1;
-        requestFrame(updateTileSizing);
-      }
-      return;
-    }
-    state.sizeRetryCount = 0;
-    const sizeForWidth = availableWidth / cols;
-    const sizeForHeight = availableHeight / rows;
-    const targetSize = Math.min(sizeForWidth, sizeForHeight);
-    if (!Number.isFinite(targetSize) || targetSize <= 0) return;
+    const baseSize = Number.isFinite(state.tileBaseSize) && state.tileBaseSize > 0
+      ? state.tileBaseSize
+      : DEFAULT_TILE_BASE_SIZE;
+    const targetSize = baseSize;
     const widthPx = cols * targetSize;
     const heightPx = rows * targetSize;
     const iconSize = Math.max(2, targetSize * 0.92);
@@ -2955,6 +2949,10 @@ export function createMapView(container, {
     mapDisplay.style.height = `${heightPx}px`;
     mapDisplay.style.minWidth = `${widthPx}px`;
     mapDisplay.style.minHeight = `${heightPx}px`;
+    if (state.markerLayer) {
+      state.markerLayer.style.width = `${widthPx}px`;
+      state.markerLayer.style.height = `${heightPx}px`;
+    }
   }
 
   function updateWrapperSize() {
@@ -2980,7 +2978,6 @@ export function createMapView(container, {
     mapWrapper.style.height = `${height}px`;
 
     requestFrame(() => {
-      state.sizeRetryCount = 0;
       updateTileSizing();
       syncLayoutMetrics();
       syncMarkers();
