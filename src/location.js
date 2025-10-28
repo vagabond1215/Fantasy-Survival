@@ -74,7 +74,8 @@ export function generateLocation(
     season,
     undefined,
     undefined,
-    worldSettings
+    worldSettings,
+    false
   );
   const siteCapacities = computeSiteCapacities(map);
   const location = {
