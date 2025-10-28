@@ -1376,22 +1376,6 @@ export function generateColorMap(
     });
   }
 
-  let flagColIndex = -effectiveXStart;
-  let flagRowIndex = -effectiveYStart;
-  if (finalMetrics?.origin?.inBounds) {
-    flagColIndex = finalMetrics.origin.col;
-    flagRowIndex = finalMetrics.origin.row;
-  }
-  if (
-    flagColIndex >= 0 &&
-    flagColIndex < mapWidth &&
-    flagRowIndex >= 0 &&
-    flagRowIndex < mapHeight &&
-    tiles[flagRowIndex]?.[flagColIndex]
-  ) {
-    tiles[flagRowIndex][flagColIndex] = '🚩';
-  }
-
   const viewportDetails = viewport
     ? {
         xStart: Number.isFinite(viewport.xStart)

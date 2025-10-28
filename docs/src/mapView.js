@@ -1295,7 +1295,7 @@ export function createMapView(container, {
   iconPreloader.style.whiteSpace = 'nowrap';
   iconPreloader.style.height = '0';
   iconPreloader.style.overflow = 'hidden';
-  iconPreloader.textContent = `${Object.values(TERRAIN_SYMBOLS).join('')}🚩`;
+  iconPreloader.textContent = Object.values(TERRAIN_SYMBOLS).join('');
   mapWrapper.appendChild(iconPreloader);
 
   const layoutRoot = document.createElement('div');
