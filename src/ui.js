@@ -417,7 +417,6 @@ export function initSetupUI(onStart) {
         </div>
         <div class="setup__column setup__column--preview">
           <div class="card section map-section">
-            <p class="map-tip" id="map-tip">Explore the terrain and click to choose a spawn point.</p>
             <div id="map-preview" class="map-preview" aria-label="World map preview"></div>
             <p class="sub" id="spawn-info"></p>
           </div>
