@@ -8,8 +8,9 @@ import {
   generateColorMap,
   GRID_DISTANCE_METERS
 } from './map.js';
+import { isOpenTerrain } from './terrainTypes.js';
 
-const CLEAR_TERRAIN_TYPES = new Set(['open', 'ore', 'stone']);
+const CLEAR_TERRAIN_TYPES = new Set(['ore', 'stone']);
 
 function normalizeNumber(value) {
   const num = Number(value);
@@ -28,7 +29,7 @@ function computeSiteCapacities(map) {
     row.forEach(type => {
       if (type === 'forest') {
         forestTiles += 1;
-      } else if (CLEAR_TERRAIN_TYPES.has(type)) {
+      } else if (CLEAR_TERRAIN_TYPES.has(type) || isOpenTerrain(type)) {
         clearedTiles += 1;
       }
     });

@@ -2,6 +2,7 @@
 import store from './state.js';
 import { getBiome } from './biomes.js';
 import { coordinateRandom, TERRAIN_SYMBOLS } from './map.js';
+import { resolveBiomeOpenTerrain } from './terrainTypes.js';
 
 const TREE_YIELDS = {
   small: { 'small logs': 1, firewood: 2 },
@@ -41,23 +42,32 @@ function getTerrainType(location, x, y) {
 
 function setTerrainType(location, x, y, type) {
   if (!location?.map?.types) return;
+  const finalType = type === 'open' ? getLocationOpenTerrain(location) : type;
   const xStart = Number.isFinite(location.map.xStart) ? Math.trunc(location.map.xStart) : 0;
   const yStart = Number.isFinite(location.map.yStart) ? Math.trunc(location.map.yStart) : 0;
   const col = Math.trunc(x) - xStart;
   const row = Math.trunc(y) - yStart;
   if (row < 0 || col < 0) return;
   if (!location.map.types[row] || col >= location.map.types[row].length) return;
-  location.map.types[row][col] = type;
+  location.map.types[row][col] = finalType;
   if (Array.isArray(location.map.substrateTypes)) {
     const substrateRow = location.map.substrateTypes[row];
     if (substrateRow && col < substrateRow.length) {
-      substrateRow[col] = type === 'ore' ? 'stone' : type;
+      substrateRow[col] = finalType === 'ore' ? 'stone' : finalType;
     }
   }
   if (location.map.tiles?.[row]?.length) {
-    const symbol = TERRAIN_SYMBOLS[type] || TERRAIN_SYMBOLS.open || '?';
+    const symbol = TERRAIN_SYMBOLS[finalType] || TERRAIN_SYMBOLS.open || '?';
     location.map.tiles[row][col] = symbol;
   }
+}
+
+function getLocationOpenTerrain(location) {
+  if (!location) return 'open';
+  const mapType = typeof location.map?.openTerrainType === 'string' ? location.map.openTerrainType : '';
+  if (mapType) return mapType.toLowerCase();
+  const biome = getBiome(location.biome) || null;
+  return resolveBiomeOpenTerrain(biome);
 }
 
 function ensureResourceNodes(location) {
@@ -136,7 +146,8 @@ function ensureTileNode(location, x, y, terrain) {
     } else if (terrain === 'ore') {
       nodes[key] = generateOreNode(location, x, y);
     } else {
-      nodes[key] = { type: terrain || 'open' };
+      const fallback = terrain && terrain !== 'open' ? terrain : getLocationOpenTerrain(location);
+      nodes[key] = { type: fallback };
     }
   } else if (terrain === 'forest') {
     if (!nodes[key].trees) {
@@ -228,7 +239,7 @@ export function fellTreesAtTile({ locationId, x = 0, y = 0, tools = [] } = {}) {
   const remainingTrees = (node.trees.small || 0) + (node.trees.medium || 0) + (node.trees.large || 0);
   const cleared = remainingTrees <= 0;
   if (cleared) {
-    setTerrainType(location, x, y, 'open');
+    setTerrainType(location, x, y, getLocationOpenTerrain(location));
   }
   return {
     success: true,

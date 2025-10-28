@@ -11,6 +11,7 @@
  *   | 'marsh'
  *   | 'mangrove'
  *   | 'desert'
+ *   | 'grassland'
  *   | 'tundra'
  *   | 'taiga'
  *   | 'savanna'
@@ -18,6 +19,7 @@
  *   | 'jungle'
  *   | 'swamp'
  *   | 'wetland'
+ *   | 'sand'
  *   | 'coast'
  *   | 'island'
  *   | 'mountain'
@@ -42,6 +44,7 @@ const TILE_VARIABLES = {
   river: '--legend-river',
   marsh: '--legend-marsh',
   mangrove: '--legend-mangrove',
+  grassland: '--legend-grassland',
   desert: '--legend-desert',
   tundra: '--legend-tundra',
   taiga: '--legend-taiga',
@@ -50,6 +53,7 @@ const TILE_VARIABLES = {
   jungle: '--legend-jungle',
   swamp: '--legend-swamp',
   wetland: '--legend-wetland',
+  sand: '--legend-sand',
   coast: '--legend-coast',
   island: '--legend-island',
   mountain: '--legend-mountain',
@@ -72,6 +76,7 @@ const TILE_FALLBACK_COLORS = {
   river: '#0ea5e9',
   marsh: '#4ade80',
   mangrove: '#065f46',
+  grassland: '#a3e635',
   desert: '#f4b76b',
   tundra: '#9ac5ff',
   taiga: '#2f6b2a',
@@ -80,6 +85,7 @@ const TILE_FALLBACK_COLORS = {
   jungle: '#0f766e',
   swamp: '#14532d',
   wetland: '#22c55e',
+  sand: '#fcd34d',
   coast: '#0ea5e9',
   island: '#38bdf8',
   mountain: '#64748b',

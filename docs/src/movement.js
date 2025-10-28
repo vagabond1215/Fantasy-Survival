@@ -1,4 +1,5 @@
 import { GRID_DISTANCE_METERS, isWaterTerrain } from './map.js';
+import { isOpenTerrain } from './terrainTypes.js';
 
 const BASE_WALK_SPEED_METERS_PER_HOUR = 4200; // ~4.2 km/h average travel speed
 
@@ -18,7 +19,11 @@ const TERRAIN_TIME_MULTIPLIER = {
 
 function terrainMultiplier(type) {
   if (!type) return TERRAIN_TIME_MULTIPLIER.default;
-  return TERRAIN_TIME_MULTIPLIER[type] ?? TERRAIN_TIME_MULTIPLIER.default;
+  const normalized = typeof type === 'string' ? type.toLowerCase() : '';
+  if (isOpenTerrain(normalized)) {
+    return TERRAIN_TIME_MULTIPLIER.open;
+  }
+  return TERRAIN_TIME_MULTIPLIER[normalized] ?? TERRAIN_TIME_MULTIPLIER.default;
 }
 
 function clamp(value, min, max) {
@@ -64,7 +69,11 @@ export function calculateTravelTime({
 }
 
 export function describeTerrainDifficulty(type) {
-  switch (type) {
+  const normalized = typeof type === 'string' ? type.toLowerCase() : '';
+  if (isOpenTerrain(normalized)) {
+    return 'Gentle terrain allows steady progress.';
+  }
+  switch (normalized) {
     case 'forest':
       return 'Dense canopy and underbrush slow travel.';
     case 'ore':
@@ -81,7 +90,6 @@ export function describeTerrainDifficulty(type) {
       return 'Slogging through wetlands is slow and exhausting.';
     case 'mangrove':
       return 'Dense roots and tidal pools demand careful, time-consuming steps.';
-    case 'open':
     default:
       return 'Gentle terrain allows steady progress.';
   }

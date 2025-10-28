@@ -1,6 +1,7 @@
 // @ts-nocheck
 import store from './state.js';
 import { getCurrentAbsoluteHours } from './time.js';
+import { isOpenTerrain } from './terrainTypes.js';
 
 function slugify(value = '') {
   return String(value || '')
@@ -8,6 +9,30 @@ function slugify(value = '') {
     .toLowerCase()
     .replace(/[^a-z0-9]+/g, '-')
     .replace(/^-+|-+$/g, '');
+}
+
+function normalizeTerrainId(value, fallback = '') {
+  if (typeof value !== 'string') {
+    return fallback;
+  }
+  const trimmed = value.trim().toLowerCase();
+  return trimmed || fallback;
+}
+
+function habitatMatchesTerrain(habitat, terrain) {
+  const normalizedHabitat = normalizeTerrainId(habitat);
+  if (!normalizedHabitat || !terrain) return false;
+  if (normalizedHabitat === terrain) return true;
+  if (normalizedHabitat === 'open') {
+    return isOpenTerrain(terrain);
+  }
+  if (normalizedHabitat === 'meadow') {
+    return isOpenTerrain(terrain);
+  }
+  if (isOpenTerrain(normalizedHabitat) && isOpenTerrain(terrain)) {
+    return normalizedHabitat === terrain;
+  }
+  return false;
 }
 
 const DEFAULT_STICK_SEASON_WEIGHTS = { Thawbound: 2, Sunheight: 3, Emberwane: 3, Frostshroud: 2 };
@@ -345,10 +370,11 @@ const BASE_HABITAT_ITEMS = [
 const HABITAT_ITEMS = [...BASE_HABITAT_ITEMS, ...STURDY_TREE_STICK_ITEMS];
 
 export function getHabitatProspects(terrain) {
-  if (!terrain) return [];
-  const normalized = String(terrain).trim().toLowerCase();
+  const normalized = normalizeTerrainId(terrain);
   if (!normalized) return [];
-  return HABITAT_ITEMS.filter(item => item.habitats.includes(normalized)).map(item => ({
+  return HABITAT_ITEMS.filter(item =>
+    Array.isArray(item.habitats) && item.habitats.some(habitat => habitatMatchesTerrain(habitat, normalized))
+  ).map(item => ({
     id: item.id,
     resource: item.resource,
     encounterName: item.encounterName || item.resource,
@@ -493,7 +519,12 @@ export function performGathering({
 } = {}) {
   const tools = new Set((availableTools || []).map(tool => String(tool).toLowerCase()));
   const currentHour = getCurrentAbsoluteHours();
-  const candidates = HABITAT_ITEMS.filter(item => item.habitats.includes(terrain));
+  const terrainId = normalizeTerrainId(terrain, 'open');
+  const candidates = HABITAT_ITEMS.filter(
+    item =>
+      Array.isArray(item.habitats) &&
+      item.habitats.some(habitat => habitatMatchesTerrain(habitat, terrainId))
+  );
   if (!candidates.length) {
     return { gathered: [], blocked: [], elapsedHours: 0 };
   }
