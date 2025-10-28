@@ -4,6 +4,7 @@ import { hasTechnology, unlockTechnology, getTechnology } from './technology.js'
 import { buildingCatalog } from './buildingCatalog.js';
 import { getItem } from './inventory.js';
 import { allLocations, getLocationSiteCapacities } from './location.js';
+import { isOpenTerrainType } from './biomes.js';
 import { timeInfo } from './time.js';
 
 const buildingTypes = new Map();
@@ -242,7 +243,7 @@ function locationSupports(type, location = null) {
   const tags = type.requirements?.locationTags || [];
   if (!tags.length) return true;
   const normalizedTags = tags.map(tag => String(tag || '').toLowerCase());
-  if (normalizedTags.some(tag => tag === 'open' || tag === 'any')) {
+  if (normalizedTags.some(tag => tag === 'any' || isOpenTerrainType(tag))) {
     return true;
   }
   const locations = location ? [location] : allLocations();

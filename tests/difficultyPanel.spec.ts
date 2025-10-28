@@ -13,6 +13,8 @@ vi.mock('../src/biomes.js', () => ({
       notes: []
     }
   ],
+  OPEN_TERRAIN_TYPES: ['open'],
+  isOpenTerrainType: (value: string) => value === 'open',
   getBiome: (id: string) => ({
     id,
     name: 'Temperate Woods',

@@ -739,7 +739,8 @@ function renderTileInfo() {
   const tileX = Math.trunc(player.x || 0);
   const tileY = Math.trunc(player.y || 0);
   const node = getTileResource(loc.id, tileX, tileY) || {};
-  const terrain = getTerrainTypeAt(loc, tileX, tileY) || node.type || 'open';
+  const fallbackTerrain = getBiome(loc.biome)?.openTerrainId ?? 'open';
+  const terrain = getTerrainTypeAt(loc, tileX, tileY) || node.type || fallbackTerrain;
   const narrative = describeTerrainNarrative(terrain, node);
   const firstParagraph = document.createElement('p');
   let intro = `The survey tile at (${tileX}, ${tileY}) ${narrative.lead}.`;
@@ -1423,7 +1424,8 @@ function handlePlayerNavigate({ dx = 0, dy = 0, recenter = false } = {}) {
     centerOnPlayer();
     return;
   }
-  const currentTerrain = getTerrainTypeAt(loc, player.x, player.y) || 'open';
+  const fallbackTerrain = getBiome(loc.biome)?.openTerrainId ?? 'open';
+  const currentTerrain = getTerrainTypeAt(loc, player.x, player.y) || fallbackTerrain;
   const nextTerrain = getTerrainTypeAt(loc, next.x, next.y) || currentTerrain;
   const distanceMeters = Math.hypot(next.x - player.x, next.y - player.y) * GRID_DISTANCE_METERS;
   const swimmingLevel = getProficiencyLevel('swimming');
@@ -2539,7 +2541,8 @@ function handleGatherAction() {
     return;
   }
   const player = ensurePlayerState(loc.id);
-  const terrain = getTerrainTypeAt(loc, player.x, player.y) || 'open';
+  const fallbackTerrain = getBiome(loc.biome)?.openTerrainId ?? 'open';
+  const terrain = getTerrainTypeAt(loc, player.x, player.y) || fallbackTerrain;
   const season = store.time?.season || timeInfo().season;
   const availableTools = listAvailableToolNames();
   const result = performGathering({

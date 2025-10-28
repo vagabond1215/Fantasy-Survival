@@ -1,3 +1,27 @@
+import { OPEN_TERRAIN_TYPES } from './biomes.js';
+
+const OPEN_TERRAIN_TAGS = [...new Set(OPEN_TERRAIN_TYPES)];
+const OPEN_TERRAIN_TAG_SET = new Set(OPEN_TERRAIN_TAGS);
+
+function expandLocationTags(tags = []) {
+  const result = new Set();
+  const entries = Array.isArray(tags) ? tags : [];
+  entries.forEach(tag => {
+    if (!tag) return;
+    const normalized = String(tag).trim().toLowerCase();
+    if (!normalized) return;
+    if (normalized === 'open') {
+      OPEN_TERRAIN_TAGS.forEach(value => result.add(value));
+    } else if (OPEN_TERRAIN_TAG_SET.has(normalized)) {
+      result.add('open');
+      result.add(normalized);
+    } else {
+      result.add(normalized);
+    }
+  });
+  return [...result];
+}
+
 export const buildingCatalog = [
   {
     id: 'lean-to',
@@ -85,7 +109,7 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 3,
-      locationTags: ['meadow', 'grassland', 'open'],
+      locationTags: expandLocationTags(['meadow', 'grassland', 'open']),
       site: {
         category: 'cleared',
         dimensions: { width: 12, depth: 18 },
@@ -158,7 +182,7 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 3,
-      locationTags: ['meadow', 'grassland', 'open'],
+      locationTags: expandLocationTags(['meadow', 'grassland', 'open']),
       site: {
         category: 'cleared',
         dimensions: { width: 10, depth: 14 },
@@ -231,7 +255,7 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 3,
-      locationTags: ['meadow', 'hill', 'open'],
+      locationTags: expandLocationTags(['meadow', 'hill', 'open']),
       site: {
         category: 'cleared',
         dimensions: { width: 6, depth: 8 },
@@ -301,7 +325,7 @@ export const buildingCatalog = [
     unlock: { always: true },
     requirements: {
       minBuilders: 1,
-      locationTags: ['forest', 'grove', 'meadow', 'open'],
+      locationTags: expandLocationTags(['forest', 'grove', 'meadow', 'open']),
       site: {
         categories: ['forest', 'cleared'],
         dimensions: { width: 1.8, depth: 1.8 },
@@ -380,7 +404,7 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 1,
-      locationTags: ['meadow', 'shore', 'open'],
+      locationTags: expandLocationTags(['meadow', 'shore', 'open']),
       site: {
         category: 'cleared',
         dimensions: { width: 3, depth: 1.8 },
@@ -525,7 +549,7 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 3,
-      locationTags: ['meadow', 'open'],
+      locationTags: expandLocationTags(['meadow', 'open']),
       site: {
         category: 'cleared',
         dimensions: { width: 6, depth: 8 },
@@ -598,7 +622,7 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 3,
-      locationTags: ['river', 'lake', 'shore', 'meadow', 'open'],
+      locationTags: expandLocationTags(['river', 'lake', 'shore', 'meadow', 'open']),
       site: {
         category: 'cleared',
         dimensions: { width: 6, depth: 10 },
@@ -745,7 +769,7 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 3,
-      locationTags: ['river', 'lake', 'shore', 'open'],
+      locationTags: expandLocationTags(['river', 'lake', 'shore', 'open']),
       site: {
         category: 'cleared',
         dimensions: { width: 4.2, depth: 4.2 },
@@ -818,7 +842,7 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 4,
-      locationTags: ['meadow', 'open'],
+      locationTags: expandLocationTags(['meadow', 'open']),
       site: {
         category: 'cleared',
         dimensions: { width: 8, depth: 24 },
@@ -991,7 +1015,7 @@ export const buildingCatalog = [
     },
     requirements: {
       minBuilders: 5,
-      locationTags: ['meadow', 'forest', 'open'],
+      locationTags: expandLocationTags(['meadow', 'forest', 'open']),
       site: {
         category: 'cleared',
         dimensions: { width: 24, depth: 24 },

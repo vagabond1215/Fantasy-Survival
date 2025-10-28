@@ -1,5 +1,5 @@
 import store from './state.js';
-import { getBiome } from './biomes.js';
+import { getBiome, OPEN_TERRAIN_TYPES } from './biomes.js';
 import { generatePointsOfInterest } from './pointsOfInterest.js';
 import {
   computeCenteredStart,
@@ -9,7 +9,7 @@ import {
   GRID_DISTANCE_METERS
 } from './map.js';
 
-const CLEAR_TERRAIN_TYPES = new Set(['open', 'ore', 'stone']);
+const CLEAR_TERRAIN_TYPES = new Set([...OPEN_TERRAIN_TYPES, 'ore', 'stone']);
 
 function normalizeNumber(value) {
   const num = Number(value);

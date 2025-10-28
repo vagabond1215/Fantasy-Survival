@@ -1,6 +1,7 @@
 // @ts-nocheck
 import store from './state.js';
 import { getCurrentAbsoluteHours } from './time.js';
+import { OPEN_TERRAIN_TYPES, isOpenTerrainType } from './biomes.js';
 
 function slugify(value = '') {
   return String(value || '')
@@ -12,6 +13,27 @@ function slugify(value = '') {
 
 const DEFAULT_STICK_SEASON_WEIGHTS = { Thawbound: 2, Sunheight: 3, Emberwane: 3, Frostshroud: 2 };
 const WATER_HABITATS = ['water', 'river', 'lake', 'marsh', 'ocean', 'mangrove'];
+
+const OPEN_TERRAIN_HABITATS = [...new Set(OPEN_TERRAIN_TYPES)];
+
+function expandHabitats(habitats = []) {
+  const result = new Set();
+  const entries = Array.isArray(habitats) ? habitats : [];
+  entries.forEach(habitat => {
+    if (!habitat) return;
+    const normalized = String(habitat).trim().toLowerCase();
+    if (!normalized) return;
+    if (normalized === 'open') {
+      OPEN_TERRAIN_HABITATS.forEach(type => result.add(type));
+    } else if (isOpenTerrainType(normalized)) {
+      result.add('open');
+      result.add(normalized);
+    } else {
+      result.add(normalized);
+    }
+  });
+  return [...result];
+}
 
 const STURDY_TREE_STICK_CONFIG = [
   {
@@ -44,7 +66,9 @@ const STURDY_TREE_STICK_ITEMS = STURDY_TREE_STICK_CONFIG.map(config => {
     singularName: resourceName,
     encounterName: config.encounterName || `fallen ${lowerName} branch`,
     type: 'loose',
-    habitats: Array.isArray(config.habitats) && config.habitats.length ? [...config.habitats] : ['forest'],
+    habitats: expandHabitats(
+      Array.isArray(config.habitats) && config.habitats.length ? config.habitats : ['forest']
+    ),
     baseWeight: Number.isFinite(config.baseWeight) ? config.baseWeight : 2,
     seasonWeights: { ...DEFAULT_STICK_SEASON_WEIGHTS, ...(config.seasonWeights || {}) },
     minQuantity: Number.isFinite(config.minQuantity) ? config.minQuantity : 1,
@@ -340,7 +364,10 @@ const BASE_HABITAT_ITEMS = [
     successSuffix: 'from the exposed vein.',
     blockedVerb: 'mine'
   }
-];
+].map(item => ({
+  ...item,
+  habitats: expandHabitats(item.habitats || [])
+}));
 
 const HABITAT_ITEMS = [...BASE_HABITAT_ITEMS, ...STURDY_TREE_STICK_ITEMS];
 
@@ -493,7 +520,13 @@ export function performGathering({
 } = {}) {
   const tools = new Set((availableTools || []).map(tool => String(tool).toLowerCase()));
   const currentHour = getCurrentAbsoluteHours();
-  const candidates = HABITAT_ITEMS.filter(item => item.habitats.includes(terrain));
+  const normalizedTerrain = typeof terrain === 'string' ? terrain.trim().toLowerCase() : '';
+  const searchTerrains = normalizedTerrain
+    ? [...new Set([normalizedTerrain, ...(isOpenTerrainType(normalizedTerrain) ? ['open'] : [])])]
+    : [];
+  const candidates = HABITAT_ITEMS.filter(item =>
+    searchTerrains.some(type => item.habitats.includes(type))
+  );
   if (!candidates.length) {
     return { gathered: [], blocked: [], elapsedHours: 0 };
   }

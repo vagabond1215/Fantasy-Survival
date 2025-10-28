@@ -1,4 +1,5 @@
 import { GRID_DISTANCE_METERS, isWaterTerrain } from './map.js';
+import { isOpenTerrainType } from './biomes.js';
 
 const BASE_WALK_SPEED_METERS_PER_HOUR = 4200; // ~4.2 km/h average travel speed
 
@@ -18,6 +19,7 @@ const TERRAIN_TIME_MULTIPLIER = {
 
 function terrainMultiplier(type) {
   if (!type) return TERRAIN_TIME_MULTIPLIER.default;
+  if (isOpenTerrainType(type)) return TERRAIN_TIME_MULTIPLIER.open;
   return TERRAIN_TIME_MULTIPLIER[type] ?? TERRAIN_TIME_MULTIPLIER.default;
 }
 
@@ -64,6 +66,9 @@ export function calculateTravelTime({
 }
 
 export function describeTerrainDifficulty(type) {
+  if (isOpenTerrainType(type)) {
+    return 'Gentle terrain allows steady progress.';
+  }
   switch (type) {
     case 'forest':
       return 'Dense canopy and underbrush slow travel.';

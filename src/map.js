@@ -22,6 +22,18 @@ export const TERRAIN_SYMBOLS = {
   marsh: '🪴',
   mangrove: '🪷',
   open: '🌾',
+  tundra: '❄️',
+  taiga: '🌲',
+  coast: '🏖️',
+  sand: '🏝️',
+  wetland: '🪷',
+  island: '🏝️',
+  swamp: '🪴',
+  plains: '🌾',
+  mountain: '⛰️',
+  savanna: '🌾',
+  rainforest: '🌴',
+  jungle: '🌴',
   forest: '🌲',
   ore: '⛏️',
   stone: '🪨'
@@ -35,6 +47,7 @@ export const DEFAULT_TERRAIN_COLORS = Object.freeze({
   marsh: '#4ade80',
   mangrove: '#065f46',
   open: '#facc15',
+  sand: '#fcd34d',
   forest: '#16a34a',
   ore: '#f97316',
   stone: '#94a3b8',
@@ -64,6 +77,7 @@ const TERRAIN_COLOR_VARIABLES = Object.freeze({
   marsh: '--legend-marsh',
   mangrove: '--legend-mangrove',
   open: '--legend-open',
+  sand: '--legend-sand',
   forest: '--legend-forest',
   ore: '--legend-ore',
   stone: '--legend-stone',
@@ -538,6 +552,8 @@ export function generateColorMap(
   openLand -= Math.max(0, mountainsBias) * 0.12;
   openLand = clamp(openLand, 0.1, 0.9);
 
+  const openTerrainType = biome?.openTerrainId ?? 'open';
+
   const vegScaleBase = clamp(20 + openLand * 80, 10, 140);
   const vegScale = clamp(
     vegScaleBase + (((adv.vegetationScale ?? 50) - 50) / 50) * 25,
@@ -672,7 +688,7 @@ export function generateColorMap(
           baseType = hydroType;
         } else {
           const vegNoise = vegetationNoise(seed, gx, gy, vegScale);
-          baseType = vegNoise < openLand ? 'open' : 'forest';
+          baseType = vegNoise < openLand ? openTerrainType : 'forest';
           oreVal = oreNoise(seed, gx, gy, oreScale);
         }
         substrateRow[x] = baseType;
@@ -929,7 +945,7 @@ export function generateColorMap(
       let updated = false;
       const current = terrainRow[x];
       if (!current || isWaterTerrain(current)) {
-        terrainRow[x] = 'open';
+        terrainRow[x] = openTerrainType;
         updated = true;
       }
       if (hydroRow[x] !== 'land') {

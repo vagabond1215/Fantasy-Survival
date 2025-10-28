@@ -1,6 +1,6 @@
 // @ts-nocheck
 import store from './state.js';
-import { getBiome } from './biomes.js';
+import { getBiome, isOpenTerrainType } from './biomes.js';
 import { coordinateRandom, TERRAIN_SYMBOLS } from './map.js';
 
 const TREE_YIELDS = {
@@ -39,6 +39,11 @@ function getTerrainType(location, x, y) {
   return rowData[col];
 }
 
+function getOpenTerrainIdForLocation(location) {
+  const biome = getBiome(location?.biome);
+  return biome?.openTerrainId ?? 'open';
+}
+
 function setTerrainType(location, x, y, type) {
   if (!location?.map?.types) return;
   const xStart = Number.isFinite(location.map.xStart) ? Math.trunc(location.map.xStart) : 0;
@@ -55,7 +60,11 @@ function setTerrainType(location, x, y, type) {
     }
   }
   if (location.map.tiles?.[row]?.length) {
-    const symbol = TERRAIN_SYMBOLS[type] || TERRAIN_SYMBOLS.open || '?';
+    const symbol =
+      TERRAIN_SYMBOLS[type] ||
+      (isOpenTerrainType(type) ? TERRAIN_SYMBOLS.open : undefined) ||
+      TERRAIN_SYMBOLS.open ||
+      '?';
     location.map.tiles[row][col] = symbol;
   }
 }
@@ -136,7 +145,8 @@ function ensureTileNode(location, x, y, terrain) {
     } else if (terrain === 'ore') {
       nodes[key] = generateOreNode(location, x, y);
     } else {
-      nodes[key] = { type: terrain || 'open' };
+      const defaultTerrain = terrain || getOpenTerrainIdForLocation(location);
+      nodes[key] = { type: defaultTerrain };
     }
   } else if (terrain === 'forest') {
     if (!nodes[key].trees) {
@@ -181,6 +191,7 @@ export function fellTreesAtTile({ locationId, x = 0, y = 0, tools = [] } = {}) {
   const location = getLocation(locationId);
   if (!location) return { success: false, reason: 'Unknown location.' };
   const terrain = getTerrainType(location, x, y);
+  const openTerrainId = getOpenTerrainIdForLocation(location);
   if (terrain !== 'forest') {
     return { success: false, reason: 'No standing trees remain here.' };
   }
@@ -228,7 +239,7 @@ export function fellTreesAtTile({ locationId, x = 0, y = 0, tools = [] } = {}) {
   const remainingTrees = (node.trees.small || 0) + (node.trees.medium || 0) + (node.trees.large || 0);
   const cleared = remainingTrees <= 0;
   if (cleared) {
-    setTerrainType(location, x, y, 'open');
+    setTerrainType(location, x, y, openTerrainId);
   }
   return {
     success: true,
