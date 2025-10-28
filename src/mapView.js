@@ -23,8 +23,21 @@ const DEVELOPMENT_STATUS_ALIASES = new Map(
   ].map(([alias, status]) => [alias, status])
 );
 
+const ARROW_KEY_MOVES = Object.freeze({
+  ArrowUp: { dx: 0, dy: -1 },
+  ArrowDown: { dx: 0, dy: 1 },
+  ArrowLeft: { dx: -1, dy: 0 },
+  ArrowRight: { dx: 1, dy: 0 }
+});
+
 function toFiniteInteger(value) {
   return Number.isFinite(value) ? Math.trunc(value) : null;
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) return value;
+  if (min > max) return value;
+  return Math.min(max, Math.max(min, value));
 }
 
 function normalizeDevelopmentStatus(status, fallback = 'noted') {
@@ -1021,6 +1034,9 @@ export function createMapView(container, {
   mapWrapper.style.boxSizing = 'border-box';
   mapWrapper.style.aspectRatio = '1 / 1';
   mapWrapper.style.flexShrink = '0';
+  if (!mapWrapper.hasAttribute('tabindex')) {
+    mapWrapper.setAttribute('tabindex', '0');
+  }
 
   const mapCanvas = document.createElement('div');
   mapCanvas.className = `${idPrefix}-canvas map-canvas`;
@@ -3023,22 +3039,56 @@ export function createMapView(container, {
     requestFrame(syncMarkers);
   }
 
+  function getViewportStepLimits() {
+    const width = Number.isFinite(state.viewport.width)
+      ? state.viewport.width
+      : state.map?.tiles?.[0]?.length || 0;
+    const height = Number.isFinite(state.viewport.height)
+      ? state.viewport.height
+      : state.map?.tiles?.length || 0;
+    return {
+      maxX: Math.max(0, Math.trunc(width) - 1),
+      maxY: Math.max(0, Math.trunc(height) - 1)
+    };
+  }
+
+  function getPanStepSize() {
+    const cols = state.viewport.width || state.map?.tiles?.[0]?.length || 0;
+    const rows = state.viewport.height || state.map?.tiles?.length || 0;
+    if (!cols || !rows) {
+      return null;
+    }
+    return {
+      stepX: Math.max(1, Math.floor(cols * 0.5)),
+      stepY: Math.max(1, Math.floor(rows * 0.5))
+    };
+  }
+
+  function moveViewportBySteps(dx, dy) {
+    if (!dx && !dy) return;
+    const steps = getPanStepSize();
+    if (!steps) return;
+    const deltaX = steps.stepX * dx;
+    const deltaY = steps.stepY * dy;
+    if (!deltaX && !deltaY) return;
+    shiftViewport(deltaX, deltaY);
+  }
+
   function shiftViewport(dxTiles, dyTiles) {
     if (!dxTiles && !dyTiles) return;
+    const { maxX, maxY } = getViewportStepLimits();
+    const clampedX = clampNumber(dxTiles, -maxX, maxX);
+    const clampedY = clampNumber(dyTiles, -maxY, maxY);
+    if (!clampedX && !clampedY) return;
     const baseX = Number.isFinite(state.viewport.xStart) ? state.viewport.xStart : state.map?.xStart || 0;
     const baseY = Number.isFinite(state.viewport.yStart) ? state.viewport.yStart : state.map?.yStart || 0;
-    const nextX = baseX + dxTiles;
-    const nextY = baseY + dyTiles;
+    const nextX = baseX + clampedX;
+    const nextY = baseY + clampedY;
     updateViewportStart(nextX, nextY);
   }
 
   function pan(dx, dy) {
-    const cols = state.viewport.width || state.map?.tiles?.[0]?.length || 0;
-    const rows = state.viewport.height || state.map?.tiles?.length || 0;
-    if (!cols || !rows) return;
-    const stepX = Math.max(1, Math.round(cols * 0.6)) * dx;
-    const stepY = Math.max(1, Math.round(rows * 0.6)) * dy;
-    shiftViewport(stepX, stepY);
+    moveViewportBySteps(dx, dy);
   }
 
   function attachNavButtons() {
@@ -3079,6 +3129,19 @@ export function createMapView(container, {
     });
   }
 
+  function handleWrapperKeyDown(event) {
+    if (!event || typeof event.key !== 'string') return;
+    const movement = ARROW_KEY_MOVES[event.key];
+    if (!movement) return;
+    if (state.navMode === 'player' && typeof state.onNavigate === 'function') {
+      event.preventDefault();
+      state.onNavigate({ dx: movement.dx, dy: movement.dy, recenter: false });
+      return;
+    }
+    event.preventDefault();
+    moveViewportBySteps(movement.dx, movement.dy);
+  }
+
   function handleDragStart(clientX, clientY) {
     if (!allowDrag) return;
     clearHoldTimer();
@@ -3109,9 +3172,13 @@ export function createMapView(container, {
     const tilesX = Math.trunc(state.drag.pendingX / tileWidth);
     const tilesY = Math.trunc(state.drag.pendingY / tileHeight);
     if (!tilesX && !tilesY) return;
-    state.drag.pendingX -= tilesX * tileWidth;
-    state.drag.pendingY -= tilesY * tileHeight;
-    shiftViewport(tilesX, tilesY);
+    const { maxX, maxY } = getViewportStepLimits();
+    const limitedTilesX = clampNumber(tilesX, -maxX, maxX);
+    const limitedTilesY = clampNumber(tilesY, -maxY, maxY);
+    if (!limitedTilesX && !limitedTilesY) return;
+    state.drag.pendingX -= limitedTilesX * tileWidth;
+    state.drag.pendingY -= limitedTilesY * tileHeight;
+    shiftViewport(limitedTilesX, limitedTilesY);
   }
 
   function endDrag() {
@@ -3156,6 +3223,8 @@ export function createMapView(container, {
       window.removeEventListener('touchcancel', endDrag);
     };
   }
+
+  mapWrapper.addEventListener('keydown', handleWrapperKeyDown);
 
   const detachGlobalDrag = attachDragHandlers();
   applyZoomTransform();
@@ -3345,6 +3414,7 @@ export function createMapView(container, {
       if (typeof document !== 'undefined') {
         document.documentElement.style.removeProperty('--map-layout-width');
       }
+      mapWrapper.removeEventListener('keydown', handleWrapperKeyDown);
     },
     elements: {
       layout: layoutRoot,
