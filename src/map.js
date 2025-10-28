@@ -585,6 +585,7 @@ export function generateColorMap(
 
   const tiles = Array.from({ length: mapHeight }, () => Array(mapWidth).fill('?'));
   const terrainTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
+  const substrateTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
   const elevations = [];
 
   const worldScale = Math.max(mapWidth, mapHeight) * 1.2;
@@ -642,8 +643,13 @@ export function generateColorMap(
     if (hydrology.rules) {
       hydrology.rules.seaLevel = adjustedSeaLevel;
     }
+    const oreField = Array.from({ length: mapHeight }, () => new Array(mapWidth).fill(0));
+    const stoneThreshold = clamp(oreThreshold - 0.08, 0.3, 0.92);
+    const oreCells = [];
     for (let y = 0; y < mapHeight; y++) {
       const typeRow = terrainTypes[y];
+      const substrateRow = substrateTypes[y];
+      const oreRow = oreField[y];
       for (let x = 0; x < mapWidth; x++) {
         const gx = baseXStart + x;
         const gy = baseYStart + y;
@@ -660,18 +666,116 @@ export function generateColorMap(
           }
         }
         hydrology.types[y][x] = hydroType;
-        let type;
+        let baseType;
+        let oreVal = 0;
         if (hydroType && hydroType !== 'land') {
-          type = hydroType;
+          baseType = hydroType;
         } else {
           const vegNoise = vegetationNoise(seed, gx, gy, vegScale);
-          type = vegNoise < openLand ? 'open' : 'forest';
-          const oreVal = oreNoise(seed, gx, gy, oreScale);
-          if (oreVal > oreThreshold && elevation >= adjustedSeaLevel) {
-            type = 'ore';
+          baseType = vegNoise < openLand ? 'open' : 'forest';
+          oreVal = oreNoise(seed, gx, gy, oreScale);
+        }
+        substrateRow[x] = baseType;
+        typeRow[x] = baseType;
+        oreRow[x] = oreVal;
+      }
+    }
+
+    for (let y = 0; y < mapHeight; y++) {
+      const typeRow = terrainTypes[y];
+      const substrateRow = substrateTypes[y];
+      for (let x = 0; x < mapWidth; x++) {
+        if (hydrology.types[y][x] !== 'land') continue;
+        if (elevations[y][x] < adjustedSeaLevel) continue;
+        if (oreField[y][x] <= stoneThreshold) continue;
+        substrateRow[x] = 'stone';
+        if (typeRow[x] !== 'ore') {
+          typeRow[x] = 'stone';
+        }
+      }
+    }
+
+    for (let y = 0; y < mapHeight; y++) {
+      const typeRow = terrainTypes[y];
+      const substrateRow = substrateTypes[y];
+      for (let x = 0; x < mapWidth; x++) {
+        if (hydrology.types[y][x] !== 'land') continue;
+        if (elevations[y][x] < adjustedSeaLevel) continue;
+        if (oreField[y][x] <= oreThreshold) continue;
+        substrateRow[x] = 'stone';
+        typeRow[x] = 'ore';
+        oreCells.push([x, y]);
+      }
+    }
+
+    if (oreCells.length) {
+      const neighborOffsets = [
+        [-1, -1],
+        [0, -1],
+        [1, -1],
+        [-1, 0],
+        [1, 0],
+        [-1, 1],
+        [0, 1],
+        [1, 1]
+      ];
+      for (const [ox, oy] of oreCells) {
+        if (terrainTypes[oy]?.[ox] !== 'ore') continue;
+        for (const [dx, dy] of neighborOffsets) {
+          const nx = ox + dx;
+          const ny = oy + dy;
+          if (nx < 0 || ny < 0 || nx >= mapWidth || ny >= mapHeight) continue;
+          const neighborRow = terrainTypes[ny];
+          const neighborSubstrateRow = substrateTypes[ny];
+          if (!neighborRow || !neighborSubstrateRow) continue;
+          if (neighborRow[nx] === 'ore') continue;
+          if (isWaterTerrain(neighborRow[nx])) continue;
+          neighborSubstrateRow[nx] = 'stone';
+          neighborRow[nx] = 'stone';
+        }
+      }
+
+      for (const [ox, oy] of oreCells) {
+        if (terrainTypes[oy]?.[ox] !== 'ore') continue;
+        const hasStoneNeighbor = neighborOffsets.some(([dx, dy]) => {
+          const nx = ox + dx;
+          const ny = oy + dy;
+          if (nx < 0 || ny < 0 || nx >= mapWidth || ny >= mapHeight) return false;
+          return terrainTypes[ny]?.[nx] === 'stone';
+        });
+        if (hasStoneNeighbor) continue;
+        let candidate = null;
+        let candidateValue = Infinity;
+        for (const [dx, dy] of neighborOffsets) {
+          const nx = ox + dx;
+          const ny = oy + dy;
+          if (nx < 0 || ny < 0 || nx >= mapWidth || ny >= mapHeight) continue;
+          const neighborRow = terrainTypes[ny];
+          const neighborSubstrateRow = substrateTypes[ny];
+          if (!neighborRow || !neighborSubstrateRow) continue;
+          const neighborType = neighborRow[nx];
+          if (isWaterTerrain(neighborType)) continue;
+          if (neighborType !== 'ore') {
+            candidate = { nx, ny };
+            candidateValue = -1;
+            break;
+          }
+          const oreValue = oreField[ny]?.[nx];
+          if (!Number.isFinite(oreValue)) continue;
+          if (oreValue < candidateValue) {
+            candidateValue = oreValue;
+            candidate = { nx, ny };
           }
         }
-        typeRow[x] = type;
+        if (candidate) {
+          const { nx, ny } = candidate;
+          const neighborRow = terrainTypes[ny];
+          const neighborSubstrateRow = substrateTypes[ny];
+          if (neighborRow && neighborSubstrateRow) {
+            neighborSubstrateRow[nx] = 'stone';
+            neighborRow[nx] = 'stone';
+          }
+        }
       }
     }
   }
@@ -1291,6 +1395,7 @@ export function generateColorMap(
     height: mapHeight,
     tiles,
     types: terrainTypes,
+    substrateTypes,
     elevations,
     season,
     waterLevel,
