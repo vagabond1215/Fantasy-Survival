@@ -1270,37 +1270,58 @@ export function initSetupUI(onStart) {
   }
 
   function attachSetupLegend() {
-    if (!mapView?.elements?.controls) return;
-    const controlsRoot = mapView.elements.controls;
-    const navGrid = controlsRoot.querySelector('.map-nav-grid');
-    if (!navGrid) return;
-    const host = navGrid.parentElement || controlsRoot;
-    const existing = host.querySelector('.map-legend');
-    if (existing?.parentElement) {
-      existing.parentElement.removeChild(existing);
+    if (!mapView?.elements?.wrapper) return;
+    const mapWrapper = mapView.elements.wrapper;
+    if (!mapWrapper) return;
+
+    const existingToggle = mapWrapper.querySelector('[data-role="legend-toggle"]');
+    if (existingToggle?.parentElement) {
+      existingToggle.parentElement.removeChild(existingToggle);
     }
 
-    const legend = document.createElement('div');
-    legend.className = 'map-legend';
-    legend.setAttribute('aria-label', 'Terrain legend');
-    legend.dataset.role = 'map-legend';
-    if (navGrid.style.width) {
-      legend.style.width = navGrid.style.width;
-      legend.style.maxWidth = navGrid.style.width;
-    } else {
-      legend.style.width = '100%';
+    const existingOverlay = mapWrapper.querySelector('[data-role="map-legend-overlay"]');
+    if (existingOverlay?.parentElement) {
+      existingOverlay.parentElement.removeChild(existingOverlay);
     }
+
+    const legendId = 'setup-map-legend';
+
+    const overlay = document.createElement('div');
+    overlay.className = 'map-legend-overlay';
+    overlay.dataset.role = 'map-legend-overlay';
+    overlay.id = legendId;
+    overlay.hidden = true;
+    overlay.setAttribute('role', 'dialog');
+    overlay.setAttribute('aria-modal', 'true');
+    overlay.setAttribute('aria-label', 'Terrain legend');
+    overlay.setAttribute('aria-hidden', 'true');
+    overlay.tabIndex = -1;
+
+    const legendSurface = document.createElement('div');
+    legendSurface.className = 'map-legend';
+    legendSurface.dataset.role = 'map-legend';
+    legendSurface.setAttribute('role', 'document');
+    legendSurface.tabIndex = -1;
+
+    const closeButton = document.createElement('button');
+    closeButton.type = 'button';
+    closeButton.className = 'map-legend__close';
+    closeButton.setAttribute('aria-label', 'Close terrain legend');
+    closeButton.innerHTML = '<span aria-hidden="true">×</span>';
+    legendSurface.appendChild(closeButton);
 
     const title = document.createElement('div');
     title.className = 'map-legend__title';
     title.textContent = 'Terrain Legend';
-    legend.appendChild(title);
+    legendSurface.appendChild(title);
 
     const list = document.createElement('div');
     list.className = 'map-legend__list';
+    list.setAttribute('role', 'list');
     legendEntries.forEach(entry => {
       const item = document.createElement('div');
       item.className = 'map-legend__item';
+      item.setAttribute('role', 'listitem');
 
       const swatch = document.createElement('span');
       swatch.className = 'map-legend__swatch';
@@ -1316,9 +1337,132 @@ export function initSetupUI(onStart) {
 
       list.appendChild(item);
     });
-    legend.appendChild(list);
+    legendSurface.appendChild(list);
 
-    navGrid.insertAdjacentElement('afterend', legend);
+    overlay.appendChild(legendSurface);
+
+    const toggle = document.createElement('button');
+    toggle.type = 'button';
+    toggle.className = 'map-legend-toggle';
+    toggle.dataset.role = 'legend-toggle';
+    toggle.setAttribute('aria-label', 'Show terrain legend');
+    toggle.setAttribute('aria-controls', legendId);
+    toggle.setAttribute('aria-expanded', 'false');
+    toggle.setAttribute('aria-haspopup', 'dialog');
+
+    const toggleIcon = document.createElement('span');
+    toggleIcon.className = 'map-legend-toggle__icon';
+    toggleIcon.setAttribute('aria-hidden', 'true');
+    toggleIcon.textContent = '?';
+    toggle.appendChild(toggleIcon);
+
+    const updateToggleState = isOpen => {
+      toggle.setAttribute('aria-expanded', String(isOpen));
+      toggle.setAttribute('aria-label', isOpen ? 'Hide terrain legend' : 'Show terrain legend');
+      toggle.classList.toggle('is-active', isOpen);
+      overlay.setAttribute('aria-hidden', String(!isOpen));
+    };
+
+    const focusableSelector = [
+      'button:not([disabled])',
+      '[href]',
+      'input:not([disabled])',
+      'select:not([disabled])',
+      'textarea:not([disabled])',
+      '[tabindex]:not([tabindex="-1"])'
+    ].join(',');
+
+    const getFocusableElements = () =>
+      Array.from(overlay.querySelectorAll(focusableSelector)).filter(element => {
+        return (
+          element.offsetParent !== null ||
+          element.getClientRects().length > 0 ||
+          element === document.activeElement
+        );
+      });
+
+    const focusFirstElement = () => {
+      const focusable = getFocusableElements();
+      const target = focusable.length ? focusable[0] : overlay;
+      requestAnimationFrame(() => {
+        target.focus();
+      });
+    };
+
+    const closeLegend = () => {
+      if (overlay.hidden) return;
+      overlay.hidden = true;
+      updateToggleState(false);
+      toggle.focus();
+    };
+
+    const openLegend = () => {
+      if (!overlay.hidden) return;
+      overlay.hidden = false;
+      updateToggleState(true);
+      focusFirstElement();
+    };
+
+    const handleToggle = event => {
+      if (event) {
+        event.preventDefault();
+      }
+      if (overlay.hidden) {
+        openLegend();
+      } else {
+        closeLegend();
+      }
+    };
+
+    toggle.addEventListener('click', handleToggle);
+    toggle.addEventListener('keydown', event => {
+      if (event.key === ' ' || event.key === 'Enter') {
+        event.preventDefault();
+        handleToggle(event);
+      }
+    });
+
+    closeButton.addEventListener('click', () => {
+      closeLegend();
+    });
+
+    overlay.addEventListener('pointerdown', event => {
+      if (event.target === overlay) {
+        event.preventDefault();
+        closeLegend();
+      }
+    });
+
+    overlay.addEventListener('keydown', event => {
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        closeLegend();
+        return;
+      }
+      if (event.key === 'Tab') {
+        const focusable = getFocusableElements();
+        if (!focusable.length) {
+          event.preventDefault();
+          overlay.focus();
+          return;
+        }
+        const first = focusable[0];
+        const last = focusable[focusable.length - 1];
+        const active = document.activeElement;
+        if (event.shiftKey) {
+          if (active === first || !overlay.contains(active)) {
+            event.preventDefault();
+            last.focus();
+          }
+        } else if (active === last) {
+          event.preventDefault();
+          first.focus();
+        }
+      }
+    });
+
+    mapWrapper.appendChild(toggle);
+    mapWrapper.appendChild(overlay);
   }
 
   function activateDifficultyCategory(categoryId) {

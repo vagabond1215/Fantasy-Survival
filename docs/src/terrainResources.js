@@ -48,6 +48,12 @@ function setTerrainType(location, x, y, type) {
   if (row < 0 || col < 0) return;
   if (!location.map.types[row] || col >= location.map.types[row].length) return;
   location.map.types[row][col] = type;
+  if (Array.isArray(location.map.substrateTypes)) {
+    const substrateRow = location.map.substrateTypes[row];
+    if (substrateRow && col < substrateRow.length) {
+      substrateRow[col] = type === 'ore' ? 'stone' : type;
+    }
+  }
   if (location.map.tiles?.[row]?.length) {
     const symbol = TERRAIN_SYMBOLS[type] || TERRAIN_SYMBOLS.open || '?';
     location.map.tiles[row][col] = symbol;

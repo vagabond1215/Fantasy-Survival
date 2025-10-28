@@ -23,8 +23,21 @@ const DEVELOPMENT_STATUS_ALIASES = new Map(
   ].map(([alias, status]) => [alias, status])
 );
 
+const ARROW_KEY_MOVES = Object.freeze({
+  ArrowUp: { dx: 0, dy: -1 },
+  ArrowDown: { dx: 0, dy: 1 },
+  ArrowLeft: { dx: -1, dy: 0 },
+  ArrowRight: { dx: 1, dy: 0 }
+});
+
 function toFiniteInteger(value) {
   return Number.isFinite(value) ? Math.trunc(value) : null;
+}
+
+function clampNumber(value, min, max) {
+  if (!Number.isFinite(value)) return value;
+  if (min > max) return value;
+  return Math.min(max, Math.max(min, value));
 }
 
 function normalizeDevelopmentStatus(status, fallback = 'noted') {
@@ -243,6 +256,17 @@ const LEGEND_DEFAULTS = {
 };
 
 const BUFFER_MARGIN = 12;
+
+function computeBufferPadding(dimensions, viewportWidth, viewportHeight) {
+  const cols = Math.max(0, dimensions?.cols ?? 0);
+  const rows = Math.max(0, dimensions?.rows ?? 0);
+  const width = Math.max(0, viewportWidth || 0);
+  const height = Math.max(0, viewportHeight || 0);
+  return {
+    x: Math.max(0, Math.floor((cols - width) / 2)),
+    y: Math.max(0, Math.floor((rows - height) / 2))
+  };
+}
 const DEFAULT_VIEWPORT_SIZE = DEFAULT_MAP_WIDTH;
 const MAX_TILE_SIZE_RETRIES = 8;
 
@@ -420,6 +444,8 @@ export function createMapView(container, {
     navMode: navMode === 'player' ? 'player' : 'viewport',
     onNavigate: typeof onNavigate === 'function' ? onNavigate : null,
     bufferMargin: normalizedBufferMargin,
+    bufferPadding: { x: normalizedBufferMargin, y: normalizedBufferMargin },
+    expectedBufferPadding: { x: normalizedBufferMargin, y: normalizedBufferMargin },
     zoom: clampedInitialZoom,
     minZoom: normalizedMinZoom,
     maxZoom: normalizedMaxZoom,
@@ -433,7 +459,8 @@ export function createMapView(container, {
     useTerrainColors: Boolean(useTerrainColors),
     terrainColorOverrides,
     pendingZoomSync: false,
-    developmentTiles: new Map()
+    developmentTiles: new Map(),
+    hasInitializedBaseChunk: false
   };
 
   const getVisibleDimensions = () => {
@@ -836,6 +863,9 @@ export function createMapView(container, {
 
   function commitMapUpdate() {
     if (!state.map) return;
+    if (!state.hasInitializedBaseChunk && state.map.tiles?.length) {
+      state.hasInitializedBaseChunk = true;
+    }
     state.context = {
       ...state.context,
       focus: { ...state.focus },
@@ -880,27 +910,43 @@ export function createMapView(container, {
     const originY = state.buffer.yStart ?? 0;
     const offsetX = state.viewport.xStart - originX;
     const offsetY = state.viewport.yStart - originY;
-    const margin = Math.max(0, state.bufferMargin ?? BUFFER_MARGIN);
+    if (offsetX < 0 || offsetY < 0) return true;
 
-    if (offsetX < margin || offsetY < margin) return true;
-    if (offsetX + width > dims.cols - margin) return true;
-    if (offsetY + height > dims.rows - margin) return true;
+    const padding = state.bufferPadding || state.expectedBufferPadding || { x: 0, y: 0 };
+    const fallbackMargin = Math.max(0, state.bufferMargin ?? 0);
+    const effectiveMarginX = Math.max(padding.x || 0, fallbackMargin);
+    const effectiveMarginY = Math.max(padding.y || 0, fallbackMargin);
+
+    const thresholdX = effectiveMarginX > 0 ? Math.max(1, Math.floor(effectiveMarginX / 2)) : 0;
+    const thresholdY = effectiveMarginY > 0 ? Math.max(1, Math.floor(effectiveMarginY / 2)) : 0;
+
+    const rightGap = dims.cols - (offsetX + width);
+    const bottomGap = dims.rows - (offsetY + height);
+
+    if (offsetX < thresholdX || offsetY < thresholdY) return true;
+    if (rightGap < thresholdX || bottomGap < thresholdY) return true;
     return false;
   }
 
   function fetchBufferedMap(xStart, yStart, options = {}) {
     if (typeof state.fetchMap !== 'function') return;
-    const margin = Math.max(0, state.bufferMargin ?? BUFFER_MARGIN);
     const viewportWidth = Math.max(1, state.viewport.width || DEFAULT_VIEWPORT_SIZE);
     const viewportHeight = Math.max(1, state.viewport.height || DEFAULT_VIEWPORT_SIZE);
-    const width = viewportWidth + margin * 2;
-    const height = viewportHeight + margin * 2;
+    const baseMargin = Math.max(0, state.bufferMargin ?? 0);
+    const marginX = Math.max(baseMargin, viewportWidth);
+    const marginY = Math.max(baseMargin, viewportHeight);
+    const width = viewportWidth + marginX * 2;
+    const height = viewportHeight + marginY * 2;
     const targetX = toInteger(xStart, 0);
     const targetY = toInteger(yStart, 0);
-    const originX = targetX - margin;
-    const originY = targetY - margin;
+    const originX = targetX - marginX;
+    const originY = targetY - marginY;
     const seed = options.overrideSeed ?? state.map?.seed ?? state.buffer?.seed ?? state.context?.seed;
     const season = options.overrideSeason ?? state.map?.season ?? state.buffer?.season ?? state.context?.season;
+    const skipSanityChecks =
+      options.skipSanityChecks ?? (state.hasInitializedBaseChunk === true);
+
+    state.expectedBufferPadding = { x: marginX, y: marginY };
 
     const params = {
       map: state.map,
@@ -911,6 +957,7 @@ export function createMapView(container, {
       yStart: originY,
       width,
       height,
+      skipSanityChecks,
       viewport: {
         xStart: targetX,
         yStart: targetY,
@@ -951,6 +998,11 @@ export function createMapView(container, {
       }
     }
 
+    const viewportWidth = Math.max(1, Math.min(state.viewport.width, buffer.width || dims.cols));
+    const viewportHeight = Math.max(1, Math.min(state.viewport.height, buffer.height || dims.rows));
+    state.bufferPadding = computeBufferPadding(dims, viewportWidth, viewportHeight);
+    state.expectedBufferPadding = { ...state.bufferPadding };
+
     commitMapUpdate();
   }
 
@@ -982,6 +1034,9 @@ export function createMapView(container, {
   mapWrapper.style.boxSizing = 'border-box';
   mapWrapper.style.aspectRatio = '1 / 1';
   mapWrapper.style.flexShrink = '0';
+  if (!mapWrapper.hasAttribute('tabindex')) {
+    mapWrapper.setAttribute('tabindex', '0');
+  }
 
   const mapCanvas = document.createElement('div');
   mapCanvas.className = `${idPrefix}-canvas map-canvas`;
@@ -2984,22 +3039,56 @@ export function createMapView(container, {
     requestFrame(syncMarkers);
   }
 
+  function getViewportStepLimits() {
+    const width = Number.isFinite(state.viewport.width)
+      ? state.viewport.width
+      : state.map?.tiles?.[0]?.length || 0;
+    const height = Number.isFinite(state.viewport.height)
+      ? state.viewport.height
+      : state.map?.tiles?.length || 0;
+    return {
+      maxX: Math.max(0, Math.trunc(width) - 1),
+      maxY: Math.max(0, Math.trunc(height) - 1)
+    };
+  }
+
+  function getPanStepSize() {
+    const cols = state.viewport.width || state.map?.tiles?.[0]?.length || 0;
+    const rows = state.viewport.height || state.map?.tiles?.length || 0;
+    if (!cols || !rows) {
+      return null;
+    }
+    return {
+      stepX: Math.max(1, Math.floor(cols * 0.5)),
+      stepY: Math.max(1, Math.floor(rows * 0.5))
+    };
+  }
+
+  function moveViewportBySteps(dx, dy) {
+    if (!dx && !dy) return;
+    const steps = getPanStepSize();
+    if (!steps) return;
+    const deltaX = steps.stepX * dx;
+    const deltaY = steps.stepY * dy;
+    if (!deltaX && !deltaY) return;
+    shiftViewport(deltaX, deltaY);
+  }
+
   function shiftViewport(dxTiles, dyTiles) {
     if (!dxTiles && !dyTiles) return;
+    const { maxX, maxY } = getViewportStepLimits();
+    const clampedX = clampNumber(dxTiles, -maxX, maxX);
+    const clampedY = clampNumber(dyTiles, -maxY, maxY);
+    if (!clampedX && !clampedY) return;
     const baseX = Number.isFinite(state.viewport.xStart) ? state.viewport.xStart : state.map?.xStart || 0;
     const baseY = Number.isFinite(state.viewport.yStart) ? state.viewport.yStart : state.map?.yStart || 0;
-    const nextX = baseX + dxTiles;
-    const nextY = baseY + dyTiles;
+    const nextX = baseX + clampedX;
+    const nextY = baseY + clampedY;
     updateViewportStart(nextX, nextY);
   }
 
   function pan(dx, dy) {
-    const cols = state.viewport.width || state.map?.tiles?.[0]?.length || 0;
-    const rows = state.viewport.height || state.map?.tiles?.length || 0;
-    if (!cols || !rows) return;
-    const stepX = Math.max(1, Math.round(cols * 0.6)) * dx;
-    const stepY = Math.max(1, Math.round(rows * 0.6)) * dy;
-    shiftViewport(stepX, stepY);
+    moveViewportBySteps(dx, dy);
   }
 
   function attachNavButtons() {
@@ -3040,6 +3129,19 @@ export function createMapView(container, {
     });
   }
 
+  function handleWrapperKeyDown(event) {
+    if (!event || typeof event.key !== 'string') return;
+    const movement = ARROW_KEY_MOVES[event.key];
+    if (!movement) return;
+    if (state.navMode === 'player' && typeof state.onNavigate === 'function') {
+      event.preventDefault();
+      state.onNavigate({ dx: movement.dx, dy: movement.dy, recenter: false });
+      return;
+    }
+    event.preventDefault();
+    moveViewportBySteps(movement.dx, movement.dy);
+  }
+
   function handleDragStart(clientX, clientY) {
     if (!allowDrag) return;
     clearHoldTimer();
@@ -3070,9 +3172,13 @@ export function createMapView(container, {
     const tilesX = Math.trunc(state.drag.pendingX / tileWidth);
     const tilesY = Math.trunc(state.drag.pendingY / tileHeight);
     if (!tilesX && !tilesY) return;
-    state.drag.pendingX -= tilesX * tileWidth;
-    state.drag.pendingY -= tilesY * tileHeight;
-    shiftViewport(tilesX, tilesY);
+    const { maxX, maxY } = getViewportStepLimits();
+    const limitedTilesX = clampNumber(tilesX, -maxX, maxX);
+    const limitedTilesY = clampNumber(tilesY, -maxY, maxY);
+    if (!limitedTilesX && !limitedTilesY) return;
+    state.drag.pendingX -= limitedTilesX * tileWidth;
+    state.drag.pendingY -= limitedTilesY * tileHeight;
+    shiftViewport(limitedTilesX, limitedTilesY);
   }
 
   function endDrag() {
@@ -3118,6 +3224,8 @@ export function createMapView(container, {
     };
   }
 
+  mapWrapper.addEventListener('keydown', handleWrapperKeyDown);
+
   const detachGlobalDrag = attachDragHandlers();
   applyZoomTransform();
   attachNavButtons();
@@ -3133,6 +3241,7 @@ export function createMapView(container, {
 
   return {
     setMap(map, context = {}) {
+      state.hasInitializedBaseChunk = false;
       state.context = { ...state.context, ...context };
 
       const focusCandidate =
@@ -3159,6 +3268,9 @@ export function createMapView(container, {
       }
 
       const buffer = extractBufferMap(map);
+      if (buffer?.tiles?.length) {
+        state.hasInitializedBaseChunk = true;
+      }
       state.buffer = buffer;
       ensureViewportDimensions(buffer);
 
@@ -3302,6 +3414,7 @@ export function createMapView(container, {
       if (typeof document !== 'undefined') {
         document.documentElement.style.removeProperty('--map-layout-width');
       }
+      mapWrapper.removeEventListener('keydown', handleWrapperKeyDown);
     },
     elements: {
       layout: layoutRoot,
