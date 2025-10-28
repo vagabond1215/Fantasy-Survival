@@ -1297,6 +1297,9 @@ export function initSetupUI(onStart) {
     overlay.setAttribute('aria-hidden', 'true');
     overlay.tabIndex = -1;
 
+    const overlayPanel = document.createElement('div');
+    overlayPanel.className = 'map-legend-overlay__panel';
+
     const legendSurface = document.createElement('div');
     legendSurface.className = 'map-legend';
     legendSurface.dataset.role = 'map-legend';
@@ -1309,11 +1312,6 @@ export function initSetupUI(onStart) {
     closeButton.setAttribute('aria-label', 'Close terrain legend');
     closeButton.innerHTML = '<span aria-hidden="true">×</span>';
     legendSurface.appendChild(closeButton);
-
-    const title = document.createElement('div');
-    title.className = 'map-legend__title';
-    title.textContent = 'Terrain Legend';
-    legendSurface.appendChild(title);
 
     const list = document.createElement('div');
     list.className = 'map-legend__list';
@@ -1339,7 +1337,8 @@ export function initSetupUI(onStart) {
     });
     legendSurface.appendChild(list);
 
-    overlay.appendChild(legendSurface);
+    overlayPanel.appendChild(legendSurface);
+    overlay.appendChild(overlayPanel);
 
     const toggle = document.createElement('button');
     toggle.type = 'button';
