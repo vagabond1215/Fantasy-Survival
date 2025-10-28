@@ -243,6 +243,17 @@ const LEGEND_DEFAULTS = {
 };
 
 const BUFFER_MARGIN = 12;
+
+function computeBufferPadding(dimensions, viewportWidth, viewportHeight) {
+  const cols = Math.max(0, dimensions?.cols ?? 0);
+  const rows = Math.max(0, dimensions?.rows ?? 0);
+  const width = Math.max(0, viewportWidth || 0);
+  const height = Math.max(0, viewportHeight || 0);
+  return {
+    x: Math.max(0, Math.floor((cols - width) / 2)),
+    y: Math.max(0, Math.floor((rows - height) / 2))
+  };
+}
 const DEFAULT_VIEWPORT_SIZE = DEFAULT_MAP_WIDTH;
 const MAX_TILE_SIZE_RETRIES = 8;
 
@@ -420,6 +431,8 @@ export function createMapView(container, {
     navMode: navMode === 'player' ? 'player' : 'viewport',
     onNavigate: typeof onNavigate === 'function' ? onNavigate : null,
     bufferMargin: normalizedBufferMargin,
+    bufferPadding: { x: normalizedBufferMargin, y: normalizedBufferMargin },
+    expectedBufferPadding: { x: normalizedBufferMargin, y: normalizedBufferMargin },
     zoom: clampedInitialZoom,
     minZoom: normalizedMinZoom,
     maxZoom: normalizedMaxZoom,
@@ -884,29 +897,43 @@ export function createMapView(container, {
     const originY = state.buffer.yStart ?? 0;
     const offsetX = state.viewport.xStart - originX;
     const offsetY = state.viewport.yStart - originY;
-    const margin = Math.max(0, state.bufferMargin ?? BUFFER_MARGIN);
+    if (offsetX < 0 || offsetY < 0) return true;
 
-    if (offsetX < margin || offsetY < margin) return true;
-    if (offsetX + width > dims.cols - margin) return true;
-    if (offsetY + height > dims.rows - margin) return true;
+    const padding = state.bufferPadding || state.expectedBufferPadding || { x: 0, y: 0 };
+    const fallbackMargin = Math.max(0, state.bufferMargin ?? 0);
+    const effectiveMarginX = Math.max(padding.x || 0, fallbackMargin);
+    const effectiveMarginY = Math.max(padding.y || 0, fallbackMargin);
+
+    const thresholdX = effectiveMarginX > 0 ? Math.max(1, Math.floor(effectiveMarginX / 2)) : 0;
+    const thresholdY = effectiveMarginY > 0 ? Math.max(1, Math.floor(effectiveMarginY / 2)) : 0;
+
+    const rightGap = dims.cols - (offsetX + width);
+    const bottomGap = dims.rows - (offsetY + height);
+
+    if (offsetX < thresholdX || offsetY < thresholdY) return true;
+    if (rightGap < thresholdX || bottomGap < thresholdY) return true;
     return false;
   }
 
   function fetchBufferedMap(xStart, yStart, options = {}) {
     if (typeof state.fetchMap !== 'function') return;
-    const margin = Math.max(0, state.bufferMargin ?? BUFFER_MARGIN);
     const viewportWidth = Math.max(1, state.viewport.width || DEFAULT_VIEWPORT_SIZE);
     const viewportHeight = Math.max(1, state.viewport.height || DEFAULT_VIEWPORT_SIZE);
-    const width = viewportWidth + margin * 2;
-    const height = viewportHeight + margin * 2;
+    const baseMargin = Math.max(0, state.bufferMargin ?? 0);
+    const marginX = Math.max(baseMargin, viewportWidth);
+    const marginY = Math.max(baseMargin, viewportHeight);
+    const width = viewportWidth + marginX * 2;
+    const height = viewportHeight + marginY * 2;
     const targetX = toInteger(xStart, 0);
     const targetY = toInteger(yStart, 0);
-    const originX = targetX - margin;
-    const originY = targetY - margin;
+    const originX = targetX - marginX;
+    const originY = targetY - marginY;
     const seed = options.overrideSeed ?? state.map?.seed ?? state.buffer?.seed ?? state.context?.seed;
     const season = options.overrideSeason ?? state.map?.season ?? state.buffer?.season ?? state.context?.season;
     const skipSanityChecks =
       options.skipSanityChecks ?? (state.hasInitializedBaseChunk === true);
+
+    state.expectedBufferPadding = { x: marginX, y: marginY };
 
     const params = {
       map: state.map,
@@ -957,6 +984,11 @@ export function createMapView(container, {
         return;
       }
     }
+
+    const viewportWidth = Math.max(1, Math.min(state.viewport.width, buffer.width || dims.cols));
+    const viewportHeight = Math.max(1, Math.min(state.viewport.height, buffer.height || dims.rows));
+    state.bufferPadding = computeBufferPadding(dims, viewportWidth, viewportHeight);
+    state.expectedBufferPadding = { ...state.bufferPadding };
 
     commitMapUpdate();
   }
