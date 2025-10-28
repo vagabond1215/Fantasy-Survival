@@ -3825,7 +3825,8 @@ function ensureSeasonalMap() {
     t.season,
     map.waterLevel,
     map.viewport,
-    worldSettings
+    worldSettings,
+    false
   );
   loc.map = { ...map, ...newMap };
   if (!loc.worldSettings && loc.map?.worldSettings) {
@@ -4394,7 +4395,8 @@ export function initGameUI() {
         store.time.season,
         loc.map.waterLevel,
         loc.map.viewport,
-        worldSettings
+        worldSettings,
+        false
       );
       loc.map = { ...loc.map, ...newMap };
       if (!loc.worldSettings && loc.map?.worldSettings) {
@@ -4426,7 +4428,16 @@ export function initGameUI() {
         defaultDescription: 'Open the Jobs panel to adjust staffing and work schedules.',
         onSelect: handleMapJobSelect
       },
-      fetchMap: ({ xStart, yStart, width, height, seed, season, viewport }) => {
+      fetchMap: ({
+        xStart,
+        yStart,
+        width,
+        height,
+        seed,
+        season,
+        viewport,
+        skipSanityChecks
+      }) => {
         const baseSeed = seed ?? loc.map?.seed ?? Date.now();
         const baseSeason = season ?? store.time.season;
         const activeWorld = loc.worldSettings || loc.map?.worldSettings;
@@ -4440,7 +4451,8 @@ export function initGameUI() {
           baseSeason,
           loc.map?.waterLevel,
           viewport,
-          activeWorld
+          activeWorld,
+          Boolean(skipSanityChecks)
         );
       },
       onMapUpdate: updated => {

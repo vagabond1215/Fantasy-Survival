@@ -433,7 +433,8 @@ export function createMapView(container, {
     useTerrainColors: Boolean(useTerrainColors),
     terrainColorOverrides,
     pendingZoomSync: false,
-    developmentTiles: new Map()
+    developmentTiles: new Map(),
+    hasInitializedBaseChunk: false
   };
 
   const getVisibleDimensions = () => {
@@ -836,6 +837,9 @@ export function createMapView(container, {
 
   function commitMapUpdate() {
     if (!state.map) return;
+    if (!state.hasInitializedBaseChunk && state.map.tiles?.length) {
+      state.hasInitializedBaseChunk = true;
+    }
     state.context = {
       ...state.context,
       focus: { ...state.focus },
@@ -901,6 +905,8 @@ export function createMapView(container, {
     const originY = targetY - margin;
     const seed = options.overrideSeed ?? state.map?.seed ?? state.buffer?.seed ?? state.context?.seed;
     const season = options.overrideSeason ?? state.map?.season ?? state.buffer?.season ?? state.context?.season;
+    const skipSanityChecks =
+      options.skipSanityChecks ?? (state.hasInitializedBaseChunk === true);
 
     const params = {
       map: state.map,
@@ -911,6 +917,7 @@ export function createMapView(container, {
       yStart: originY,
       width,
       height,
+      skipSanityChecks,
       viewport: {
         xStart: targetX,
         yStart: targetY,
@@ -3133,6 +3140,7 @@ export function createMapView(container, {
 
   return {
     setMap(map, context = {}) {
+      state.hasInitializedBaseChunk = false;
       state.context = { ...state.context, ...context };
 
       const focusCandidate =
@@ -3159,6 +3167,9 @@ export function createMapView(container, {
       }
 
       const buffer = extractBufferMap(map);
+      if (buffer?.tiles?.length) {
+        state.hasInitializedBaseChunk = true;
+      }
       state.buffer = buffer;
       ensureViewportDimensions(buffer);
 

@@ -1255,7 +1255,8 @@ export function initSetupUI(onStart) {
       selectedSeason,
       undefined,
       undefined,
-      worldParameters
+      worldParameters,
+      false
     );
     const defaultSpawn = computeDefaultSpawn(mapData);
     if (defaultSpawn) {
@@ -1500,7 +1501,7 @@ export function initSetupUI(onStart) {
     useTerrainColors: true,
     bufferMargin: 8,
     minZoom: 0.4,
-    fetchMap: ({ xStart, yStart, width, height, seed, season, viewport }) => {
+    fetchMap: ({ xStart, yStart, width, height, seed, season, viewport, skipSanityChecks }) => {
       const biomeId = selectedBiome;
       const nextSeed = seed ?? mapSeed;
       const nextSeason = season ?? selectedSeason;
@@ -1514,7 +1515,8 @@ export function initSetupUI(onStart) {
         nextSeason,
         mapData?.waterLevel,
         viewport,
-        worldParameters
+        worldParameters,
+        Boolean(skipSanityChecks)
       );
     },
     onMapUpdate: updated => {
