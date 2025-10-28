@@ -326,8 +326,30 @@ export function initSetupUI(onStart) {
       <div class="setup-appbar__seed">
         <div class="seed-row">
           <input id="seed-input" class="input" placeholder="Enter seed or leave blank for random" autocomplete="off">
-          <button id="seed-rand" type="button" class="btn btn--ghost" aria-label="Randomize seed">
-            <span class="seed-rand__icon" aria-hidden="true">🎲</span>
+          <button id="seed-rand" type="button" class="icon-ghost" aria-label="Randomize seed">
+            <svg
+              aria-hidden="true"
+              viewBox="0 0 24 24"
+              focusable="false"
+              class="icon-ghost__glyph"
+            >
+              <rect
+                x="5"
+                y="5"
+                width="14"
+                height="14"
+                rx="3"
+                ry="3"
+                fill="none"
+                stroke="currentColor"
+                stroke-width="1.5"
+              ></rect>
+              <circle cx="9" cy="9" r="1.5" fill="currentColor"></circle>
+              <circle cx="15" cy="9" r="1.5" fill="currentColor"></circle>
+              <circle cx="9" cy="15" r="1.5" fill="currentColor"></circle>
+              <circle cx="15" cy="15" r="1.5" fill="currentColor"></circle>
+              <circle cx="12" cy="12" r="1.5" fill="currentColor"></circle>
+            </svg>
           </button>
         </div>
       </div>
