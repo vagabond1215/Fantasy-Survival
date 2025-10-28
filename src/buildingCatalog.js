@@ -1,4 +1,6 @@
-export const buildingCatalog = [
+import { expandOpenTerrainTags } from './terrainTypes.js';
+
+const baseBuildingCatalog = [
   {
     id: 'lean-to',
     name: 'Lean-to Shelter',
@@ -1052,5 +1054,22 @@ export const buildingCatalog = [
     ]
   }
 ];
+
+export const buildingCatalog = baseBuildingCatalog.map(entry => {
+  if (!entry?.requirements?.locationTags) {
+    return entry;
+  }
+  const expanded = expandOpenTerrainTags(entry.requirements.locationTags);
+  if (expanded === entry.requirements.locationTags) {
+    return entry;
+  }
+  return {
+    ...entry,
+    requirements: {
+      ...entry.requirements,
+      locationTags: expanded
+    }
+  };
+});
 
 export default buildingCatalog;

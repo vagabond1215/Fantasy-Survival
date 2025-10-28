@@ -7,6 +7,7 @@ import { AdjustmentSolver } from './map/generation/adjustmentSolver.js';
 import { createElevationSampler } from './map/generation/elevation.js';
 import { generateHydrology } from './map/generation/hydrology.js';
 import { applyMangroveZones } from './map/generation/vegetation.js';
+import { resolveBiomeOpenTerrain } from './terrainTypes.js';
 
 export const GRID_DISTANCE_METERS = 100;
 
@@ -22,6 +23,24 @@ export const TERRAIN_SYMBOLS = {
   marsh: '🪴',
   mangrove: '🪷',
   open: '🌾',
+  grassland: '🌿',
+  plains: '🌾',
+  savanna: '🌾',
+  tundra: '❄️',
+  taiga: '🌲',
+  desert: '🏜️',
+  sand: '🏖️',
+  wetland: '🪴',
+  coast: '🏖️',
+  temperate: '🌱',
+  tropical: '🌴',
+  rainforest: '🌿',
+  jungle: '🌴',
+  alpine: '🏔️',
+  swamp: '🪵',
+  island: '🏝️',
+  mountain: '⛰️',
+  volcanic: '🌋',
   forest: '🌲',
   ore: '⛏️',
   stone: '🪨'
@@ -35,6 +54,7 @@ export const DEFAULT_TERRAIN_COLORS = Object.freeze({
   marsh: '#4ade80',
   mangrove: '#065f46',
   open: '#facc15',
+  grassland: '#a3e635',
   forest: '#16a34a',
   ore: '#f97316',
   stone: '#94a3b8',
@@ -46,6 +66,7 @@ export const DEFAULT_TERRAIN_COLORS = Object.freeze({
   jungle: '#0f766e',
   swamp: '#14532d',
   wetland: '#22c55e',
+  sand: '#fcd34d',
   coast: '#0ea5e9',
   island: '#38bdf8',
   mountain: '#64748b',
@@ -64,6 +85,7 @@ const TERRAIN_COLOR_VARIABLES = Object.freeze({
   marsh: '--legend-marsh',
   mangrove: '--legend-mangrove',
   open: '--legend-open',
+  grassland: '--legend-grassland',
   forest: '--legend-forest',
   ore: '--legend-ore',
   stone: '--legend-stone',
@@ -75,6 +97,7 @@ const TERRAIN_COLOR_VARIABLES = Object.freeze({
   jungle: '--legend-jungle',
   swamp: '--legend-swamp',
   wetland: '--legend-wetland',
+  sand: '--legend-sand',
   coast: '--legend-coast',
   island: '--legend-island',
   mountain: '--legend-mountain',
@@ -523,6 +546,7 @@ export function generateColorMap(
   const baseXStart = effectiveXStart;
   const baseYStart = effectiveYStart;
   const biome = getBiome(biomeId);
+  const openTerrainType = resolveBiomeOpenTerrain(biome);
   const world = resolveWorldParameters(worldSettings || {});
   const adv = world.advanced || {};
   const rainfallBias = (world.rainfall - 50) / 100;
@@ -672,7 +696,7 @@ export function generateColorMap(
           baseType = hydroType;
         } else {
           const vegNoise = vegetationNoise(seed, gx, gy, vegScale);
-          baseType = vegNoise < openLand ? 'open' : 'forest';
+          baseType = vegNoise < openLand ? openTerrainType : 'forest';
           oreVal = oreNoise(seed, gx, gy, oreScale);
         }
         substrateRow[x] = baseType;
@@ -929,7 +953,7 @@ export function generateColorMap(
       let updated = false;
       const current = terrainRow[x];
       if (!current || isWaterTerrain(current)) {
-        terrainRow[x] = 'open';
+        terrainRow[x] = openTerrainType;
         updated = true;
       }
       if (hydroRow[x] !== 'land') {
@@ -1407,6 +1431,7 @@ export function generateColorMap(
       messages: solverMessages
     },
     worldSettings: world,
-    viewport: viewportDetails
+    viewport: viewportDetails,
+    openTerrainType
   };
 }
