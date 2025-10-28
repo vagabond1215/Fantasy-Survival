@@ -10,6 +10,22 @@
  *   | 'river'
  *   | 'marsh'
  *   | 'mangrove'
+ *   | 'desert'
+ *   | 'tundra'
+ *   | 'taiga'
+ *   | 'savanna'
+ *   | 'rainforest'
+ *   | 'jungle'
+ *   | 'swamp'
+ *   | 'wetland'
+ *   | 'coast'
+ *   | 'island'
+ *   | 'mountain'
+ *   | 'alpine'
+ *   | 'volcanic'
+ *   | 'temperate'
+ *   | 'tropical'
+ *   | 'plains'
  * )} TileType
  * @typedef {Record<TileType, string>} TilePalette
  */
@@ -25,7 +41,23 @@ const TILE_VARIABLES = {
   lake: '--legend-lake',
   river: '--legend-river',
   marsh: '--legend-marsh',
-  mangrove: '--legend-mangrove'
+  mangrove: '--legend-mangrove',
+  desert: '--legend-desert',
+  tundra: '--legend-tundra',
+  taiga: '--legend-taiga',
+  savanna: '--legend-savanna',
+  rainforest: '--legend-rainforest',
+  jungle: '--legend-jungle',
+  swamp: '--legend-swamp',
+  wetland: '--legend-wetland',
+  coast: '--legend-coast',
+  island: '--legend-island',
+  mountain: '--legend-mountain',
+  alpine: '--legend-alpine',
+  volcanic: '--legend-volcanic',
+  temperate: '--legend-temperate',
+  tropical: '--legend-tropical',
+  plains: '--legend-plains'
 };
 
 /** @type {TilePalette} */
@@ -39,7 +71,23 @@ const TILE_FALLBACK_COLORS = {
   lake: '#38bdf8',
   river: '#0ea5e9',
   marsh: '#4ade80',
-  mangrove: '#065f46'
+  mangrove: '#065f46',
+  desert: '#f4b76b',
+  tundra: '#9ac5ff',
+  taiga: '#2f6b2a',
+  savanna: '#f59e0b',
+  rainforest: '#047857',
+  jungle: '#0f766e',
+  swamp: '#14532d',
+  wetland: '#22c55e',
+  coast: '#0ea5e9',
+  island: '#38bdf8',
+  mountain: '#64748b',
+  alpine: '#60a5fa',
+  volcanic: '#ea580c',
+  temperate: '#4ade80',
+  tropical: '#10b981',
+  plains: '#facc15'
 };
 
 /** @type {TilePalette | null} */
