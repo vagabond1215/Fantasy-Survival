@@ -1337,6 +1337,10 @@ export function createMapView(container, {
 
   const controls = document.createElement('div');
   let navGrid = null;
+  let navOverlay = null;
+  let navToggleButton = null;
+  let navPanel = null;
+  let navPanelVisible = false;
   let controlColumn = null;
   let controlDetailsSection = null;
   let zoomControls = null;
@@ -1360,7 +1364,7 @@ export function createMapView(container, {
     controlColumn.style.gap = '10px';
     controls.appendChild(controlColumn);
 
-    const navGridWidth = 'calc(3 * 48px + 2 * 6px)';
+    const controlColumnWidth = 'calc(3 * 48px + 2 * 6px)';
 
     navGrid = document.createElement('div');
     navGrid.className = `${idPrefix}-nav map-nav-grid`;
@@ -1368,15 +1372,73 @@ export function createMapView(container, {
     navGrid.style.gridTemplateColumns = 'repeat(3, 48px)';
     navGrid.style.gridAutoRows = '48px';
     navGrid.style.gap = '6px';
-    navGrid.style.width = navGridWidth;
-    controlColumn.appendChild(navGrid);
+    navGrid.style.width = controlColumnWidth;
+
+    navPanel = document.createElement('div');
+    navPanel.className = `${idPrefix}-nav-panel map-nav-panel`;
+    navPanel.setAttribute('role', 'group');
+    navPanel.setAttribute('aria-label', 'Map navigation controls');
+    navPanel.hidden = true;
+    navPanel.setAttribute('aria-hidden', 'true');
+    navPanel.appendChild(navGrid);
+
+    const navPanelId = `${idPrefix}-nav-panel`;
+    navPanel.id = navPanelId;
+
+    navToggleButton = document.createElement('button');
+    navToggleButton.type = 'button';
+    navToggleButton.className = 'map-nav-toggle';
+    navToggleButton.setAttribute('aria-controls', navPanelId);
+    navToggleButton.setAttribute('aria-expanded', 'false');
+    navToggleButton.setAttribute('aria-label', 'Toggle navigation controls');
+    const navToggleIcon = document.createElement('span');
+    navToggleIcon.className = 'map-nav-toggle__icon';
+    navToggleIcon.textContent = '🧭';
+    navToggleButton.appendChild(navToggleIcon);
+
+    const updateNavPanelVisibility = (open = false) => {
+      const nextOpen = Boolean(open);
+      navPanelVisible = nextOpen;
+      navPanel.hidden = !nextOpen;
+      navPanel.setAttribute('aria-hidden', nextOpen ? 'false' : 'true');
+      navToggleButton.setAttribute('aria-expanded', nextOpen ? 'true' : 'false');
+      navToggleButton.classList.toggle('is-active', nextOpen);
+      if (nextOpen) {
+        requestFrame(() => {
+          const firstButton = navGrid.querySelector('button');
+          if (firstButton) {
+            firstButton.focus();
+          }
+        });
+      } else if (document.activeElement && navPanel.contains(document.activeElement)) {
+        navToggleButton.focus();
+      }
+    };
+
+    navToggleButton.addEventListener('click', () => {
+      updateNavPanelVisibility(!navPanelVisible);
+    });
+
+    navPanel.addEventListener('keydown', event => {
+      if (!event || typeof event.key !== 'string') return;
+      if (event.key === 'Escape') {
+        event.preventDefault();
+        updateNavPanelVisibility(false);
+      }
+    });
+
+    navOverlay = document.createElement('div');
+    navOverlay.className = `${idPrefix}-nav-overlay map-nav-overlay`;
+    navOverlay.appendChild(navToggleButton);
+    navOverlay.appendChild(navPanel);
+    mapWrapper.appendChild(navOverlay);
 
     controlDetailsSection = document.createElement('div');
     controlDetailsSection.className = `${idPrefix}-control-details map-control-details`;
     controlDetailsSection.style.display = 'flex';
     controlDetailsSection.style.flexDirection = 'column';
     controlDetailsSection.style.gap = '12px';
-    controlDetailsSection.style.width = navGridWidth;
+    controlDetailsSection.style.width = controlColumnWidth;
     controlDetailsSection.style.alignSelf = 'center';
     controlDetailsSection.style.boxSizing = 'border-box';
     controlColumn.appendChild(controlDetailsSection);
