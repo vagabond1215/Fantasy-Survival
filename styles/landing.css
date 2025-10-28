@@ -1145,6 +1145,14 @@ body.landing-active .tile.is-active {
   color: var(--tile-active-text, var(--accent-contrast, var(--text, var(--text-strong))));
 }
 
+body.landing-active .tile.is-active .tile__name {
+  color: var(--tile-active-text, var(--accent-contrast, var(--text, var(--text-strong))));
+}
+
+body.landing-active .tile.is-active .tile__desc {
+  color: var(--tile-active-text, var(--accent-contrast, var(--text, var(--text-strong))));
+}
+
 body.landing-active .tile__name {
   font-weight: 700;
   color: color-mix(in srgb, var(--text, var(--text-strong)) 88%, white 6%);
