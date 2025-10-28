@@ -42,7 +42,8 @@ export function loadGame() {
           store.time.season,
           undefined,
           undefined,
-          storedWorld
+          storedWorld,
+          false
         );
         if (loc.map?.worldSettings && !loc.worldSettings) {
           loc.worldSettings = loc.map.worldSettings;
@@ -74,7 +75,8 @@ export function loadGame() {
           loc.map.season ?? store.time.season,
           loc.map.waterLevel,
           loc.map.viewport,
-          storedWorld
+          storedWorld,
+          false
         );
       }
 
