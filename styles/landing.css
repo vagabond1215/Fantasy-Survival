@@ -1295,7 +1295,8 @@ body[data-theme-appearance='dark'].landing-active .map-nav-grid {
 }
 
 body.landing-active .map-controls button,
-body.landing-active .map-nav-grid button {
+body.landing-active .map-nav-grid button,
+body.landing-active .map-zoom-controls button {
   color: var(--map-control-fg);
   background: var(--map-control-bg);
   border-color: var(--map-control-border);
@@ -1305,20 +1306,23 @@ body.landing-active .map-nav-grid button {
 }
 
 body.landing-active .map-controls button:hover,
-body.landing-active .map-nav-grid button:hover {
+body.landing-active .map-nav-grid button:hover,
+body.landing-active .map-zoom-controls button:hover {
   background: var(--map-control-bg-hover);
   border-color: var(--map-control-border-hover);
   transform: translateY(-1px);
 }
 
 body.landing-active .map-controls button:focus-visible,
-body.landing-active .map-nav-grid button:focus-visible {
+body.landing-active .map-nav-grid button:focus-visible,
+body.landing-active .map-zoom-controls button:focus-visible {
   outline: 3px solid color-mix(in srgb, var(--accent) 68%, white 18%);
   outline-offset: 2px;
 }
 
 body.landing-active .map-controls button:disabled,
-body.landing-active .map-nav-grid button:disabled {
+body.landing-active .map-nav-grid button:disabled,
+body.landing-active .map-zoom-controls button:disabled {
   opacity: 0.65;
   cursor: not-allowed;
   box-shadow: none;
@@ -1366,6 +1370,24 @@ body.landing-active .spawn-confirm button:hover {
 
 body.landing-active .map-container {
   position: relative;
+}
+
+body.landing-active .map-stage {
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0;
+  width: 100%;
+}
+
+body.landing-active .map-zoom-controls {
+  display: inline-flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  margin: 12px auto 0;
 }
 
 body.landing-active .map-nav-overlay {

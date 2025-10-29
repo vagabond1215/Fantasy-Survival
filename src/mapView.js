@@ -3,6 +3,7 @@ import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS } from './map.js';
 import { getTileColor, resolveTilePalette } from './map/tileColors.js';
 import { createCamera } from './map/camera.ts';
 import { createMapRenderer } from './map/renderer.ts';
+import { createZoomControls } from './ui/ZoomControls.tsx';
 
 const DEVELOPMENT_STATUS_ALIASES = new Map(
   [
@@ -476,6 +477,8 @@ export function createMapView(container, {
     hasInitializedBaseChunk: false
   };
 
+  const getCurrentZoom = () => (state.camera ? state.camera.zoom : state.zoom);
+
   const getVisibleDimensions = () => {
     const rows = state.map?.tiles?.length || 0;
     const cols = rows ? state.map.tiles[0]?.length || 0 : 0;
@@ -593,6 +596,7 @@ export function createMapView(container, {
   }
 
   function computeDesiredViewportSize() {
+    const zoom = Math.max(0.001, getCurrentZoom());
     const baseWidth = Math.max(
       1,
       Math.trunc(state.zoomBase.width || state.viewport.width || state.map?.width || DEFAULT_VIEWPORT_SIZE)
@@ -601,8 +605,8 @@ export function createMapView(container, {
       1,
       Math.trunc(state.zoomBase.height || state.viewport.height || state.map?.height || DEFAULT_VIEWPORT_SIZE)
     );
-    const width = Math.max(1, Math.round(baseWidth / state.zoom));
-    const height = Math.max(1, Math.round(baseHeight / state.zoom));
+    const width = Math.max(1, Math.round(baseWidth / zoom));
+    const height = Math.max(1, Math.round(baseHeight / zoom));
     return { width, height };
   }
 
@@ -612,7 +616,9 @@ export function createMapView(container, {
       return;
     }
 
-    if (Math.abs(state.zoom - 1) < 0.001) {
+    const zoom = getCurrentZoom();
+
+    if (Math.abs(zoom - 1) < 0.001) {
       state.zoomDisplayFactor = 1;
       return;
     }
@@ -622,12 +628,14 @@ export function createMapView(container, {
     const actualRows = state.map.tiles?.length || state.map.height || desired.height;
     const widthMatch = Math.abs(actualCols - desired.width) <= 1;
     const heightMatch = Math.abs(actualRows - desired.height) <= 1;
-    state.zoomDisplayFactor = widthMatch && heightMatch ? 1 : state.zoom;
+    state.zoomDisplayFactor = widthMatch && heightMatch ? 1 : zoom;
   }
 
   function adjustViewportForZoom({ forceFetch = false } = {}) {
+    const zoom = getCurrentZoom();
+
     if (!state.map) {
-      state.zoomDisplayFactor = Math.abs(state.zoom - 1) < 0.001 ? 1 : state.zoom;
+      state.zoomDisplayFactor = Math.abs(zoom - 1) < 0.001 ? 1 : zoom;
       return;
     }
 
@@ -1279,7 +1287,17 @@ export function createMapView(container, {
   mapPrimaryStack.style.flex = '1 1 auto';
   mapPrimaryStack.style.minWidth = '0';
 
-  mapPrimaryStack.appendChild(mapWrapper);
+  const mapStage = document.createElement('div');
+  mapStage.className = `${idPrefix}-stage map-stage`;
+  mapStage.style.position = 'relative';
+  mapStage.style.display = 'flex';
+  mapStage.style.flexDirection = 'column';
+  mapStage.style.alignItems = 'stretch';
+  mapStage.style.width = '100%';
+  mapStage.style.maxWidth = '100%';
+
+  mapStage.appendChild(mapWrapper);
+  mapPrimaryStack.appendChild(mapStage);
   mapContainer.appendChild(mapPrimaryStack);
 
   const sideStack = document.createElement('div');
@@ -1301,10 +1319,6 @@ export function createMapView(container, {
   let controlColumn = null;
   let controlDetailsSection = null;
   let zoomControls = null;
-  let zoomOutButton = null;
-  let zoomInButton = null;
-  let zoomResetButton = null;
-  let zoomResetValue = null;
   if (showControls) {
     controls.className = `${idPrefix}-controls map-controls`;
     controls.style.display = 'flex';
@@ -1388,7 +1402,7 @@ export function createMapView(container, {
     navOverlay.className = `${idPrefix}-nav-overlay map-nav-overlay`;
     navOverlay.appendChild(navToggleButton);
     navOverlay.appendChild(navPanel);
-    mapWrapper.appendChild(navOverlay);
+    mapStage.appendChild(navOverlay);
 
     controlDetailsSection = document.createElement('div');
     controlDetailsSection.className = `${idPrefix}-control-details map-control-details`;
@@ -1400,55 +1414,22 @@ export function createMapView(container, {
     controlDetailsSection.style.boxSizing = 'border-box';
     controlColumn.appendChild(controlDetailsSection);
 
-    zoomControls = document.createElement('div');
-    zoomControls.className = `${idPrefix}-zoom map-zoom-controls`;
-    zoomControls.style.display = 'flex';
-    zoomControls.style.flexDirection = 'row';
-    zoomControls.style.flexWrap = 'wrap';
-    zoomControls.style.alignItems = 'stretch';
-    zoomControls.style.justifyContent = 'flex-start';
-    zoomControls.style.gap = '6px';
-    zoomControls.style.alignSelf = 'flex-start';
-    zoomControls.style.marginTop = '4px';
-    mapPrimaryStack.appendChild(zoomControls);
-
-    const createZoomButton = (label, aria, fontSize, variant = 'chip') => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.textContent = label;
-      button.setAttribute('aria-label', aria);
-      applyControlButtonStyle(button, { fontSize, variant });
-      return button;
-    };
-
-    zoomOutButton = createZoomButton('−', 'Zoom out', '22px');
-
-    zoomInButton = createZoomButton('+', 'Zoom in', '22px');
-
-    zoomResetButton = document.createElement('button');
-    zoomResetButton.type = 'button';
-    zoomResetButton.className = 'map-zoom-reset';
-    zoomResetButton.textContent = '100%';
-    applyControlButtonStyle(zoomResetButton, { fontSize: '15px', variant: 'chip' });
-    zoomResetButton.style.width = 'auto';
-    zoomResetButton.style.flex = '0 0 auto';
-    zoomResetButton.style.minWidth = '64px';
-    zoomResetButton.setAttribute('aria-label', 'Set zoom to 100%');
-    zoomResetValue = zoomResetButton;
-
-    zoomControls.appendChild(zoomOutButton);
-    zoomControls.appendChild(zoomInButton);
-    zoomControls.appendChild(zoomResetButton);
-
-    zoomOutButton.addEventListener('click', () => {
-      zoomBy(-0.1);
+    zoomControls = createZoomControls({
+      onZoomIn: () => {
+        zoomBy(0.1);
+      },
+      onZoomOut: () => {
+        zoomBy(-0.1);
+      },
+      onZoomReset: () => {
+        resetZoom();
+      },
+      styleButton: (button, style) => {
+        applyControlButtonStyle(button, style);
+      }
     });
-    zoomInButton.addEventListener('click', () => {
-      zoomBy(0.1);
-    });
-    zoomResetButton.addEventListener('click', () => {
-      resetZoom();
-    });
+    zoomControls.element.classList.add(`${idPrefix}-zoom`);
+    mapPrimaryStack.appendChild(zoomControls.element);
 
     updateZoomControls();
   }
@@ -2875,53 +2856,57 @@ export function createMapView(container, {
   }
 
   function updateZoomControls() {
-    if (!zoomResetButton) return;
-    const currentPercent = Math.round(state.zoom * 100);
-    const baselinePercent = Math.round((state.initialZoom || 1) * 100);
-    if (zoomResetValue) {
-      zoomResetValue.textContent = `${currentPercent}%`;
-    } else {
-      zoomResetButton.textContent = `${currentPercent}%`;
-    }
-    zoomResetButton.setAttribute(
-      'aria-label',
-      `Set zoom to ${baselinePercent}% (current ${currentPercent}%)`
-    );
-    if (zoomOutButton) {
-      zoomOutButton.disabled = state.zoom <= state.minZoom + 0.001;
-    }
-    if (zoomInButton) {
-      zoomInButton.disabled = state.zoom >= state.maxZoom - 0.001;
-    }
+    if (!zoomControls) return;
+    const baselineZoom = Number.isFinite(state.initialZoom) ? state.initialZoom : 1;
+    const zoom = getCurrentZoom();
+    zoomControls.update({
+      zoom,
+      minZoom: state.minZoom,
+      maxZoom: state.maxZoom,
+      baselineZoom,
+      camera: state.camera
+    });
   }
 
   function applyZoomTransform() {
     const scale = Number.isFinite(state.zoomDisplayFactor) ? state.zoomDisplayFactor : 1;
-    if (state.camera) {
-      state.camera.setZoom(scale, 'centerTile');
-    }
+    const zoom = getCurrentZoom();
     if (state.renderer) {
-      state.renderer.setScale(scale);
+      const rendererScale = state.camera ? zoom : scale || 1;
+      state.renderer.setScale(rendererScale);
     }
     scheduleRender();
     updateZoomControls();
   }
 
   function setZoom(nextZoom, options = {}) {
-    const clamped = Math.min(state.maxZoom, Math.max(state.minZoom, nextZoom));
-    if (!options.force && Math.abs(clamped - state.zoom) < 0.001) {
-      updateZoomDisplayFactor();
-      applyZoomTransform();
-      return;
+    let clamped = nextZoom;
+    if (state.camera) {
+      const previous = state.camera.zoom;
+      clamped = state.camera.setZoom(nextZoom, options.pivot === 'viewport' ? 'viewport' : 'centerTile');
+      if (!options.force && Math.abs(clamped - previous) < 0.001) {
+        state.zoom = clamped;
+        updateZoomDisplayFactor();
+        applyZoomTransform();
+        return;
+      }
+      state.zoom = clamped;
+    } else {
+      clamped = Math.min(state.maxZoom, Math.max(state.minZoom, nextZoom));
+      if (!options.force && Math.abs(clamped - state.zoom) < 0.001) {
+        updateZoomDisplayFactor();
+        applyZoomTransform();
+        return;
+      }
+      state.zoom = clamped;
     }
-    state.zoom = clamped;
     adjustViewportForZoom({ forceFetch: Boolean(options.force) });
     updateZoomDisplayFactor();
     applyZoomTransform();
   }
 
   function zoomBy(delta) {
-    setZoom(state.zoom + delta);
+    setZoom(getCurrentZoom() + delta);
   }
 
   function resetZoom() {
@@ -2935,7 +2920,9 @@ export function createMapView(container, {
       : DEFAULT_TILE_BASE_SIZE;
     state.renderer.setTileBaseSize(baseSize);
     state.renderer.setUseTerrainColors(state.useTerrainColors);
-    state.renderer.setScale(state.camera ? state.camera.zoom : state.zoomDisplayFactor || 1);
+    const zoom = getCurrentZoom();
+    const rendererScale = state.camera ? zoom : state.zoomDisplayFactor || 1;
+    state.renderer.setScale(rendererScale);
     scheduleRender();
   }
 
@@ -3489,8 +3476,8 @@ export function createMapView(container, {
         applyDevelopments([]);
         if (state.camera) {
           state.camera.setCenterTile({ x: state.focus.x, y: state.focus.y }, { snap: true });
-          state.camera.setZoom(1, 'centerTile');
         }
+        setZoom(1, { force: true });
         if (state.renderer) {
           state.renderer.setMap(null);
           state.renderer.setScale(1);
@@ -3658,6 +3645,7 @@ export function createMapView(container, {
       layout: layoutRoot,
       mapContainer,
       wrapper: mapWrapper,
+      stage: mapStage,
       display: mapDataLayer,
       canvas: mapDisplay,
       markers: markerLayer,
@@ -3666,7 +3654,9 @@ export function createMapView(container, {
       controlDetails: controlDetailsSection,
       actionPanel,
       actionButtons,
-      jobSelect: jobSelectButton
+      jobSelect: jobSelectButton,
+      zoom: zoomControls ? zoomControls.element : null,
+      navOverlay
     }
   };
 }

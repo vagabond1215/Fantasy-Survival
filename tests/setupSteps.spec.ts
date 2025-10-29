@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
-import { initSetupUI } from '../src/ui.js';
+import { initSetupUI } from '../src/ui/index.js';
 import { resetWorldConfig } from '../src/state.js';
 
 vi.mock('../src/biomes.js', () => ({

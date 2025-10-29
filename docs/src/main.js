@@ -5,7 +5,7 @@ import { refreshBuildingUnlocks } from './buildings.js';
 import { initializeTechnologyRegistry, unlockTechnology } from './technology.js';
 import { generateLocation } from './location.js';
 import { calculateStartingGoods, harvestWood } from './resources.js';
-import { initSetupUI } from './ui.js';
+import { initSetupUI } from './ui/index.js';
 import { saveGame, loadGame, clearSave } from './persistence.js';
 import { difficultySettings } from './difficulty.js';
 import { initializePopulation } from './population.js';

@@ -1,5 +1,5 @@
 // @ts-nocheck
-import { biomes, getBiome } from './biomes.js';
+import { biomes, getBiome } from '../biomes.js';
 import {
   difficulties,
   difficultySettings,
@@ -7,16 +7,16 @@ import {
   resolveWorldParameters,
   difficultyScore,
   getDifficultyPreset
-} from './difficulty.js';
+} from '../difficulty.js';
 import {
   computeCenteredStart,
   DEFAULT_MAP_HEIGHT,
   DEFAULT_MAP_WIDTH,
   generateColorMap,
   isWaterTerrain
-} from './map.js';
-import { createMapView } from './mapView.js';
-import { ensureSanityCheckToasts } from './notifications.js';
+} from '../map.js';
+import { createMapView } from '../mapView.js';
+import { ensureSanityCheckToasts } from '../notifications.js';
 import {
   getAvailableThemes,
   getTheme,
@@ -25,12 +25,12 @@ import {
   onThemeChange,
   setTheme,
   setThemeAppearance
-} from './theme.js';
+} from '../theme.js';
 import {
   getWorldConfig,
   onWorldConfigChange,
   updateWorldConfig
-} from './state.js';
+} from '../state.js';
 
 const seasons = [
   { id: 'Thawbound', label: 'Spring', icon: '🌱' },
@@ -1291,16 +1291,15 @@ export function initSetupUI(onStart) {
   }
 
   function attachSetupLegend() {
-    if (!mapView?.elements?.wrapper) return;
-    const mapWrapper = mapView.elements.wrapper;
-    if (!mapWrapper) return;
+    const mapHost = mapView?.elements?.stage || mapView?.elements?.wrapper;
+    if (!mapHost) return;
 
-    const existingToggle = mapWrapper.querySelector('[data-role="legend-toggle"]');
+    const existingToggle = mapHost.querySelector('[data-role="legend-toggle"]');
     if (existingToggle?.parentElement) {
       existingToggle.parentElement.removeChild(existingToggle);
     }
 
-    const existingOverlay = mapWrapper.querySelector('[data-role="map-legend-overlay"]');
+    const existingOverlay = mapHost.querySelector('[data-role="map-legend-overlay"]');
     if (existingOverlay?.parentElement) {
       existingOverlay.parentElement.removeChild(existingOverlay);
     }
@@ -1481,8 +1480,8 @@ export function initSetupUI(onStart) {
       }
     });
 
-    mapWrapper.appendChild(toggle);
-    mapWrapper.appendChild(overlay);
+    mapHost.appendChild(toggle);
+    mapHost.appendChild(overlay);
   }
 
   function activateDifficultyCategory(categoryId) {
