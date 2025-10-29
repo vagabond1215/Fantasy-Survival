@@ -4,6 +4,7 @@ import { getTileColor, resolveTilePalette } from './map/tileColors.js';
 import { createCamera } from './map/camera.ts';
 import { createMapRenderer } from './map/renderer.ts';
 import { createZoomControls } from './ui/ZoomControls.tsx';
+import { chunkDataCache, tileCanvasCache, sharedCanvasPool } from './storage/chunkCache.ts';
 
 const DEVELOPMENT_STATUS_ALIASES = new Map(
   [
@@ -34,6 +35,21 @@ const ARROW_KEY_MOVES = Object.freeze({
 });
 
 const KEYBOARD_SNAP_DELAY = 220;
+
+const DEBUG_QUERY_PARAM = 'debug';
+const DEBUG_QUERY_VALUE = '1';
+
+function isDebugModeEnabled() {
+  if (typeof window === 'undefined' || typeof URLSearchParams === 'undefined') {
+    return false;
+  }
+  try {
+    const params = new URLSearchParams(window.location.search);
+    return params.get(DEBUG_QUERY_PARAM) === DEBUG_QUERY_VALUE;
+  } catch (_error) {
+    return false;
+  }
+}
 
 function toFiniteInteger(value) {
   return Number.isFinite(value) ? Math.trunc(value) : null;
@@ -428,6 +444,8 @@ export function createMapView(container, {
     button.style.fontWeight = '600';
   };
 
+  const debugModeEnabled = isDebugModeEnabled();
+
   const state = {
     map: null,
     buffer: null,
@@ -474,7 +492,14 @@ export function createMapView(container, {
     terrainColorOverrides,
     pendingZoomSync: false,
     developmentTiles: new Map(),
-    hasInitializedBaseChunk: false
+    hasInitializedBaseChunk: false,
+    debug: {
+      enabled: debugModeEnabled,
+      overlay: null,
+      fps: 0,
+      lastRenderTimestamp: 0,
+      pointerTile: null
+    }
   };
 
   const getCurrentZoom = () => (state.camera ? state.camera.zoom : state.zoom);
@@ -991,6 +1016,34 @@ export function createMapView(container, {
   mapDisplay.style.touchAction = 'none';
   mapCanvas.appendChild(mapDisplay);
 
+  if (state.debug.enabled) {
+    const debugOverlay = document.createElement('pre');
+    debugOverlay.className = `${idPrefix}-debug-overlay map-debug-overlay`;
+    Object.assign(debugOverlay.style, {
+      position: 'absolute',
+      top: '8px',
+      left: '8px',
+      margin: '0',
+      padding: '8px 10px',
+      borderRadius: '10px',
+      background: 'rgba(15, 23, 42, 0.78)',
+      color: '#f8fafc',
+      fontFamily:
+        'SFMono-Regular, Menlo, Monaco, Consolas, "Liberation Mono", "Courier New", monospace',
+      fontSize: '12px',
+      lineHeight: '1.4',
+      pointerEvents: 'none',
+      whiteSpace: 'pre',
+      minWidth: '180px',
+      zIndex: '20',
+      boxShadow: '0 8px 24px rgba(15, 23, 42, 0.45)',
+      border: '1px solid rgba(148, 163, 184, 0.35)'
+    });
+    mapWrapper.appendChild(debugOverlay);
+    state.debug.overlay = debugOverlay;
+    updateDebugOverlay();
+  }
+
   const mapDataLayer = document.createElement('div');
   mapDataLayer.className = `${idPrefix}-data map-display-data`;
   mapDataLayer.style.display = 'none';
@@ -1044,6 +1097,63 @@ export function createMapView(container, {
     return state.renderer.hitTest(localX, localY);
   };
 
+  function updateDebugOverlay(options = {}) {
+    if (!state.debug?.enabled || !state.debug.overlay) return;
+
+    const now =
+      typeof performance !== 'undefined' && typeof performance.now === 'function'
+        ? performance.now()
+        : Date.now();
+
+    if (options.fromRender) {
+      const previous = state.debug.lastRenderTimestamp;
+      if (Number.isFinite(previous) && previous > 0) {
+        const delta = now - previous;
+        if (delta > 0) {
+          const fpsSample = 1000 / delta;
+          const smoothing = 0.85;
+          state.debug.fps = state.debug.fps
+            ? state.debug.fps * smoothing + fpsSample * (1 - smoothing)
+            : fpsSample;
+        }
+      }
+      state.debug.lastRenderTimestamp = now;
+    }
+
+    const center = state.camera?.centerTile || state.focus || { x: 0, y: 0 };
+    const pointer = state.debug.pointerTile;
+    const zoom = getCurrentZoom();
+    const formatCoord = value =>
+      Number.isFinite(value) ? `${Math.round(value * 100) / 100}` : '—';
+    const formatZoom = Number.isFinite(zoom) ? `${Math.round(zoom * 100) / 100}×` : '—';
+    const fpsText = state.debug.fps ? `${state.debug.fps.toFixed(1)} fps` : 'n/a';
+
+    const chunkCapacity = chunkDataCache?.capacity ?? null;
+    const chunkSize = chunkDataCache?.size ?? null;
+    const tileCapacity = tileCanvasCache?.capacity ?? null;
+    const tileSize = tileCanvasCache?.size ?? null;
+    const poolSize = sharedCanvasPool && typeof sharedCanvasPool.size === 'number'
+      ? sharedCanvasPool.size
+      : null;
+
+    const overlayLines = [
+      `Center tile: (${formatCoord(center.x)}, ${formatCoord(center.y)})`,
+      pointer
+        ? `Pointer tile: (${formatCoord(pointer.x)}, ${formatCoord(pointer.y)})`
+        : 'Pointer tile: —',
+      `Zoom: ${formatZoom}`,
+      `Frame rate: ${fpsText}`,
+      `Chunk cache: ${
+        chunkSize !== null && chunkCapacity !== null ? `${chunkSize}/${chunkCapacity}` : 'n/a'
+      }`,
+      `Tile canvases: ${
+        tileSize !== null && tileCapacity !== null ? `${tileSize}/${tileCapacity}` : 'n/a'
+      }${poolSize !== null ? ` (pool ${poolSize})` : ''}`
+    ];
+
+    state.debug.overlay.textContent = overlayLines.join('\n');
+  }
+
   mapDisplay.addEventListener('click', event => {
     if (typeof state.onTileClick !== 'function') return;
     const tileInfo = resolveTileFromEvent(event);
@@ -1060,6 +1170,18 @@ export function createMapView(container, {
     };
     state.onTileClick(detail);
   });
+
+  if (state.debug.enabled) {
+    mapDisplay.addEventListener('pointermove', event => {
+      const tileInfo = resolveTileFromEvent(event);
+      state.debug.pointerTile = tileInfo ? { x: tileInfo.x, y: tileInfo.y } : null;
+      updateDebugOverlay();
+    });
+    mapDisplay.addEventListener('pointerleave', () => {
+      state.debug.pointerTile = null;
+      updateDebugOverlay();
+    });
+  }
 
   const tileTooltip = document.createElement('div');
   tileTooltip.className = 'map-tile-tooltip';
@@ -3177,12 +3299,14 @@ export function createMapView(container, {
       state.renderer.render();
       syncMarkers();
       updateTileDataLayer();
+      updateDebugOverlay({ fromRender: true });
       return;
     }
     state.renderer.setMap({ ...state.map });
     state.renderer.render();
     updateTileDataLayer();
     syncMarkers();
+    updateDebugOverlay({ fromRender: true });
   }
 
   function getViewportStepLimits() {
