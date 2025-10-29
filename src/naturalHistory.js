@@ -1,6 +1,7 @@
 import store from './state.js';
 import { biomeWildlifeData } from './biomeWildlife.js';
 import { getBiome } from './biomes.js';
+import { slugify } from './utils/strings.js';
 
 const TYPE_CONFIG = {
   fauna: {
@@ -15,16 +16,8 @@ const TYPE_CONFIG = {
   }
 };
 
-function slugify(value = '') {
-  return String(value || '')
-    .trim()
-    .toLowerCase()
-    .replace(/[^a-z0-9]+/g, '-')
-    .replace(/^-+|-+$/g, '') || 'entry';
-}
-
 function makeEntryId(type, biomeId, name) {
-  return `${type}:${biomeId}:${slugify(name)}`;
+  return `${type}:${biomeId}:${slugify(name, { fallback: 'entry' })}`;
 }
 
 function ensureDiscoveryMap(type) {
