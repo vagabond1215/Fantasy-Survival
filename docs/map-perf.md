@@ -22,6 +22,12 @@ runtime utilities in [`src/map/renderer.ts`](../src/map/renderer.ts) and the sto
 * `tileCanvasCache` defaults to **96** entries and keeps prerendered tile canvases. Evicting a
   canvas returns it to `sharedCanvasPool`, which is capped at 48 canvases by default.
 
+Both caches use insertion order on an internal `Map`. `get()` re-inserts the entry to keep it
+recent, and `set()` evicts the oldest keys until the map’s size is at or under the configured
+capacity. The behaviour (including eviction callbacks) is covered by
+[`__tests__/camera-and-cache.test.ts`](../__tests__/camera-and-cache.test.ts) so regression
+tests will catch changes to the LRU contract.
+
 When tuning these values, keep in mind that:
 
 1. `setCapacity()` can be called at runtime, but dropping the capacity to zero clears the cache
@@ -32,8 +38,8 @@ When tuning these values, keep in mind that:
 ## Profiling workflow
 
 1. Append `?debug=1` to the map URL to enable the lightweight debug overlay. The overlay displays
-   the current center tile, pointer tile, zoom factor, frame rate, and live cache occupancy
-   (`chunkDataCache` and `tileCanvasCache` along with the canvas pool size).
+   the current tile under the pointer, the camera’s center tile, zoom factor, frame rate, and live
+   cache occupancy (`chunkDataCache` and `tileCanvasCache` along with the canvas pool size).
 2. While the overlay is active, interact with the map (pan, zoom, toggle layers) and watch the FPS
    indicator. Sudden drops often mean too many renders are being scheduled or that caches are
    thrashing.

@@ -33,6 +33,10 @@ can project world tiles to screen pixels.
   allow future anchoring strategies; today the camera maintains the current `centerTile` for
   both `centerTile` and `viewport` pivots so that `alignViewportToCamera` can decide how to
   reposition the buffer.
+* Pivot parameters intentionally **do not** mutate the camera’s center yet. This means callers
+  can rely on `camera.centerTile` being unchanged before scheduling a render pass regardless of
+  whether they passed `'centerTile'` or `'viewport'`. The behaviour is enforced by unit tests in
+  [`__tests__/camera-and-cache.test.ts`](../__tests__/camera-and-cache.test.ts).
 * `getScaledTileSize` multiplies the base renderer tile size by the zoom factor. This is used
   by the renderer to keep glyphs and development overlays aligned as the user zooms in and out.
 
@@ -40,7 +44,9 @@ can project world tiles to screen pixels.
 
 * `commitSnap` is the only place that rounds the floating-point center. It targets
   `Math.round(centerX)`/`Math.round(centerY)` and returns `{ targetX, targetY, changed }` so the
-  caller knows whether animation or extra fetching is required.
+  caller knows whether animation or extra fetching is required. The tests cover both the
+  “changed” and “already aligned” branches and exercise the easing path so refactors cannot drop
+  the intermediate `onUpdate` calls that precede `onComplete`.
 * When `animate !== false`, `commitSnap` runs a bounded (150–250 ms) easing function that
   repeatedly calls `onUpdate` while interpolating toward the rounded center. Providing
   `onComplete` is the recommended way to realign external viewport state after the animation.
