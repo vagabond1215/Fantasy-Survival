@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
-import { createCamera } from '../src/map/camera.ts';
-import { BoundedLRUCache } from '../src/storage/chunkCache.ts';
+import { createCamera } from '../src/map/camera.js';
+import { BoundedLRUCache } from '../src/storage/chunkCache.js';
 
 describe('camera.setZoom pivot invariants', () => {
   it('clamps zoom and keeps the center tile when pivoting on the center', () => {
