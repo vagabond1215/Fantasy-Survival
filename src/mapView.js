@@ -992,6 +992,7 @@ export function createMapView(container, {
   mapWrapper.style.boxSizing = 'border-box';
   mapWrapper.style.aspectRatio = 'auto';
   mapWrapper.style.flexShrink = '0';
+  mapWrapper.style.margin = '0 auto';
   if (!mapWrapper.hasAttribute('tabindex')) {
     mapWrapper.setAttribute('tabindex', '0');
   }
@@ -1402,7 +1403,7 @@ export function createMapView(container, {
   mapPrimaryStack.className = `${idPrefix}-primary map-primary-stack`;
   mapPrimaryStack.style.display = 'flex';
   mapPrimaryStack.style.flexDirection = 'column';
-  mapPrimaryStack.style.alignItems = 'flex-start';
+  mapPrimaryStack.style.alignItems = 'center';
   mapPrimaryStack.style.gap = '8px';
   mapPrimaryStack.style.width = '100%';
   mapPrimaryStack.style.maxWidth = '100%';
@@ -1414,7 +1415,7 @@ export function createMapView(container, {
   mapStage.style.position = 'relative';
   mapStage.style.display = 'flex';
   mapStage.style.flexDirection = 'column';
-  mapStage.style.alignItems = 'stretch';
+  mapStage.style.alignItems = 'center';
   mapStage.style.width = '100%';
   mapStage.style.maxWidth = '100%';
 
@@ -1522,9 +1523,15 @@ export function createMapView(container, {
 
     navOverlay = document.createElement('div');
     navOverlay.className = `${idPrefix}-nav-overlay map-nav-overlay`;
+    navOverlay.style.display = 'flex';
+    navOverlay.style.flexDirection = 'column';
+    navOverlay.style.alignItems = 'stretch';
+    navOverlay.style.gap = '10px';
+    navOverlay.style.width = controlColumnWidth;
+    navOverlay.style.alignSelf = 'center';
     navOverlay.appendChild(navToggleButton);
     navOverlay.appendChild(navPanel);
-    mapStage.appendChild(navOverlay);
+    controlColumn.appendChild(navOverlay);
 
     controlDetailsSection = document.createElement('div');
     controlDetailsSection.className = `${idPrefix}-control-details map-control-details`;
@@ -1551,6 +1558,7 @@ export function createMapView(container, {
       }
     });
     zoomControls.element.classList.add(`${idPrefix}-zoom`);
+    zoomControls.element.style.alignSelf = 'center';
     mapPrimaryStack.appendChild(zoomControls.element);
 
     updateZoomControls();
