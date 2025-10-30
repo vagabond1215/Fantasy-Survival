@@ -1138,10 +1138,10 @@ export function createMapView(container, {
       : null;
 
     const overlayLines = [
-      `Center tile: (${formatCoord(center.x)}, ${formatCoord(center.y)})`,
       pointer
-        ? `Pointer tile: (${formatCoord(pointer.x)}, ${formatCoord(pointer.y)})`
-        : 'Pointer tile: —',
+        ? `Current tile: (${formatCoord(pointer.x)}, ${formatCoord(pointer.y)})`
+        : 'Current tile: —',
+      `Center tile: (${formatCoord(center.x)}, ${formatCoord(center.y)})`,
       `Zoom: ${formatZoom}`,
       `Frame rate: ${fpsText}`,
       `Chunk cache: ${

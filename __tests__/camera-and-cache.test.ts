@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { createCamera } from '../src/map/camera.ts';
 import { BoundedLRUCache } from '../src/storage/chunkCache.ts';
 
@@ -71,6 +71,49 @@ describe('camera.commitSnap snapping math', () => {
 
     expect(result).toEqual({ targetX: 12, targetY: 5, changed: false });
     expect(camera.centerTile).toEqual({ x: 12, y: 5 });
+  });
+
+  it('eases toward the snapped tile when animation is enabled', async () => {
+    const camera = createCamera({
+      viewportWidth: 300,
+      viewportHeight: 200,
+      initialZoom: 1.25,
+      centerTile: { x: 4.2, y: 8.75 }
+    });
+
+    const onUpdate = vi.fn();
+    const onComplete = vi.fn();
+
+    let result: ReturnType<typeof camera.commitSnap>;
+    const completion = new Promise<void>(resolve => {
+      result = camera.commitSnap({
+        duration: 60,
+        onUpdate: center => {
+          onUpdate(center);
+        },
+        onComplete: center => {
+          onComplete(center);
+          resolve();
+        }
+      });
+    });
+
+    expect(result).toBeDefined();
+    const snapResult = result!;
+    expect(snapResult.changed).toBe(true);
+    expect(snapResult.targetX).toBe(4);
+    expect(snapResult.targetY).toBe(9);
+
+    await completion;
+
+    expect(onUpdate).toHaveBeenCalled();
+    const hadIntermediateUpdate = onUpdate.mock.calls.some(([center]) => center.x !== 4 || center.y !== 9);
+    expect(hadIntermediateUpdate).toBe(true);
+    const lastUpdate = onUpdate.mock.calls[onUpdate.mock.calls.length - 1][0];
+    expect(lastUpdate).toEqual({ x: 4, y: 9 });
+    expect(onComplete).toHaveBeenCalledTimes(1);
+    expect(onComplete.mock.calls[0][0]).toEqual({ x: 4, y: 9 });
+    expect(camera.centerTile).toEqual({ x: 4, y: 9 });
   });
 });
 
