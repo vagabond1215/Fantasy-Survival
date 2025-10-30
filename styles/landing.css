@@ -1391,18 +1391,14 @@ body.landing-active .map-zoom-controls {
 }
 
 body.landing-active .map-nav-overlay {
-  position: absolute;
-  top: 18px;
-  right: 18px;
+  position: static;
   display: flex;
   flex-direction: column;
-  align-items: flex-end;
-  gap: 12px;
-  pointer-events: none;
-  z-index: 20;
-}
-
-body.landing-active .map-nav-overlay > * {
+  align-items: stretch;
+  gap: 10px;
+  width: 100%;
+  max-width: 100%;
+  margin: 0 auto;
   pointer-events: auto;
 }
 
