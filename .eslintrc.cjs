@@ -12,6 +12,14 @@ module.exports = {
     'plugin:promise/recommended',
     'prettier'
   ],
+  overrides: [
+    {
+      files: ['scripts/**/*.js'],
+      rules: {
+        'n/no-unpublished-import': 'off'
+      }
+    }
+  ],
   parserOptions: {
     ecmaVersion: 'latest',
     sourceType: 'module'
