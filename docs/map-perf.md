@@ -1,8 +1,8 @@
 # Map performance guide
 
 This document explains the main performance levers for the tile map renderer. It references the
-runtime utilities in [`src/map/renderer.ts`](../src/map/renderer.ts) and the storage helpers in
-[`src/storage/chunkCache.ts`](../src/storage/chunkCache.ts).
+runtime utilities in [`src/map/renderer.js`](../src/map/renderer.js) and the storage helpers in
+[`src/storage/chunkCache.js`](../src/storage/chunkCache.js).
 
 ## Rendering math highlights
 
@@ -16,7 +16,7 @@ runtime utilities in [`src/map/renderer.ts`](../src/map/renderer.ts) and the sto
 
 ## Cache limits
 
-`chunkCache.ts` contains two bounded LRU caches and a shared canvas pool:
+`chunkCache.js` contains two bounded LRU caches and a shared canvas pool:
 
 * `chunkDataCache` defaults to **256** entries and stores serialized terrain chunks.
 * `tileCanvasCache` defaults to **96** entries and keeps prerendered tile canvases. Evicting a

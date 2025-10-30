@@ -1,10 +1,10 @@
 // @ts-nocheck
 import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS } from './map.js';
 import { getTileColor, resolveTilePalette } from './map/tileColors.js';
-import { createCamera } from './map/camera.ts';
-import { createMapRenderer } from './map/renderer.ts';
-import { createZoomControls } from './ui/ZoomControls.tsx';
-import { chunkDataCache, tileCanvasCache, sharedCanvasPool } from './storage/chunkCache.ts';
+import { createCamera } from './map/camera.js';
+import { createMapRenderer } from './map/renderer.js';
+import { createZoomControls } from './ui/ZoomControls.js';
+import { chunkDataCache, tileCanvasCache, sharedCanvasPool } from './storage/chunkCache.js';
 
 const DEVELOPMENT_STATUS_ALIASES = new Map(
   [

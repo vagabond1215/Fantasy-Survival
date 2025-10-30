@@ -1,6 +1,6 @@
 # Map camera model
 
-The map camera is defined in [`src/map/camera.ts`](../src/map/camera.ts) and is shared by
+The map camera is defined in [`src/map/camera.js`](../src/map/camera.js) and is shared by
 both the main application code and the documentation build (`docs/src`). It keeps track of a
 floating-point `centerTile` along with the zoom level and viewport size so that the renderer
 can project world tiles to screen pixels.
