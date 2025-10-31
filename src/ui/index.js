@@ -41,6 +41,35 @@ const seasons = [
 ];
 
 const RANDOM_SEASON_ID = 'random';
+const RANDOM_BIOME_ID = 'random';
+
+function getNonRandomBiomes() {
+  return biomes.filter(biome => biome.id !== RANDOM_BIOME_ID);
+}
+
+function resolveBiomeId(id, options = {}) {
+  const { mode = 'stable', seed } = options;
+  if (!id || id !== RANDOM_BIOME_ID) {
+    return id;
+  }
+  const available = getNonRandomBiomes();
+  if (!available.length) {
+    return biomes[0]?.id || id;
+  }
+  if (mode === 'random') {
+    const index = Math.floor(Math.random() * available.length);
+    return available[index].id;
+  }
+  const source = seed != null ? String(seed) : '';
+  if (!source) {
+    return available[0].id;
+  }
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+  return available[hash % available.length].id;
+}
 
 function getNonRandomSeasons() {
   return seasons.filter(season => season.id !== RANDOM_SEASON_ID);
@@ -755,6 +784,7 @@ export function initSetupUI(onStart) {
   let selectedDifficulty = defaultDifficulty?.id || '';
   let worldParameters = cloneWorldParameters(getDifficultyPreset(selectedDifficulty)?.world || defaultWorldParameters);
   let mapSeed = createSeed();
+  let resolvedBiomeId = selectedBiome;
   let mapData = null;
   let spawnCoords = null;
   let spawnPrompt = null;
@@ -785,6 +815,7 @@ export function initSetupUI(onStart) {
   }
 
   resolvedSeasonId = resolveSeasonId(selectedSeason, { mode: 'stable', seed: mapSeed });
+  resolvedBiomeId = resolveBiomeId(selectedBiome, { mode: 'stable', seed: mapSeed });
 
   const legendEntries = [
     { type: 'open', label: 'Open Land' },
@@ -1288,7 +1319,7 @@ export function initSetupUI(onStart) {
     if (!mapData || !mapView) return;
     hideSpawnPrompt();
     mapView.setMap(mapData, {
-      biomeId: selectedBiome,
+      biomeId: resolvedBiomeId || selectedBiome,
       seed: mapData?.seed ?? mapSeed,
       season: mapData?.season ?? resolvedSeasonId
     });
@@ -1301,13 +1332,18 @@ export function initSetupUI(onStart) {
     const width = PREVIEW_MAP_SIZE;
     const height = PREVIEW_MAP_SIZE;
     const { xStart, yStart } = computeCenteredStart(width, height);
+    const previewBiome = resolveBiomeId(selectedBiome, {
+      mode: 'stable',
+      seed: mapSeed
+    });
+    resolvedBiomeId = previewBiome;
     const previewSeason = resolveSeasonId(selectedSeason, {
       mode: 'stable',
       seed: mapSeed
     });
     resolvedSeasonId = previewSeason;
     mapData = generateColorMap(
-      selectedBiome,
+      previewBiome,
       mapSeed,
       xStart,
       yStart,
@@ -1328,6 +1364,7 @@ export function initSetupUI(onStart) {
       updateSpawnInfo();
     }
     renderMapPreview();
+    updateBiomeDetails();
   }
 
   function attachSetupLegend() {
@@ -1677,11 +1714,19 @@ export function initSetupUI(onStart) {
     biomes.forEach(biome => {
       const button = document.createElement('button');
       button.type = 'button';
-      button.className = 'tile col-4';
+      button.className = 'tile col-3';
       button.dataset.biome = biome.id;
+      if (biome.color) {
+        button.style.setProperty('--biome-color', biome.color);
+      } else {
+        button.style.removeProperty('--biome-color');
+      }
+      if (biome.description) {
+        button.title = biome.description;
+      }
       button.innerHTML = `
+        <span class="tile__accent" aria-hidden="true"></span>
         <div class="tile__name">${biome.name}</div>
-        <div class="tile__desc">${biome.description || ''}</div>
       `;
       button.addEventListener('click', () => {
         updateWorldConfig({ biome: biome.id });
@@ -1706,8 +1751,12 @@ export function initSetupUI(onStart) {
     minZoom: 0.4,
     controlsContainer: mapPreviewSidebar,
     fetchMap: ({ xStart, yStart, width, height, seed, season, viewport, skipSanityChecks }) => {
-      const biomeId = selectedBiome;
       const nextSeed = seed ?? mapSeed;
+      const biomeId = resolveBiomeId(selectedBiome, {
+        mode: 'stable',
+        seed: nextSeed
+      });
+      resolvedBiomeId = biomeId;
       const resolvedSeason = resolveSeasonId(season ?? selectedSeason, {
         mode: 'stable',
         seed: nextSeed
@@ -1876,6 +1925,29 @@ export function initSetupUI(onStart) {
     const biome = getBiome(selectedBiome);
     if (!biome) {
       biomeDetails.textContent = '';
+      return;
+    }
+    if (selectedBiome === RANDOM_BIOME_ID) {
+      const parts = [];
+      const summary = biome.description ? `${biome.name} – ${biome.description}` : biome.name;
+      if (summary) {
+        parts.push(summary);
+      }
+      const resolvedBiome =
+        resolvedBiomeId && resolvedBiomeId !== RANDOM_BIOME_ID ? getBiome(resolvedBiomeId) : null;
+      if (resolvedBiome) {
+        const resolvedSummary = resolvedBiome.description
+          ? `${resolvedBiome.name} – ${resolvedBiome.description}`
+          : resolvedBiome.name;
+        const resolvedFeatures = resolvedBiome.features?.length
+          ? `Features: ${resolvedBiome.features.join(', ')}.`
+          : '';
+        const detailParts = [resolvedSummary, resolvedFeatures].filter(Boolean).join(' ');
+        if (detailParts) {
+          parts.push(`Currently previewing: ${detailParts}`);
+        }
+      }
+      biomeDetails.textContent = parts.join(' ');
       return;
     }
     const features = biome.features?.length ? `Features: ${biome.features.join(', ')}.` : '';
@@ -2114,10 +2186,11 @@ export function initSetupUI(onStart) {
 
   function handleWorldConfigUpdate(config = {}) {
     const { biome, season, difficulty, seed, worldParameters: nextWorld } = config;
+    let shouldRefreshBiome = false;
     if (biome) {
       selectedBiome = biome;
       syncBiomeSelection(biome);
-      updateBiomeDetails();
+      shouldRefreshBiome = true;
     }
     if (season) {
       selectedSeason = season;
@@ -2138,10 +2211,15 @@ export function initSetupUI(onStart) {
         mode: 'stable',
         seed: mapSeed
       });
+      shouldRefreshBiome = true;
     }
     if (nextWorld) {
       worldParameters = cloneWorldParameters(nextWorld);
       syncWorldControls();
+    }
+    if (shouldRefreshBiome) {
+      resolvedBiomeId = resolveBiomeId(selectedBiome, { mode: 'stable', seed: mapSeed });
+      updateBiomeDetails();
     }
     updateDifficultyInfo();
     updateDifficultyScore();
@@ -2195,8 +2273,15 @@ export function initSetupUI(onStart) {
       seed: mapSeed
     });
     resolvedSeasonId = effectiveSeason;
+    const snapshotBiome = snapshot.biome || selectedBiome;
+    const effectiveBiome =
+      snapshotBiome === RANDOM_BIOME_ID
+        ? resolvedBiomeId || resolveBiomeId(snapshotBiome, { mode: 'stable', seed: mapSeed })
+        : snapshotBiome;
+    const effectiveBiomeColor = getBiome(effectiveBiome)?.color || null;
     onStart({
-      biome: snapshot.biome || selectedBiome,
+      biome: effectiveBiome,
+      biomeColor: effectiveBiomeColor,
       season: effectiveSeason,
       difficulty: snapshot.difficulty || selectedDifficulty,
       seed: snapshot.seed || mapSeed,

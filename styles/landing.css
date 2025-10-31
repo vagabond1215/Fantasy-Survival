@@ -1092,20 +1092,34 @@ body.landing-active .col-6 {
   grid-column: span 6;
 }
 
-body.landing-active .col-4 {
-  grid-column: span 4;
+body.landing-active .col-3 {
+  grid-column: span 3;
 }
 
-@media (max-width: 920px) {
+@media (max-width: 1200px) {
+  body.landing-active .col-3 {
+    grid-column: span 4;
+  }
+}
+
+@media (max-width: 880px) {
+  body.landing-active .col-3 {
+    grid-column: span 6;
+  }
+}
+
+@media (max-width: 640px) {
   body.landing-active .col-6,
-  body.landing-active .col-4 {
+  body.landing-active .col-3 {
     grid-column: span 12;
   }
 }
 
 body.landing-active .tile {
   display: grid;
-  gap: 6px;
+  grid-template-columns: 26px 1fr;
+  align-items: center;
+  gap: 10px;
   padding: 12px;
   border-radius: 14px;
   cursor: pointer;
@@ -1146,22 +1160,31 @@ body.landing-active .tile.is-active .tile__name {
   color: var(--tile-active-text, var(--accent-contrast, var(--text, var(--text-strong))));
 }
 
-body.landing-active .tile.is-active .tile__desc {
-  color: var(--tile-active-text, var(--accent-contrast, var(--text, var(--text-strong))));
-}
-
 body.landing-active .tile__name {
   font-weight: 700;
   color: color-mix(in srgb, var(--text, var(--text-strong)) 88%, white 6%);
 }
 
-body.landing-active .tile__desc {
-  color: color-mix(in srgb, var(--text-muted, var(--text)) 85%, transparent);
-  font-size: 12px;
+body.landing-active .tile__accent {
+  display: block;
+  width: 22px;
+  height: 22px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--biome-color, var(--accent)) 82%, white 18%);
+  box-shadow: 0 1px 2px color-mix(in srgb, #0f172a 20%, transparent);
+  border: 1px solid color-mix(in srgb, var(--biome-color, var(--glass-highlight)) 28%, transparent);
 }
 
-body[data-theme-appearance='dark'].landing-active .tile__desc {
-  color: color-mix(in srgb, var(--text, var(--text-strong)) 70%, transparent);
+body[data-theme-appearance='dark'].landing-active .tile__accent {
+  background: color-mix(in srgb, var(--biome-color, var(--accent)) 70%, #0b1120 30%);
+  box-shadow: 0 1px 2px color-mix(in srgb, #000 40%, transparent);
+  border-color: color-mix(in srgb, var(--biome-color, var(--glass-highlight)) 35%, transparent);
+}
+
+body.landing-active .tile.is-active .tile__accent {
+  background: color-mix(in srgb, var(--biome-color, var(--tile-active-bg, var(--accent))) 68%, white 32%);
+  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tile-active-text, var(--accent-contrast)) 35%, transparent);
+  border-color: color-mix(in srgb, var(--tile-active-text, var(--accent-contrast)) 35%, transparent);
 }
 
 body.landing-active .seed-row {
