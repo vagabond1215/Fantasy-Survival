@@ -690,7 +690,8 @@ export function generateColorMap(
     scale: elevationOptions.scale,
     worldScale,
     maskStrength,
-    maskBias
+    maskBias,
+    mapType: landmassType
   });
 
   for (let y = 0; y < mapHeight; y++) {

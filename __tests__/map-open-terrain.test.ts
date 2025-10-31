@@ -68,7 +68,7 @@ describe('mangrove reclassification under sea-level changes', () => {
     ]);
 
     vi.doMock('../src/map/generation/elevation.js', () => ({
-      createElevationSampler: () => ({
+      createElevationSampler: (_seed, _options = {}) => ({
         sample: (gx, gy) => elevationMap.get(`${gx},${gy}`) ?? 0.6
       })
     }));
