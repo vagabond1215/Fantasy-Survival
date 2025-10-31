@@ -427,7 +427,8 @@ export function createMapView(container, {
   bufferMargin = BUFFER_MARGIN,
   minZoom = 0.5,
   maxZoom = 3,
-  initialZoom = 1
+  initialZoom = 1,
+  controlsContainer = null
 } = {}) {
   if (!container) throw new Error('Container is required for map view');
 
@@ -1603,10 +1604,10 @@ export function createMapView(container, {
 
     zoomControls = createZoomControls({
       onZoomIn: () => {
-        zoomBy(0.1);
+        zoomBy(1);
       },
       onZoomOut: () => {
-        zoomBy(-0.1);
+        zoomBy(-1);
       },
       onZoomReset: () => {
         resetZoom();
@@ -1617,7 +1618,10 @@ export function createMapView(container, {
     });
     zoomControls.element.classList.add(`${idPrefix}-zoom`);
     zoomControls.element.style.alignSelf = 'center';
-    mapPrimaryStack.appendChild(zoomControls.element);
+    const zoomHost = controlsContainer && typeof controlsContainer.appendChild === 'function'
+      ? controlsContainer
+      : mapPrimaryStack;
+    zoomHost.appendChild(zoomControls.element);
 
     updateZoomControls();
   }
@@ -3092,8 +3096,15 @@ export function createMapView(container, {
     applyZoomTransform();
   }
 
-  function zoomBy(delta) {
-    setZoom(getCurrentZoom() + delta);
+  const ZOOM_IN_FACTOR = 1.25;
+  const ZOOM_OUT_FACTOR = 0.8;
+
+  function zoomBy(direction) {
+    if (!Number.isFinite(direction) || direction === 0) return;
+    const currentZoom = getCurrentZoom();
+    const multiplier = direction > 0 ? ZOOM_IN_FACTOR : ZOOM_OUT_FACTOR;
+    const nextZoom = clampNumber(currentZoom * multiplier, state.minZoom, state.maxZoom);
+    setZoom(nextZoom);
   }
 
   function resetZoom() {
@@ -3166,59 +3177,31 @@ export function createMapView(container, {
   }
 
   function updateWrapperSize() {
-    if (!state.map) return;
-    const cols = state.map.tiles?.[0]?.length || 0;
-    const rows = state.map.tiles?.length || 0;
+    if (!mapWrapper) return;
 
-    let widthContext = null;
-    let heightContext = null;
+    mapWrapper.style.width = '100%';
+    mapWrapper.style.height = '100%';
+    mapWrapper.style.minWidth = '100%';
+    mapWrapper.style.minHeight = '100%';
 
-    const captureContextFromRect = rect => {
-      if (!rect) return;
-      if (widthContext === null && Number.isFinite(rect.width) && rect.width > 0) {
-        widthContext = rect.width;
-      }
-      if (heightContext === null && Number.isFinite(rect.height) && rect.height > 0) {
-        heightContext = rect.height;
-      }
-    };
+    const rect = typeof mapWrapper.getBoundingClientRect === 'function'
+      ? mapWrapper.getBoundingClientRect()
+      : null;
+    const width = Number.isFinite(rect?.width) && rect.width > 0
+      ? rect.width
+      : mapWrapper.clientWidth || 0;
+    const height = Number.isFinite(rect?.height) && rect.height > 0
+      ? rect.height
+      : mapWrapper.clientHeight || 0;
 
-    if (typeof layoutRoot?.getBoundingClientRect === 'function') {
-      captureContextFromRect(layoutRoot.getBoundingClientRect());
-    }
-
-    if (typeof mapContainer?.getBoundingClientRect === 'function') {
-      captureContextFromRect(mapContainer.getBoundingClientRect());
-    }
-
-    if (typeof container?.getBoundingClientRect === 'function') {
-      captureContextFromRect(container.getBoundingClientRect());
-    }
-
-    if (sideStack.parentElement === mapContainer && typeof sideStack.getBoundingClientRect === 'function') {
-      const sideRect = sideStack.getBoundingClientRect();
-      const stackWidth = Number.isFinite(sideRect?.width) && sideRect.width > 0 ? sideRect.width : 0;
-      if (widthContext !== null && stackWidth) {
-        widthContext = Math.max(0, widthContext - stackWidth - 16);
-      }
-      if (heightContext === null && Number.isFinite(sideRect?.height) && sideRect.height > 0) {
-        heightContext = sideRect.height;
-      }
-    }
-
-    const { width, height } = computeViewportDimensions(cols, rows, widthContext, heightContext);
-    const widthPx = `${width}px`;
-    const heightPx = `${height}px`;
-    mapWrapper.style.width = widthPx;
-    mapWrapper.style.height = heightPx;
-    mapWrapper.style.minWidth = widthPx;
-    mapWrapper.style.minHeight = heightPx;
+    const pixelWidth = Math.max(0, Math.round(width));
+    const pixelHeight = Math.max(0, Math.round(height));
 
     if (state.renderer) {
-      state.renderer.resize(width, height);
+      state.renderer.resize(pixelWidth, pixelHeight);
     }
     if (state.camera) {
-      state.camera.setViewportSize(width, height);
+      state.camera.setViewportSize(pixelWidth, pixelHeight);
       syncCameraToViewport();
     }
 

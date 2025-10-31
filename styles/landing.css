@@ -1237,6 +1237,35 @@ body.landing-active .map-section {
   gap: 16px;
 }
 
+body.landing-active .map-preview-layout {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 16px;
+  align-items: stretch;
+}
+
+body.landing-active .map-preview-layout .map-preview {
+  flex: 1 1 280px;
+  min-width: 0;
+}
+
+body.landing-active .map-preview-sidebar {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  justify-content: center;
+  align-items: center;
+  min-width: 160px;
+  flex: 0 0 auto;
+}
+
+body.landing-active .map-preview-sidebar .map-zoom-controls {
+  margin-top: 0;
+  margin-inline: 0;
+  width: 100%;
+  justify-content: center;
+}
+
 body.landing-active .map-tip {
   font-size: 12px;
   color: var(--text-muted);
