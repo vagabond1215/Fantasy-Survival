@@ -288,7 +288,7 @@ body.landing-active .setup-appbar {
   width: min(960px, 100%);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   padding: clamp(12px, 3vw, 18px) clamp(16px, 4vw, 26px);
   border-radius: 28px;
@@ -302,6 +302,13 @@ body.landing-active .setup-appbar {
   box-shadow: var(--shadow);
   backdrop-filter: blur(calc(var(--blur) * 0.5));
   color: var(--text);
+}
+
+body.landing-active .setup-appbar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
 }
 
 body.landing-active .setup-appbar__title {
@@ -1223,14 +1230,6 @@ body.landing-active .btn--ok {
   background: linear-gradient(160deg, color-mix(in srgb, var(--color-secondary) 70%, transparent), color-mix(in srgb, var(--color-secondary-light) 60%, transparent));
   border-color: color-mix(in srgb, var(--color-secondary-light) 45%, transparent);
   color: color-mix(in srgb, var(--color-secondary-light) 20%, #0f1d19 80%);
-}
-
-body.landing-active .cta-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
 }
 
 body.landing-active .map-section {
