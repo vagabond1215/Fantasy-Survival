@@ -2,6 +2,7 @@ export const biomes = [
   {
     id: 'alpine',
     name: 'Alpine',
+    color: '#c8d9eb',
     features: [
       'snow-capped peaks',
       'glacial valley',
@@ -19,6 +20,7 @@ export const biomes = [
   {
     id: 'boreal-taiga',
     name: 'Boreal (Taiga)',
+    color: '#b9cfc2',
     features: ['conifer forest', 'bog', 'cold rivers', 'glacial lake'],
     woodMod: 1.0,
     openLand: 0.3,
@@ -30,6 +32,7 @@ export const biomes = [
   {
     id: 'coastal-temperate',
     name: 'Coastal (Temperate)',
+    color: '#bcd7e6',
     features: ['rocky shore', 'tide pools', 'windy cliffs', 'sea inlet'],
     woodMod: 0.8,
     openLand: 0.5,
@@ -41,6 +44,7 @@ export const biomes = [
   {
     id: 'coastal-tropical',
     name: 'Coastal (Tropical)',
+    color: '#f4d7b7',
     features: ['sandy beaches', 'coral reefs', 'lagoon', 'tidal creek'],
     woodMod: 0.9,
     openLand: 0.5,
@@ -52,6 +56,7 @@ export const biomes = [
   {
     id: 'flooded-grasslands',
     name: 'Flooded Grasslands / Swamp',
+    color: '#c5d9c4',
     features: ['marsh', 'reed beds', 'shallow lakes', 'bog'],
     woodMod: 0.7,
     openLand: 0.4,
@@ -63,6 +68,7 @@ export const biomes = [
   {
     id: 'island-temperate',
     name: 'Island (Temperate)',
+    color: '#d6dbe8',
     features: ['pebble beach', 'forest interior', 'cliffs', 'tidal inlet'],
     woodMod: 0.8,
     openLand: 0.5,
@@ -74,6 +80,7 @@ export const biomes = [
   {
     id: 'island-tropical',
     name: 'Island (Tropical)',
+    color: '#f7dcbf',
     features: ['palm beach', 'volcanic ridge', 'lagoon', 'coral reef'],
     woodMod: 0.9,
     openLand: 0.5,
@@ -85,6 +92,7 @@ export const biomes = [
   {
     id: 'mangrove',
     name: 'Mangrove',
+    color: '#c9e0d0',
     features: ['mangrove forest', 'brackish water', 'mudflats', 'tidal creek'],
     woodMod: 1.0,
     openLand: 0.3,
@@ -96,6 +104,7 @@ export const biomes = [
   {
     id: 'mediterranean-woodland',
     name: 'Mediterranean Woodland',
+    color: '#e4d2bb',
     features: ['scrubland', 'olive groves', 'rocky hills', 'seasonal stream'],
     woodMod: 0.9,
     openLand: 0.6,
@@ -107,6 +116,7 @@ export const biomes = [
   {
     id: 'montane-cloud',
     name: 'Montane / Cloud',
+    color: '#d0d8e8',
     features: ['misty forest', 'steep terrain', 'waterfalls', 'cloud-fed springs'],
     woodMod: 0.8,
     openLand: 0.3,
@@ -118,6 +128,7 @@ export const biomes = [
   {
     id: 'savanna',
     name: 'Savanna',
+    color: '#ead9b8',
     features: ['grassland', 'acacia trees', 'watering hole', 'seasonal river'],
     woodMod: 0.6,
     openLand: 0.8,
@@ -129,6 +140,7 @@ export const biomes = [
   {
     id: 'temperate-deciduous',
     name: 'Temperate Deciduous',
+    color: '#d5dfc5',
     features: ['broadleaf forest', 'meadow', 'stream', 'forest lake'],
     woodMod: 1.1,
     openLand: 0.6,
@@ -140,6 +152,7 @@ export const biomes = [
   {
     id: 'temperate-rainforest',
     name: 'Temperate Rainforest',
+    color: '#c2dccc',
     features: ['wet forest', 'coastal cliffs', 'mossy ground', 'rain-fed river'],
     woodMod: 1.1,
     openLand: 0.4,
@@ -151,6 +164,7 @@ export const biomes = [
   {
     id: 'tropical-monsoon',
     name: 'Tropical Monsoon',
+    color: '#f1d4c3',
     features: ['seasonal forest', 'river delta', 'monsoon rains', 'seasonal lagoon'],
     woodMod: 1.0,
     openLand: 0.5,
@@ -162,6 +176,7 @@ export const biomes = [
   {
     id: 'tropical-rainforest',
     name: 'Tropical Rainforest',
+    color: '#c4e0c0',
     features: ['dense jungle', 'river', 'rolling hills', 'hidden waterfall'],
     woodMod: 1.2,
     openLand: 0.3,
@@ -169,6 +184,18 @@ export const biomes = [
     food: 1.2,
     elevation: { base: 0.35, variance: 0.15, scale: 70, waterLevel: 0.25 },
     description: 'Hot, humid jungles teeming with life and thick vegetation.'
+  },
+  {
+    id: 'random',
+    name: 'Random',
+    color: '#d6cbe3',
+    features: ['Varies with each seed'],
+    woodMod: 1.0,
+    openLand: 0.5,
+    openTerrainId: 'temperate',
+    food: 0.6,
+    elevation: { base: 0.35, variance: 0.15, scale: 60, waterLevel: 0.2 },
+    description: 'Selects one of the other biomes using your seed before play begins.'
   }
 ];
 
