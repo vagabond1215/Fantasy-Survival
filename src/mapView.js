@@ -1109,9 +1109,11 @@ export function createMapView(container, {
     tileBaseSize: state.tileBaseSize,
     useTerrainColors: state.useTerrainColors,
     getTerrainColor: type => resolveTerrainColor(type),
-    getTerrainGradient: type => resolveTerrainGradient(type)
+    getTerrainGradient: type => resolveTerrainGradient(type),
+    prefetchMargin: state.bufferMargin
   });
   state.renderer.setDevelopments(state.developmentTiles);
+  state.renderer.setPrefetchMargin(state.bufferMargin);
   state.dataLayer = mapDataLayer;
 
   const markerLayer = document.createElement('div');
