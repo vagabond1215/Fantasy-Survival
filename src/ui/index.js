@@ -439,7 +439,10 @@ export function initSetupUI(onStart) {
         </div>
         <div class="setup__column setup__column--preview">
           <div class="card section map-section">
-            <div id="map-preview" class="map-preview" aria-label="World map preview"></div>
+            <div class="map-preview-layout">
+              <div id="map-preview" class="map-preview" aria-label="World map preview"></div>
+              <div id="map-preview-sidebar" class="map-preview-sidebar"></div>
+            </div>
             <p class="sub" id="spawn-info"></p>
           </div>
           <div class="card cta-row">
@@ -529,11 +532,12 @@ export function initSetupUI(onStart) {
   const seedInput = contentRoot.querySelector('#seed-input');
   const seedRandomBtn = contentRoot.querySelector('#seed-rand');
   const mapPreview = setupRoot.querySelector('#map-preview');
+  const mapPreviewSidebar = setupRoot.querySelector('#map-preview-sidebar');
   const spawnInfo = setupRoot.querySelector('#spawn-info');
   const randomizeAllBtn = setupRoot.querySelector('#randomize-all');
   const startBtn = setupRoot.querySelector('#start-btn');
 
-  if (!biomeGrid || !biomeDetails || !seasonSeg || !seedInput || !seedRandomBtn || !mapPreview || !spawnInfo || !randomizeAllBtn || !startBtn) {
+  if (!biomeGrid || !biomeDetails || !seasonSeg || !seedInput || !seedRandomBtn || !mapPreview || !mapPreviewSidebar || !spawnInfo || !randomizeAllBtn || !startBtn) {
     throw new Error('Missing setup UI elements.');
   }
 
@@ -1664,6 +1668,7 @@ export function initSetupUI(onStart) {
     useTerrainColors: true,
     bufferMargin: 8,
     minZoom: 0.4,
+    controlsContainer: mapPreviewSidebar,
     fetchMap: ({ xStart, yStart, width, height, seed, season, viewport, skipSanityChecks }) => {
       const biomeId = selectedBiome;
       const nextSeed = seed ?? mapSeed;
