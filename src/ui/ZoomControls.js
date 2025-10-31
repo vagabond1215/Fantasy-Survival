@@ -13,16 +13,28 @@ function defaultStyleButton(button, style = {}) {
         : "48px";
   const variant = style.variant || "square";
   const fontSize = style.fontSize || (variant === "chip" ? "16px" : "18px");
-  const isChip = variant === "chip" || variant === "stacked";
-  button.style.width = isChip ? "auto" : size;
-  button.style.minWidth = isChip ? size : size;
-  button.style.height = variant === "stacked" ? "auto" : size;
-  button.style.minHeight = variant === "stacked" ? size : size;
-  button.style.padding = isChip ? "0 12px" : "0";
+  const isStacked = variant === "stacked";
+  const square = style.square ?? !isStacked;
+  const padding =
+    style.padding !== undefined
+      ? style.padding
+      : square
+        ? "0"
+        : variant === "chip"
+          ? "0 12px"
+          : "0";
+
+  button.style.boxSizing = "border-box";
+  button.style.width = square ? size : isStacked ? "auto" : size;
+  button.style.minWidth = size;
+  button.style.height = square && !isStacked ? size : isStacked ? "auto" : size;
+  button.style.minHeight = size;
+  button.style.flexBasis = square ? size : "auto";
+  button.style.padding = padding;
   button.style.fontSize = fontSize;
   button.style.display = "inline-flex";
-  button.style.flexDirection = variant === "stacked" ? "column" : "row";
-  button.style.gap = variant === "stacked" ? "2px" : "0";
+  button.style.flexDirection = isStacked ? "column" : "row";
+  button.style.gap = isStacked ? "2px" : "0";
   button.style.alignItems = "center";
   button.style.justifyContent = "center";
   button.style.borderRadius = "12px";
@@ -30,13 +42,16 @@ function defaultStyleButton(button, style = {}) {
     "1px solid var(--map-control-border, var(--map-border, #ccc))";
   button.style.background = "var(--map-control-bg, var(--bg-color, #fff))";
   button.style.color = "var(--map-control-fg, inherit)";
-  button.style.lineHeight = "1.1";
+  button.style.lineHeight = square ? "1" : "1.1";
   button.style.whiteSpace = "nowrap";
   button.style.cursor = "pointer";
   button.style.transition = "background 0.2s ease, transform 0.1s ease";
   button.style.boxShadow =
     "var(--map-control-shadow, 0 1px 2px rgba(0, 0, 0, 0.08))";
   button.style.fontWeight = "600";
+  button.style.textAlign = "center";
+  button.style.flexShrink = "0";
+  button.style.fontVariantNumeric = "tabular-nums";
 }
 export function createZoomControls(options) {
   const styleButton = options.styleButton || defaultStyleButton;
@@ -44,12 +59,16 @@ export function createZoomControls(options) {
   host.className = "map-zoom-controls";
   host.style.display = "flex";
   host.style.flexDirection = "row";
-  host.style.flexWrap = "wrap";
+  host.style.flexWrap = "nowrap";
   host.style.alignItems = "center";
   host.style.justifyContent = "center";
   host.style.gap = "6px";
   host.style.alignSelf = "center";
   host.style.marginTop = "12px";
+  host.style.marginInline = "auto";
+  host.style.boxSizing = "border-box";
+  host.style.flex = "0 0 auto";
+  host.style.maxWidth = "100%";
   host.style.pointerEvents = "auto";
   const createButton = (label, ariaLabel, style) => {
     const button = document.createElement("button");
@@ -59,18 +78,21 @@ export function createZoomControls(options) {
     styleButton(button, style);
     return button;
   };
+  const controlSize = 48;
   const zoomOutButton = createButton("−", "Zoom out", {
     fontSize: "22px",
-    variant: "chip",
+    square: true,
+    size: controlSize,
   });
   const zoomInButton = createButton("+", "Zoom in", {
     fontSize: "22px",
-    variant: "chip",
+    square: true,
+    size: controlSize,
   });
   const zoomResetButton = createButton("100%", "Reset zoom to 100%", {
     fontSize: "15px",
-    variant: "chip",
-    size: 64,
+    square: true,
+    size: controlSize,
   });
   zoomResetButton.classList.add("map-zoom-reset");
   zoomOutButton.addEventListener("click", (event) => {
