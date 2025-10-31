@@ -29,7 +29,9 @@
  *   | 'tropical'
  *   | 'plains'
  * )} TileType
+ * @typedef {{ start: string, end: string }} TileGradient
  * @typedef {Record<TileType, string>} TilePalette
+ * @typedef {Record<TileType, TileGradient>} TileGradientMap
  */
 
 /** @type {Record<TileType, string>} */
@@ -114,7 +116,7 @@ const DEFAULT_GRADIENT_BASE = '#6b7280';
 
 /** @type {TilePalette | null} */
 let cachedPalette = null;
-/** @type {Record<string, { start: string, end: string }> | null} */
+/** @type {TileGradientMap | null} */
 let cachedGradients = null;
 
 function clampChannel(value) {
@@ -250,6 +252,9 @@ export function resolveTilePalette(options = {}) {
 
 export const TILE_COLOR_MAP = resolveTilePalette();
 
+/**
+ * @returns {TileGradientMap}
+ */
 function computeTileGradients() {
   /** @type {CSSStyleDeclaration | null} */
   let styles = null;
@@ -261,7 +266,8 @@ function computeTileGradients() {
     }
   }
   const palette = cachedPalette ?? resolveTilePalette();
-  const gradients = {};
+  /** @type {TileGradientMap} */
+  const gradients = /** @type {TileGradientMap} */ ({});
   Object.keys(TILE_GRADIENT_VARIABLES).forEach(key => {
     const type = /** @type {TileType} */ (key);
     const variables = TILE_GRADIENT_VARIABLES[type];
@@ -277,6 +283,10 @@ function computeTileGradients() {
   return gradients;
 }
 
+/**
+ * @param {{ forceRefresh?: boolean }} [options]
+ * @returns {TileGradientMap}
+ */
 export function resolveTileGradients(options = {}) {
   const { forceRefresh = false } = options;
   if (!cachedGradients || forceRefresh) {
@@ -285,7 +295,8 @@ export function resolveTileGradients(options = {}) {
     }
     cachedGradients = computeTileGradients();
   }
-  const gradients = {};
+  /** @type {TileGradientMap} */
+  const gradients = /** @type {TileGradientMap} */ ({});
   Object.entries(cachedGradients).forEach(([key, value]) => {
     gradients[key] = { ...value };
   });
