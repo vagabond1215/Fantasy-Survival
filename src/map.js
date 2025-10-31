@@ -250,6 +250,66 @@ function clamp(value, min, max) {
   return value;
 }
 
+const LANDMASS_PRESETS = {
+  continent: {
+    maskStrength: 0.55,
+    maskBias: 0,
+    worldScaleFactor: 1.2,
+    waterCoverageTarget: 0.32,
+    minOceanFraction: 0.02,
+    openLandBias: 0
+  },
+  island: {
+    maskStrength: 0.82,
+    maskBias: -0.06,
+    worldScaleFactor: 0.9,
+    waterCoverageTarget: 0.5,
+    minOceanFraction: 0.14,
+    openLandBias: -0.1
+  },
+  archipelago: {
+    maskStrength: 0.68,
+    maskBias: -0.04,
+    worldScaleFactor: 0.95,
+    waterCoverageTarget: 0.42,
+    minOceanFraction: 0.1,
+    openLandBias: -0.06
+  },
+  coastal: {
+    maskStrength: 0.5,
+    maskBias: -0.01,
+    worldScaleFactor: 1.15,
+    waterCoverageTarget: 0.35,
+    minOceanFraction: 0.05,
+    openLandBias: -0.02
+  },
+  pangea: {
+    maskStrength: 0.38,
+    maskBias: 0.08,
+    worldScaleFactor: 1.45,
+    waterCoverageTarget: 0.24,
+    minOceanFraction: 0.02,
+    openLandBias: 0.08
+  },
+  inland: {
+    maskStrength: 0.34,
+    maskBias: 0.1,
+    worldScaleFactor: 1.35,
+    waterCoverageTarget: 0.26,
+    minOceanFraction: 0.02,
+    openLandBias: 0.06
+  }
+};
+
+const DEFAULT_LANDMASS_TYPE = 'continent';
+
+function resolveLandmassPreset(type) {
+  if (!type) {
+    return LANDMASS_PRESETS[DEFAULT_LANDMASS_TYPE];
+  }
+  return LANDMASS_PRESETS[type] || LANDMASS_PRESETS[DEFAULT_LANDMASS_TYPE];
+}
+
 function lerp(a, b, t) {
   return a + (b - a) * t;
 }
@@ -552,6 +612,8 @@ export function generateColorMap(
   const biome = getBiome(biomeId);
   const openTerrainType = resolveBiomeOpenTerrain(biome);
   const world = resolveWorldParameters(worldSettings || {});
+  const landmassType = typeof world.mapType === 'string' ? world.mapType : DEFAULT_LANDMASS_TYPE;
+  const landmassPreset = resolveLandmassPreset(landmassType);
   const adv = world.advanced || {};
   const rainfallBias = (world.rainfall - 50) / 100;
   const temperatureBias = (world.temperature - 50) / 100;
@@ -564,6 +626,7 @@ export function generateColorMap(
   openLand += temperatureBias * 0.18;
   openLand -= rainfallBias * 0.22;
   openLand -= Math.max(0, mountainsBias) * 0.12;
+  openLand += landmassPreset.openLandBias ?? 0;
   openLand = clamp(openLand, 0.1, 0.9);
 
   const vegScaleBase = clamp(20 + openLand * 80, 10, 140);
@@ -616,14 +679,18 @@ export function generateColorMap(
   const substrateTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
   const elevations = [];
 
-  const worldScale = Math.max(mapWidth, mapHeight) * 1.2;
+  const worldScale = Math.max(mapWidth, mapHeight) * (landmassPreset.worldScaleFactor ?? 1.2);
+  const maskStrengthBase = landmassPreset.maskStrength ?? 0.55;
+  const maskBiasBase = landmassPreset.maskBias ?? 0;
+  const maskStrength = clamp(maskStrengthBase + mountainsBias * 0.15 - waterBias * 0.1, 0.2, 0.92);
+  const maskBias = clamp(maskBiasBase + (waterBias + rainfallBias) * -0.08, -0.3, 0.3);
   const elevationSampler = createElevationSampler(seed, {
     base: elevationOptions.base,
     variance: elevationOptions.variance,
     scale: elevationOptions.scale,
     worldScale,
-    maskStrength: clamp(0.5 + mountainsBias * 0.2 - waterBias * 0.1, 0.25, 0.85),
-    maskBias: clamp((waterBias + rainfallBias) * -0.08, -0.25, 0.2)
+    maskStrength,
+    maskBias
   });
 
   for (let y = 0; y < mapHeight; y++) {
@@ -637,6 +704,9 @@ export function generateColorMap(
     elevations.push(eRow);
   }
 
+  const waterCoverageTarget = clamp(landmassPreset.waterCoverageTarget ?? 0.32, 0.08, 0.85);
+  const minOceanFraction = clamp(landmassPreset.minOceanFraction ?? 0.02, 0, 0.4);
+
   const hydrology = generateHydrology({
     seed,
     width: mapWidth,
@@ -645,7 +715,11 @@ export function generateColorMap(
     biome: biome
       ? { id: biome.id, features: biome.features, elevation: biome.elevation }
       : null,
-    world
+    world: {
+      ...world,
+      waterCoverageTarget,
+      minOceanFraction
+    }
   });
 
   const mangroveReport = applyMangroveZones({

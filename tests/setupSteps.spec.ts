@@ -36,6 +36,7 @@ vi.mock('../src/difficulty.js', () => {
     mountains: 50,
     rivers100: 50,
     lakes100: 50,
+    mapType: 'continent',
     advanced: {
       elevationBase: 50,
       elevationVariance: 50,
@@ -50,6 +51,7 @@ vi.mock('../src/difficulty.js', () => {
   const resolveWorldParameters = (partial: any = {}) => ({
     ...defaultWorldParameters,
     ...partial,
+    mapType: typeof partial.mapType === 'string' ? partial.mapType : defaultWorldParameters.mapType,
     advanced: {
       ...defaultWorldParameters.advanced,
       ...(partial.advanced || {})
@@ -203,8 +205,10 @@ describe('setup layout', () => {
 
     const biomeCard = document.querySelector<HTMLElement>('#biome-card');
     const seasonSeg = biomeCard?.querySelector<HTMLElement>('#season-seg');
+    const mapTypeSeg = document.querySelector<HTMLElement>('#maptype-seg');
     const biomeGrid = biomeCard?.querySelector<HTMLElement>('#biome-grid');
     expect(seasonSeg).toBeTruthy();
+    expect(mapTypeSeg).toBeTruthy();
     expect(biomeGrid).toBeTruthy();
     if (seasonSeg && biomeGrid) {
       const position = seasonSeg.compareDocumentPosition(biomeGrid);
@@ -267,5 +271,26 @@ describe('season selection buttons', () => {
       expect(button.getAttribute('aria-label')).toBe(label);
       expect(button.getAttribute('title')).toBe(label);
     });
+  });
+});
+
+describe('map type selection buttons', () => {
+  it('lists the available landmass options', () => {
+    initSetupUI(() => {});
+    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('#maptype-seg button'));
+    const expected = [
+      { id: 'continent', label: 'Continent' },
+      { id: 'island', label: 'Island' },
+      { id: 'archipelago', label: 'Archipelago' },
+      { id: 'coastal', label: 'Coastal' },
+      { id: 'pangea', label: 'Pangea' },
+      { id: 'inland', label: 'Inland' }
+    ];
+    expect(buttons).toHaveLength(expected.length);
+    const mapped = buttons.map(button => ({
+      id: button.dataset.mapType,
+      label: button.textContent?.trim()
+    }));
+    expect(mapped).toEqual(expected);
   });
 });
