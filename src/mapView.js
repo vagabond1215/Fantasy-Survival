@@ -1,6 +1,11 @@
 // @ts-nocheck
 import { DEFAULT_MAP_WIDTH, TERRAIN_SYMBOLS } from './map.js';
-import { getTileColor, resolveTilePalette } from './map/tileColors.js';
+import {
+  getTileColor,
+  getTileGradient,
+  resolveTilePalette,
+  createGradientFromColor
+} from './map/tileColors.js';
 import { createCamera } from './map/camera.js';
 import { createMapRenderer } from './map/renderer.js';
 import { createZoomControls } from './ui/ZoomControls.js';
@@ -706,6 +711,17 @@ export function createMapView(container, {
     return getTileColor(normalizedType);
   }
 
+  function resolveTerrainGradient(type) {
+    if (!state.useTerrainColors) return null;
+    const normalizedType =
+      typeof type === 'string' && type ? type.trim().toLowerCase() : 'open';
+    const overrides = state.terrainColorOverrides || null;
+    if (overrides && overrides[normalizedType]) {
+      return createGradientFromColor(overrides[normalizedType]);
+    }
+    return getTileGradient(normalizedType);
+  }
+
   const DEVELOPMENT_CLASSNAMES = [
     'map-tile--developed',
     'map-tile--developed-pending',
@@ -1066,7 +1082,8 @@ export function createMapView(container, {
     camera: state.camera,
     tileBaseSize: state.tileBaseSize,
     useTerrainColors: state.useTerrainColors,
-    getTerrainColor: type => resolveTerrainColor(type)
+    getTerrainColor: type => resolveTerrainColor(type),
+    getTerrainGradient: type => resolveTerrainGradient(type)
   });
   state.renderer.setDevelopments(state.developmentTiles);
   state.dataLayer = mapDataLayer;
@@ -1250,6 +1267,10 @@ export function createMapView(container, {
     const type = tileInfo.type || '';
     const label = legendLabels[type] || type || 'Unknown terrain';
     const symbol = tileInfo.symbol?.trim() || '';
+    const showSymbol =
+      symbol &&
+      symbol.toLowerCase() !== type.toLowerCase() &&
+      symbol.toLowerCase() !== String(label).toLowerCase();
     const coordText = ` (${tileInfo.x}, ${tileInfo.y})`;
     const developmentDetail = tileInfo.development?.tooltip || tileInfo.development?.structures?.join(', ');
     let developmentText = '';
@@ -1264,7 +1285,7 @@ export function createMapView(container, {
     } else {
       developmentText = ` — ${developmentDetail}`;
     }
-    return `${symbol ? `${symbol} ` : ''}${label}${coordText}${developmentText}`;
+    return `${showSymbol ? `${symbol} ` : ''}${label}${coordText}${developmentText}`;
   };
 
   const showTooltip = (tileInfo, event = null) => {
@@ -3273,8 +3294,9 @@ export function createMapView(container, {
 
         const symbol = state.map.tiles[rowIndex]?.[colIndex] ?? '';
         const fillColor = resolveTerrainColor(type);
+        const labelText = legendLabels[type] || symbol || type || '';
         if (symbolEl) {
-          symbolEl.textContent = symbol ?? '';
+          symbolEl.textContent = labelText;
           symbolEl.style.backgroundColor = fillColor || 'transparent';
           symbolEl.style.borderRadius = fillColor ? '6px' : '';
           symbolEl.style.boxShadow = fillColor ? 'inset 0 0 0 1px rgba(0, 0, 0, 0.18)' : '';

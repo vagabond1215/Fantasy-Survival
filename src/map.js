@@ -16,34 +16,34 @@ export const DEFAULT_MAP_WIDTH = DEFAULT_MAP_SIZE;
 export const DEFAULT_MAP_HEIGHT = DEFAULT_MAP_SIZE;
 
 export const TERRAIN_SYMBOLS = {
-  water: '💧',
-  ocean: '🌊',
-  lake: '🟦',
-  river: '〰️',
-  marsh: '🪴',
-  mangrove: '🪷',
-  open: '🌾',
-  grassland: '🌿',
-  plains: '🌾',
-  savanna: '🌾',
-  tundra: '❄️',
-  taiga: '🌲',
-  desert: '🏜️',
-  sand: '🏖️',
-  wetland: '🪴',
-  coast: '🏖️',
-  temperate: '🌱',
-  tropical: '🌴',
-  rainforest: '🌿',
-  jungle: '🌴',
-  alpine: '🏔️',
-  swamp: '🪵',
-  island: '🏝️',
-  mountain: '⛰️',
-  volcanic: '🌋',
-  forest: '🌲',
-  ore: '⛏️',
-  stone: '🪨'
+  water: 'water',
+  ocean: 'ocean',
+  lake: 'lake',
+  river: 'river',
+  marsh: 'marsh',
+  mangrove: 'mangrove',
+  open: 'open',
+  grassland: 'grassland',
+  plains: 'plains',
+  savanna: 'savanna',
+  tundra: 'tundra',
+  taiga: 'taiga',
+  desert: 'desert',
+  sand: 'sand',
+  wetland: 'wetland',
+  coast: 'coast',
+  temperate: 'temperate',
+  tropical: 'tropical',
+  rainforest: 'rainforest',
+  jungle: 'jungle',
+  alpine: 'alpine',
+  swamp: 'swamp',
+  island: 'island',
+  mountain: 'mountain',
+  volcanic: 'volcanic',
+  forest: 'forest',
+  ore: 'ore',
+  stone: 'stone'
 };
 
 export const DEFAULT_TERRAIN_COLORS = Object.freeze({
@@ -393,7 +393,11 @@ function createChunkRenderer({ width, height, tiles, terrainTypes, chunkSize = D
         const x = columnStart + localX;
         if (x >= width) break;
         const type = typeRow[x];
-        tileRow[x] = TERRAIN_SYMBOLS[type] || '?';
+        const symbol =
+          typeof type === 'string' && type
+            ? TERRAIN_SYMBOLS[type] || type
+            : TERRAIN_SYMBOLS.open;
+        tileRow[x] = symbol || TERRAIN_SYMBOLS.open;
       }
     }
   }

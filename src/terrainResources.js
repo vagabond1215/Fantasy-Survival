@@ -57,8 +57,11 @@ function setTerrainType(location, x, y, type) {
     }
   }
   if (location.map.tiles?.[row]?.length) {
-    const symbol = TERRAIN_SYMBOLS[finalType] || TERRAIN_SYMBOLS.open || '?';
-    location.map.tiles[row][col] = symbol;
+    const symbol =
+      typeof finalType === 'string' && finalType
+        ? TERRAIN_SYMBOLS[finalType] || finalType
+        : TERRAIN_SYMBOLS.open;
+    location.map.tiles[row][col] = symbol || TERRAIN_SYMBOLS.open;
   }
 }
 
