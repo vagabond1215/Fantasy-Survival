@@ -2449,9 +2449,9 @@ export function createMapView(container, {
     actionPanel.style.padding = '12px';
     actionPanel.style.borderRadius = '16px';
     actionPanel.style.border = '1px solid var(--map-border, #ccc)';
-    actionPanel.style.background = 'var(--action-panel-bg, rgba(250, 250, 255, 0.96))';
-    actionPanel.style.backdropFilter = 'blur(4px)';
-    actionPanel.style.boxShadow = '0 12px 28px rgba(0, 0, 0, 0.18)';
+    actionPanel.style.background =
+      'var(--action-panel-bg, linear-gradient(135deg, rgba(250, 250, 255, 0.94), rgba(232, 236, 252, 0.9)))';
+    actionPanel.style.boxShadow = '0 18px 42px rgba(4, 10, 28, 0.25)';
     actionPanel.style.alignSelf = 'flex-start';
 
     if (jobSelectorConfig.title) {
@@ -2614,17 +2614,16 @@ export function createMapView(container, {
       top: 'calc(100% + 8px)',
       borderRadius: '14px',
       border: '1px solid var(--map-border, rgba(126, 152, 212, 0.9))',
-      background: 'var(--map-select-popup-bg, linear-gradient(135deg, rgba(16, 30, 64, 0.98), rgba(10, 22, 46, 0.94)))',
-      boxShadow: '0 18px 36px rgba(0, 0, 0, 0.48)',
+      background:
+        'var(--map-select-popup-bg, linear-gradient(135deg, rgba(18, 32, 66, 0.94), rgba(8, 20, 40, 0.9)))',
+      boxShadow: '0 18px 42px rgba(4, 10, 26, 0.55)',
       padding: '8px 0',
       display: 'none',
       flexDirection: 'column',
       gap: '0',
       zIndex: '40',
       maxHeight: '280px',
-      overflowY: 'auto',
-      backdropFilter: 'blur(6px)',
-      WebkitBackdropFilter: 'blur(6px)'
+      overflowY: 'auto'
     });
     jobSelectWrapper.appendChild(jobOptionsPopup);
 
