@@ -36,8 +36,39 @@ const seasons = [
   { id: 'Thawbound', label: 'Spring', icon: '🌱' },
   { id: 'Sunheight', label: 'Summer', icon: '☀️' },
   { id: 'Emberwane', label: 'Autumn', icon: '🍂' },
-  { id: 'Frostshroud', label: 'Winter', icon: '❄️' }
+  { id: 'Frostshroud', label: 'Winter', icon: '❄️' },
+  { id: 'random', label: 'Random', icon: '❔' }
 ];
+
+const RANDOM_SEASON_ID = 'random';
+
+function getNonRandomSeasons() {
+  return seasons.filter(season => season.id !== RANDOM_SEASON_ID);
+}
+
+function resolveSeasonId(id, options = {}) {
+  const { mode = 'stable', seed } = options;
+  if (!id || id !== RANDOM_SEASON_ID) {
+    return id;
+  }
+  const available = getNonRandomSeasons();
+  if (!available.length) {
+    return seasons[0]?.id || id;
+  }
+  if (mode === 'random') {
+    const index = Math.floor(Math.random() * available.length);
+    return available[index].id;
+  }
+  const source = seed != null ? String(seed) : '';
+  if (!source) {
+    return available[0].id;
+  }
+  let hash = 0;
+  for (let index = 0; index < source.length; index += 1) {
+    hash = (hash * 31 + source.charCodeAt(index)) >>> 0;
+  }
+  return available[hash % available.length].id;
+}
 
 const difficultyFlavors = {
   easy: 'forgiving',
@@ -720,6 +751,7 @@ export function initSetupUI(onStart) {
 
   let selectedBiome = defaultBiome?.id || '';
   let selectedSeason = defaultSeason?.id || '';
+  let resolvedSeasonId = selectedSeason;
   let selectedDifficulty = defaultDifficulty?.id || '';
   let worldParameters = cloneWorldParameters(getDifficultyPreset(selectedDifficulty)?.world || defaultWorldParameters);
   let mapSeed = createSeed();
@@ -751,6 +783,8 @@ export function initSetupUI(onStart) {
   if (existingConfig?.seed) {
     mapSeed = String(existingConfig.seed);
   }
+
+  resolvedSeasonId = resolveSeasonId(selectedSeason, { mode: 'stable', seed: mapSeed });
 
   const legendEntries = [
     { type: 'open', label: 'Open Land' },
@@ -1256,7 +1290,7 @@ export function initSetupUI(onStart) {
     mapView.setMap(mapData, {
       biomeId: selectedBiome,
       seed: mapData?.seed ?? mapSeed,
-      season: mapData?.season ?? selectedSeason
+      season: mapData?.season ?? resolvedSeasonId
     });
     updateSpawnMarker();
     updateSpawnInfo();
@@ -1267,6 +1301,11 @@ export function initSetupUI(onStart) {
     const width = PREVIEW_MAP_SIZE;
     const height = PREVIEW_MAP_SIZE;
     const { xStart, yStart } = computeCenteredStart(width, height);
+    const previewSeason = resolveSeasonId(selectedSeason, {
+      mode: 'stable',
+      seed: mapSeed
+    });
+    resolvedSeasonId = previewSeason;
     mapData = generateColorMap(
       selectedBiome,
       mapSeed,
@@ -1274,7 +1313,7 @@ export function initSetupUI(onStart) {
       yStart,
       width,
       height,
-      selectedSeason,
+      previewSeason,
       undefined,
       undefined,
       worldParameters,
@@ -1669,7 +1708,11 @@ export function initSetupUI(onStart) {
     fetchMap: ({ xStart, yStart, width, height, seed, season, viewport, skipSanityChecks }) => {
       const biomeId = selectedBiome;
       const nextSeed = seed ?? mapSeed;
-      const nextSeason = season ?? selectedSeason;
+      const resolvedSeason = resolveSeasonId(season ?? selectedSeason, {
+        mode: 'stable',
+        seed: nextSeed
+      });
+      resolvedSeasonId = resolvedSeason;
       return generateColorMap(
         biomeId,
         nextSeed,
@@ -1677,7 +1720,7 @@ export function initSetupUI(onStart) {
         yStart,
         width,
         height,
-        nextSeason,
+        resolvedSeason,
         mapData?.waterLevel,
         viewport,
         worldParameters,
@@ -2079,6 +2122,10 @@ export function initSetupUI(onStart) {
     if (season) {
       selectedSeason = season;
       syncSeasonSelection(season);
+      resolvedSeasonId = resolveSeasonId(selectedSeason, {
+        mode: 'stable',
+        seed: mapSeed
+      });
     }
     if (difficulty) {
       selectedDifficulty = difficulty;
@@ -2087,6 +2134,10 @@ export function initSetupUI(onStart) {
     if (typeof seed === 'string' && seed && seed !== mapSeed) {
       mapSeed = seed;
       syncSeedInput(seed);
+      resolvedSeasonId = resolveSeasonId(selectedSeason, {
+        mode: 'stable',
+        seed: mapSeed
+      });
     }
     if (nextWorld) {
       worldParameters = cloneWorldParameters(nextWorld);
@@ -2138,9 +2189,15 @@ export function initSetupUI(onStart) {
       dispatchSeedChange(seedValue, { immediate: true });
     }
     const snapshot = getWorldConfig();
+    const snapshotSeason = snapshot.season || selectedSeason;
+    const effectiveSeason = resolveSeasonId(snapshotSeason, {
+      mode: snapshotSeason === RANDOM_SEASON_ID ? 'random' : 'stable',
+      seed: mapSeed
+    });
+    resolvedSeasonId = effectiveSeason;
     onStart({
       biome: snapshot.biome || selectedBiome,
-      season: snapshot.season || selectedSeason,
+      season: effectiveSeason,
       difficulty: snapshot.difficulty || selectedDifficulty,
       seed: snapshot.seed || mapSeed,
       world: cloneWorldParameters(snapshot.worldParameters || worldParameters),

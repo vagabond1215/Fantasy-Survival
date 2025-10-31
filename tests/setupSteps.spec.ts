@@ -256,7 +256,8 @@ describe('season selection buttons', () => {
       { id: 'Thawbound', label: 'Spring', icon: '🌱' },
       { id: 'Sunheight', label: 'Summer', icon: '☀️' },
       { id: 'Emberwane', label: 'Autumn', icon: '🍂' },
-      { id: 'Frostshroud', label: 'Winter', icon: '❄️' }
+      { id: 'Frostshroud', label: 'Winter', icon: '❄️' },
+      { id: 'random', label: 'Random', icon: '❔' }
     ];
     expect(buttons).toHaveLength(expected.length);
     buttons.forEach((button, index) => {
