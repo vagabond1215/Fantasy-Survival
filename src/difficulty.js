@@ -12,6 +12,7 @@ export const defaultWorldParameters = {
   mountains: 50,
   rivers100: 45,
   lakes100: 35,
+  mapType: 'continent',
   advanced: {
     elevationBase: 50,
     elevationVariance: 50,
@@ -39,9 +40,14 @@ function normalizeAdvanced(advanced = {}) {
 }
 
 export function resolveWorldParameters(partial = {}) {
+  const mapType =
+    typeof partial.mapType === 'string' && partial.mapType.trim()
+      ? partial.mapType
+      : defaultWorldParameters.mapType;
   const resolved = {
     ...defaultWorldParameters,
     ...partial,
+    mapType,
     advanced: normalizeAdvanced(partial.advanced)
   };
   return {

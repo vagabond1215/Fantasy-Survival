@@ -1126,7 +1126,7 @@ export function generateHydrology(input) {
             elevationGrid[y * width + x] = clamp(row[x] ?? 0, 0, 1);
         }
     }
-    const targetCoverage = 0.32;
+    const targetCoverage = clamp(world?.waterCoverageTarget ?? 0.32, 0.08, 0.85);
     const tolerance = 0.05;
     const maxIterations = 6;
     const baseStep = 0.012;
@@ -1138,7 +1138,7 @@ export function generateHydrology(input) {
     let lowerCoverage = null;
     let upperCoverage = null;
     let lastSeaLevel = seaLevel;
-    const minOceanFraction = 0.02;
+    const minOceanFraction = clamp(world?.minOceanFraction ?? 0.02, 0, 0.6);
     for (let iteration = 0; iteration < maxIterations; iteration += 1) {
         const state = buildHydrologyState({ width, height, elevationGrid, rules, seed, seaLevel });
         const coverage = computeElevationCoverage(elevationGrid, seaLevel);

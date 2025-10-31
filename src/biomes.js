@@ -66,30 +66,6 @@ export const biomes = [
     description: 'Waterlogged plains filled with reeds, marshes and standing water.'
   },
   {
-    id: 'island-temperate',
-    name: 'Island (Temperate)',
-    color: '#d6dbe8',
-    features: ['pebble beach', 'forest interior', 'cliffs', 'tidal inlet'],
-    woodMod: 0.8,
-    openLand: 0.5,
-    openTerrainId: 'grassland',
-    food: 0.7,
-    elevation: { base: 0.25, variance: 0.1, scale: 40, waterLevel: 0.2 },
-    description: 'A temperate island with forests, cliffs and cool seas.'
-  },
-  {
-    id: 'island-tropical',
-    name: 'Island (Tropical)',
-    color: '#f7dcbf',
-    features: ['palm beach', 'volcanic ridge', 'lagoon', 'coral reef'],
-    woodMod: 0.9,
-    openLand: 0.5,
-    openTerrainId: 'tropical',
-    food: 0.9,
-    elevation: { base: 0.25, variance: 0.1, scale: 40, waterLevel: 0.2 },
-    description: 'Lush tropical islands fringed by palms and volcanic heights.'
-  },
-  {
     id: 'mangrove',
     name: 'Mangrove',
     color: '#c9e0d0',
