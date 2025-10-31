@@ -1,4 +1,4 @@
-const DEFAULT_TILE_SIZE = 32;
+const DEFAULT_TILE_SIZE = 16;
 const DEFAULT_CORNER_RADIUS_FACTOR = 0.24;
 
 function drawRoundedRectPath(ctx, x, y, width, height, radius) {
@@ -67,10 +67,10 @@ export class MapRenderer {
     }
     this.ctx = context;
     this.camera = options.camera;
-    this.tileBaseSize = Math.max(
-      2,
-      Math.trunc(options.tileBaseSize || DEFAULT_TILE_SIZE),
-    );
+    const providedTileSize = Number.isFinite(options.tileBaseSize)
+      ? options.tileBaseSize
+      : DEFAULT_TILE_SIZE;
+    this.tileBaseSize = Math.max(2, providedTileSize);
     this.useTerrainColors = options.useTerrainColors ?? false;
     this.getTerrainColor = options.getTerrainColor || (() => null);
     this.getTerrainGradient = options.getTerrainGradient || (() => null);
@@ -91,7 +91,7 @@ export class MapRenderer {
   }
   setTileBaseSize(size) {
     if (!Number.isFinite(size) || size <= 0) return;
-    this.tileBaseSize = Math.max(2, Math.trunc(size));
+    this.tileBaseSize = Math.max(2, size);
   }
   setUseTerrainColors(enabled) {
     this.useTerrainColors = Boolean(enabled);

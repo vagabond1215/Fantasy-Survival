@@ -282,7 +282,7 @@ const LEGEND_DEFAULTS = {
 };
 
 const BUFFER_MARGIN = 12;
-const DEFAULT_TILE_BASE_SIZE = 32;
+const DEFAULT_TILE_BASE_SIZE = 16;
 
 function computeBufferPadding(dimensions, viewportWidth, viewportHeight) {
   const cols = Math.max(0, dimensions?.cols ?? 0);
@@ -3066,11 +3066,63 @@ export function createMapView(container, {
 
   function updateTileSizing() {
     if (!state.renderer) return;
-    const baseSize = Number.isFinite(state.tileBaseSize) && state.tileBaseSize > 0
+
+    const pixelWidth = Number.isFinite(state.camera?.viewportWidth)
+      ? state.camera.viewportWidth
+      : mapWrapper?.clientWidth || state.renderer.canvas?.clientWidth || 0;
+    const pixelHeight = Number.isFinite(state.camera?.viewportHeight)
+      ? state.camera.viewportHeight
+      : mapWrapper?.clientHeight || state.renderer.canvas?.clientHeight || 0;
+
+    const fallbackCols = Number.isFinite(state.viewport.width) && state.viewport.width > 0
+      ? state.viewport.width
+      : Number.isFinite(state.map?.width) && state.map.width > 0
+        ? state.map.width
+        : state.map?.tiles?.[0]?.length || 0;
+    const fallbackRows = Number.isFinite(state.viewport.height) && state.viewport.height > 0
+      ? state.viewport.height
+      : Number.isFinite(state.map?.height) && state.map.height > 0
+        ? state.map.height
+        : state.map?.tiles?.length || 0;
+
+    const baselineCols = Math.max(
+      1,
+      Math.trunc(
+        Number.isFinite(state.zoomBase.width) && state.zoomBase.width > 0
+          ? state.zoomBase.width
+          : Number.isFinite(fallbackCols) && fallbackCols > 0
+            ? fallbackCols
+            : 0,
+      ),
+    );
+    const baselineRows = Math.max(
+      1,
+      Math.trunc(
+        Number.isFinite(state.zoomBase.height) && state.zoomBase.height > 0
+          ? state.zoomBase.height
+          : Number.isFinite(fallbackRows) && fallbackRows > 0
+            ? fallbackRows
+            : 0,
+      ),
+    );
+
+    let resolvedBase = Number.isFinite(state.tileBaseSize) && state.tileBaseSize > 0
       ? state.tileBaseSize
       : DEFAULT_TILE_BASE_SIZE;
-    state.renderer.setTileBaseSize(baseSize);
+
+    if (pixelWidth > 0 && pixelHeight > 0 && baselineCols > 0 && baselineRows > 0) {
+      const tileWidth = pixelWidth / baselineCols;
+      const tileHeight = pixelHeight / baselineRows;
+      const candidate = Math.max(2, Math.min(tileWidth, tileHeight));
+      if (Number.isFinite(candidate) && candidate > 0) {
+        resolvedBase = candidate;
+      }
+    }
+
+    state.tileBaseSize = resolvedBase;
+    state.renderer.setTileBaseSize(resolvedBase);
     state.renderer.setUseTerrainColors(state.useTerrainColors);
+
     const zoom = getCurrentZoom();
     const rendererScale = state.camera ? zoom : state.zoomDisplayFactor || 1;
     state.renderer.setScale(rendererScale);
