@@ -382,11 +382,15 @@ export class MapRenderer {
       canvas.height = height;
     }
     const ctx = canvas.getContext("2d");
-    if (!ctx) {
+    if (!ctx || !("clearRect" in ctx)) {
       releaseSharedCanvas(canvas);
       return null;
     }
-    ctx.clearRect(0, 0, canvas.width, canvas.height);
+    const renderingCtx = /** @type {
+      | CanvasRenderingContext2D
+      | OffscreenCanvasRenderingContext2D
+    } */ (ctx);
+    renderingCtx.clearRect(0, 0, canvas.width, canvas.height);
     for (
       let localRow = geometry.startRow;
       localRow < geometry.startRow + geometry.tileRows;
@@ -410,7 +414,7 @@ export class MapRenderer {
           padding + (localCol - geometry.startCol) * tilePixelSize;
         const drawY =
           padding + (localRow - geometry.startRow) * tilePixelSize;
-        this.drawTileBase(ctx, drawX, drawY, style, type);
+        this.drawTileBase(renderingCtx, drawX, drawY, style, type);
       }
     }
     return canvas;
