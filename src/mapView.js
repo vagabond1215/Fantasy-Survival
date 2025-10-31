@@ -296,7 +296,12 @@ function computeBufferPadding(dimensions, viewportWidth, viewportHeight) {
 }
 const DEFAULT_VIEWPORT_SIZE = DEFAULT_MAP_WIDTH;
 
-function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
+function computeViewportDimensions(
+  cols = 0,
+  rows = 0,
+  availableWidth = null,
+  availableHeight = null
+) {
   const MIN_SIZE = 220;
 
   if (typeof window === 'undefined') {
@@ -304,21 +309,42 @@ function computeViewportDimensions(cols = 0, rows = 0, availableWidth = null) {
     return { width: fallback, height: fallback };
   }
 
+  const aspectRatio = Number.isFinite(cols) && Number.isFinite(rows) && rows > 0
+    ? Math.max(0.01, cols / rows)
+    : 1;
+
   const widthAllowance = Math.max(
     MIN_SIZE,
-    Number.isFinite(availableWidth) && availableWidth > 0 ? availableWidth : window.innerWidth - 80
+    Number.isFinite(availableWidth) && availableWidth > 0
+      ? availableWidth
+      : window.innerWidth - 80
   );
-  const heightAllowance = Math.max(MIN_SIZE, window.innerHeight - 260);
-
-  const widthDrivenSide = Math.max(MIN_SIZE, Math.round(widthAllowance));
-  const viewportLimitedSide = Math.max(
+  const heightAllowance = Math.max(
     MIN_SIZE,
-    Math.min(widthDrivenSide, Math.round(heightAllowance))
+    Number.isFinite(availableHeight) && availableHeight > 0
+      ? availableHeight
+      : window.innerHeight - 260
   );
 
-  const finalSide = Math.max(MIN_SIZE, viewportLimitedSide);
+  const maxWidth = Math.max(MIN_SIZE, Math.round(widthAllowance));
+  const maxHeight = Math.max(MIN_SIZE, Math.round(heightAllowance));
 
-  return { width: finalSide, height: finalSide };
+  let width = maxWidth;
+  let height = Math.round(width / aspectRatio);
+
+  if (height > maxHeight) {
+    height = maxHeight;
+    width = Math.round(height * aspectRatio);
+    if (width > maxWidth) {
+      width = maxWidth;
+      height = Math.round(width / aspectRatio);
+    }
+  }
+
+  width = Math.max(1, Math.min(maxWidth, Math.round(width)));
+  height = Math.max(1, Math.min(maxHeight, Math.round(height)));
+
+  return { width, height };
 }
 
 function requestFrame(callback) {
@@ -3132,29 +3158,57 @@ export function createMapView(container, {
     if (!state.map) return;
     const cols = state.map.tiles?.[0]?.length || 0;
     const rows = state.map.tiles?.length || 0;
+
     let widthContext = null;
+    let heightContext = null;
+
+    const captureContextFromRect = rect => {
+      if (!rect) return;
+      if (widthContext === null && Number.isFinite(rect.width) && rect.width > 0) {
+        widthContext = rect.width;
+      }
+      if (heightContext === null && Number.isFinite(rect.height) && rect.height > 0) {
+        heightContext = rect.height;
+      }
+    };
+
     if (typeof layoutRoot?.getBoundingClientRect === 'function') {
-      const rect = layoutRoot.getBoundingClientRect();
-      widthContext = rect?.width || null;
+      captureContextFromRect(layoutRoot.getBoundingClientRect());
     }
+
+    if (typeof mapContainer?.getBoundingClientRect === 'function') {
+      captureContextFromRect(mapContainer.getBoundingClientRect());
+    }
+
+    if (typeof container?.getBoundingClientRect === 'function') {
+      captureContextFromRect(container.getBoundingClientRect());
+    }
+
     if (sideStack.parentElement === mapContainer && typeof sideStack.getBoundingClientRect === 'function') {
       const sideRect = sideStack.getBoundingClientRect();
-      const stackWidth = sideRect?.width || 0;
-      widthContext = Math.max(0, (widthContext || 0) - stackWidth - 16);
+      const stackWidth = Number.isFinite(sideRect?.width) && sideRect.width > 0 ? sideRect.width : 0;
+      if (widthContext !== null && stackWidth) {
+        widthContext = Math.max(0, widthContext - stackWidth - 16);
+      }
+      if (heightContext === null && Number.isFinite(sideRect?.height) && sideRect.height > 0) {
+        heightContext = sideRect.height;
+      }
     }
-    if (!widthContext && typeof container?.getBoundingClientRect === 'function') {
-      const rect = container.getBoundingClientRect();
-      widthContext = rect?.width || null;
-    }
-    const { width, height } = computeViewportDimensions(cols, rows, widthContext);
-    mapWrapper.style.width = `${width}px`;
-    mapWrapper.style.height = `${height}px`;
+
+    const { width, height } = computeViewportDimensions(cols, rows, widthContext, heightContext);
+    const widthPx = `${width}px`;
+    const heightPx = `${height}px`;
+    mapWrapper.style.width = widthPx;
+    mapWrapper.style.height = heightPx;
+    mapWrapper.style.minWidth = widthPx;
+    mapWrapper.style.minHeight = heightPx;
 
     if (state.renderer) {
       state.renderer.resize(width, height);
     }
     if (state.camera) {
       state.camera.setViewportSize(width, height);
+      syncCameraToViewport();
     }
 
     updateTileSizing();
