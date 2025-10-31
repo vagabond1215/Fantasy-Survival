@@ -448,31 +448,40 @@ export function createMapView(container, {
 
   const applyControlButtonStyle = (
     button,
-    { size = 48, fontSize = '18px', variant = 'square' } = {}
+    { size = 48, fontSize = '18px', variant = 'square', square, padding } = {}
   ) => {
     const dimension = typeof size === 'number' && Number.isFinite(size) ? `${size}px` : `${size}`;
-    const isChip = variant === 'chip' || variant === 'stacked';
-    button.style.width = isChip ? 'auto' : dimension;
-    button.style.minWidth = isChip ? dimension : dimension;
-    button.style.height = variant === 'stacked' ? 'auto' : dimension;
-    button.style.minHeight = variant === 'stacked' ? dimension : dimension;
-    button.style.padding = isChip ? '0 12px' : '0';
+    const isStacked = variant === 'stacked';
+    const forceSquare = square ?? !isStacked;
+    const resolvedPadding =
+      padding !== undefined ? padding : forceSquare ? '0' : variant === 'chip' ? '0 12px' : '0';
+
+    button.style.boxSizing = 'border-box';
+    button.style.width = forceSquare ? dimension : isStacked ? 'auto' : dimension;
+    button.style.minWidth = dimension;
+    button.style.height = forceSquare && !isStacked ? dimension : isStacked ? 'auto' : dimension;
+    button.style.minHeight = dimension;
+    button.style.flexBasis = forceSquare ? dimension : 'auto';
+    button.style.padding = resolvedPadding;
     button.style.fontSize = fontSize;
     button.style.display = 'inline-flex';
-    button.style.flexDirection = variant === 'stacked' ? 'column' : 'row';
-    button.style.gap = variant === 'stacked' ? '2px' : '0';
+    button.style.flexDirection = isStacked ? 'column' : 'row';
+    button.style.gap = isStacked ? '2px' : '0';
     button.style.alignItems = 'center';
     button.style.justifyContent = 'center';
     button.style.borderRadius = '12px';
     button.style.border = '1px solid var(--map-control-border, var(--map-border, #ccc))';
     button.style.background = 'var(--map-control-bg, var(--bg-color, #fff))';
     button.style.color = 'var(--map-control-fg, inherit)';
-    button.style.lineHeight = '1.1';
+    button.style.lineHeight = forceSquare ? '1' : '1.1';
     button.style.whiteSpace = 'nowrap';
     button.style.cursor = 'pointer';
     button.style.transition = 'background 0.2s ease, transform 0.1s ease';
     button.style.boxShadow = 'var(--map-control-shadow, 0 1px 2px rgba(0, 0, 0, 0.08))';
     button.style.fontWeight = '600';
+    button.style.textAlign = 'center';
+    button.style.flexShrink = '0';
+    button.style.fontVariantNumeric = 'tabular-nums';
   };
 
   const debugModeEnabled = isDebugModeEnabled();
