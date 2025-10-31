@@ -353,33 +353,36 @@ export function initSetupUI(onStart) {
           </button>
         </div>
       </div>
-      <button
-        id="difficulty-toggle"
-        type="button"
-        class="icon-ghost"
-        aria-haspopup="dialog"
-        aria-expanded="false"
-        aria-controls="difficulty-modal"
-        aria-label="Adjust difficulty"
-      >
-        <svg
-          aria-hidden="true"
-          viewBox="0 0 24 24"
-          focusable="false"
-          class="icon-ghost__glyph"
+      <div class="setup-appbar__actions">
+        <button
+          id="difficulty-toggle"
+          type="button"
+          class="icon-ghost"
+          aria-haspopup="dialog"
+          aria-expanded="false"
+          aria-controls="difficulty-modal"
+          aria-label="Adjust difficulty"
         >
-          <path
-            d="M4 6h16M4 12h16M4 18h16"
-            fill="none"
-            stroke="currentColor"
-            stroke-width="1.5"
-            stroke-linecap="round"
-          ></path>
-          <circle cx="9" cy="6" r="2" fill="currentColor"></circle>
-          <circle cx="15" cy="12" r="2" fill="currentColor"></circle>
-          <circle cx="12" cy="18" r="2" fill="currentColor"></circle>
-        </svg>
-      </button>
+          <svg
+            aria-hidden="true"
+            viewBox="0 0 24 24"
+            focusable="false"
+            class="icon-ghost__glyph"
+          >
+            <path
+              d="M4 6h16M4 12h16M4 18h16"
+              fill="none"
+              stroke="currentColor"
+              stroke-width="1.5"
+              stroke-linecap="round"
+            ></path>
+            <circle cx="9" cy="6" r="2" fill="currentColor"></circle>
+            <circle cx="15" cy="12" r="2" fill="currentColor"></circle>
+            <circle cx="12" cy="18" r="2" fill="currentColor"></circle>
+          </svg>
+        </button>
+        <button id="start-btn" type="button" class="btn btn--primary">Start</button>
+      </div>
     </header>
     <dialog
       id="difficulty-modal"
@@ -444,11 +447,6 @@ export function initSetupUI(onStart) {
               <div id="map-preview-sidebar" class="map-preview-sidebar"></div>
             </div>
             <p class="sub" id="spawn-info"></p>
-          </div>
-          <div class="card cta-row">
-            <button id="randomize-all" type="button" class="btn">Randomize All</button>
-            <div class="spacer" aria-hidden="true"></div>
-            <button id="start-btn" type="button" class="btn btn--primary">Start Game</button>
           </div>
         </div>
       </div>
@@ -534,10 +532,9 @@ export function initSetupUI(onStart) {
   const mapPreview = setupRoot.querySelector('#map-preview');
   const mapPreviewSidebar = setupRoot.querySelector('#map-preview-sidebar');
   const spawnInfo = setupRoot.querySelector('#spawn-info');
-  const randomizeAllBtn = setupRoot.querySelector('#randomize-all');
-  const startBtn = setupRoot.querySelector('#start-btn');
+  const startBtn = contentRoot.querySelector('#start-btn');
 
-  if (!biomeGrid || !biomeDetails || !seasonSeg || !seedInput || !seedRandomBtn || !mapPreview || !mapPreviewSidebar || !spawnInfo || !randomizeAllBtn || !startBtn) {
+  if (!biomeGrid || !biomeDetails || !seasonSeg || !seedInput || !seedRandomBtn || !mapPreview || !mapPreviewSidebar || !spawnInfo || !startBtn) {
     throw new Error('Missing setup UI elements.');
   }
 
@@ -2010,16 +2007,6 @@ export function initSetupUI(onStart) {
     return control;
   }
 
-  function randomizeWorldParameters() {
-    const next = cloneWorldParameters(defaultWorldParameters);
-    ALL_WORLD_PARAMETERS.forEach(def => {
-      const span = def.max - def.min;
-      const randomValue = def.min + Math.round(Math.random() * span);
-      setPathValue(next, def.path, clampParameter(randomValue, def.min, def.max));
-    });
-    return resolveWorldParameters(next);
-  }
-
   if (!selectedDifficulty) {
     selectedDifficulty = defaultDifficulty?.id || 'custom';
   }
@@ -2143,47 +2130,6 @@ export function initSetupUI(onStart) {
 
   seedRandomBtn.addEventListener('click', () => {
     dispatchSeedChange(createSeed(), { immediate: true });
-  });
-
-  randomizeAllBtn.addEventListener('click', () => {
-    if (biomeTiles.length) {
-      const pick = biomeTiles[Math.floor(Math.random() * biomeTiles.length)];
-      selectedBiome = pick.dataset.biome;
-      setActive(biomeTiles, pick);
-      updateBiomeDetails();
-    }
-
-    if (seasonButtons.length) {
-      const pick = seasonButtons[Math.floor(Math.random() * seasonButtons.length)];
-      selectedSeason = pick.dataset.season;
-      setActive(seasonButtons, pick);
-    }
-
-    const presetIds = [...difficulties.map(item => item.id), 'custom'];
-    const choice = presetIds[Math.floor(Math.random() * presetIds.length)];
-    selectedDifficulty = difficultySettings[choice] ? choice : 'custom';
-    syncDifficultySelection(selectedDifficulty);
-
-    let nextWorld;
-    if (selectedDifficulty === 'custom') {
-      nextWorld = randomizeWorldParameters();
-    } else {
-      nextWorld = cloneWorldParameters(getDifficultyPreset(selectedDifficulty).world);
-    }
-    worldParameters = resolveWorldParameters(nextWorld);
-    syncWorldControls();
-
-    const nextSeed = createSeed();
-    seedInput.value = nextSeed;
-    mapSeed = nextSeed;
-
-    updateWorldConfig({
-      biome: selectedBiome,
-      season: selectedSeason,
-      difficulty: selectedDifficulty,
-      seed: nextSeed,
-      worldParameters
-    });
   });
 
   startBtn.addEventListener('click', () => {
