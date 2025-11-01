@@ -128,6 +128,8 @@ class Simplex2D {
  * @property {number} [lacunarity]
  * @property {number} [maskStrength]
  * @property {number} [maskBias]
+ * @property {string} [mapType]
+ * @property {string} [landmassSalt]
  */
 
 /**
@@ -160,8 +162,10 @@ function computeMask(simplex, x, y, worldScale, maskStrength, maskBias) {
  * @returns {ElevationSampler}
  */
 export function createElevationSampler(seed, options = {}) {
-  const simplex = new Simplex2D(`${seed}:elev`);
-  const maskSimplex = new Simplex2D(`${seed}:mask`);
+  const landmassSalt = options.landmassSalt ?? options.mapType;
+  const baseSeed = landmassSalt != null && landmassSalt !== '' ? `${seed}:${landmassSalt}` : `${seed}`;
+  const simplex = new Simplex2D(`${baseSeed}:elev`);
+  const maskSimplex = new Simplex2D(`${baseSeed}:mask`);
 
   const base = clamp(options.base ?? 0.5, 0.01, 0.99);
   const variance = clamp(options.variance ?? 0.5, 0.01, 2);

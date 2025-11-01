@@ -26,6 +26,8 @@ function createHydrologyTestMap() {
     undefined,
     null,
     {
+      // Use the pangea preset so the coastline spans one large connected landmass.
+      mapType: 'pangea',
       waterTable: 64,
       rainfall: 68,
       rivers100: 72,
