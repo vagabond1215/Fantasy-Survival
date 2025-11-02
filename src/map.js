@@ -6,7 +6,7 @@ import { notifySanityCheck } from './notifications.js';
 import { AdjustmentSolver } from './map/generation/adjustmentSolver.js';
 import { createElevationSampler } from './map/generation/elevation.js';
 import { generateHydrology } from './map/generation/hydrology.js';
-import { LANDMASS_PRESETS, DEFAULT_LANDMASS_TYPE, resolveLandmassPreset } from './map/landmassPresets.js';
+import { DEFAULT_LANDMASS_TYPE, resolveLandmassPreset } from './map/landmassPresets.js';
 import { applyMangroveZones } from './map/generation/vegetation.js';
 import { resolveBiomeOpenTerrain } from './terrainTypes.js';
 
@@ -249,6 +249,106 @@ function clamp(value, min, max) {
   if (value < min) return min;
   if (value > max) return max;
   return value;
+}
+
+function sliderValue(world, key, fallback = 50) {
+  if (!world || typeof world !== 'object') {
+    return clamp(fallback, 0, 100);
+  }
+  const raw = Number(world[key]);
+  if (!Number.isFinite(raw)) {
+    return clamp(fallback, 0, 100);
+  }
+  return clamp(raw, 0, 100);
+}
+
+function sliderBias(world, key, fallback = 50) {
+  return (sliderValue(world, key, fallback) - 50) / 50;
+}
+
+export function deriveLandmassModifiers(world, { skipResolve = false } = {}) {
+  const resolved = skipResolve ? world : resolveWorldParameters(world || {});
+  const landmassType =
+    typeof resolved?.mapType === 'string' && resolved.mapType
+      ? resolved.mapType
+      : DEFAULT_LANDMASS_TYPE;
+  const preset = resolveLandmassPreset(landmassType) || {};
+  const islandsBias = sliderBias(resolved, 'mapIslands', 50);
+
+  const maskStrengthBase = preset.maskStrength ?? 0.55;
+  const maskBiasBase = preset.maskBias ?? 0;
+  const worldScaleFactorBase = preset.worldScaleFactor ?? 1.2;
+  const waterCoverageTargetBase = preset.waterCoverageTarget ?? 0.32;
+  const minOceanFractionBase = preset.minOceanFraction ?? 0.02;
+  const openLandBiasBase = preset.openLandBias ?? 0;
+
+  const maskStrength = clamp(maskStrengthBase + islandsBias * 0.22, 0.28, 0.92);
+  const maskBias = clamp(maskBiasBase + islandsBias * -0.12, -0.3, 0.3);
+  const worldScaleFactor = clamp(worldScaleFactorBase + islandsBias * -0.12, 0.6, 1.8);
+  const waterCoverageTarget = clamp(waterCoverageTargetBase + islandsBias * 0.18, 0.08, 0.85);
+  const minOceanFraction = clamp(minOceanFractionBase + islandsBias * 0.12, 0, 0.4);
+  const openLandBias = clamp(openLandBiasBase + islandsBias * -0.14, -0.5, 0.5);
+
+  return {
+    landmassType,
+    maskStrength,
+    maskBias,
+    worldScaleFactor,
+    waterCoverageTarget,
+    minOceanFraction,
+    openLandBias
+  };
+}
+
+export function deriveElevationOptions(biome, world, { skipResolve = false } = {}) {
+  const resolved = skipResolve ? world : resolveWorldParameters(world || {});
+  const adv = resolved?.advanced || {};
+
+  const rainfallBias = sliderBias(resolved, 'rainfall', 50);
+  const waterBias = sliderBias(resolved, 'waterTable', 50);
+  const mountainsBias = sliderBias(resolved, 'mountains', 50);
+  const elevationBias = sliderBias(resolved, 'mapElevationMax', 50);
+  const varianceBias = sliderBias(resolved, 'mapElevationVariance', 50);
+
+  const baseElevation = biome?.elevation?.base ?? 0.5;
+  const baseVariance = biome?.elevation?.variance ?? 0.5;
+  const baseScale = biome?.elevation?.scale ?? 50;
+
+  const elevationBaseBias = (((adv.elevationBase ?? 50) - 50) / 100) * 0.3;
+  const elevationVarianceBias = (((adv.elevationVariance ?? 50) - 50) / 100) * 0.5;
+  const elevationScaleBias = (((adv.elevationScale ?? 50) - 50) / 100) * 70;
+
+  const base = clamp(
+    baseElevation +
+      waterBias * -0.12 +
+      rainfallBias * -0.08 +
+      mountainsBias * 0.05 +
+      elevationBaseBias +
+      elevationBias * 0.35,
+    0.05,
+    0.95
+  );
+
+  const variance = clamp(
+    baseVariance +
+      mountainsBias * 0.45 +
+      elevationVarianceBias +
+      varianceBias * 0.6,
+    0.05,
+    1.5
+  );
+
+  const scale = clamp(
+    baseScale +
+      mountainsBias * 40 +
+      elevationScaleBias +
+      varianceBias * -20 +
+      elevationBias * -10,
+    12,
+    200
+  );
+
+  return { base, variance, scale };
 }
 
 function lerp(a, b, t) {
@@ -553,8 +653,8 @@ export function generateColorMap(
   const biome = getBiome(biomeId);
   const openTerrainType = resolveBiomeOpenTerrain(biome);
   const world = resolveWorldParameters(worldSettings || {});
-  const landmassType = typeof world.mapType === 'string' ? world.mapType : DEFAULT_LANDMASS_TYPE;
-  const landmassPreset = resolveLandmassPreset(landmassType);
+  const landmassConfig = deriveLandmassModifiers(world, { skipResolve: true });
+  const landmassType = landmassConfig.landmassType;
   const adv = world.advanced || {};
   const rainfallBias = (world.rainfall - 50) / 100;
   const temperatureBias = (world.temperature - 50) / 100;
@@ -567,7 +667,7 @@ export function generateColorMap(
   openLand += temperatureBias * 0.18;
   openLand -= rainfallBias * 0.22;
   openLand -= Math.max(0, mountainsBias) * 0.12;
-  openLand += landmassPreset.openLandBias ?? 0;
+  openLand += landmassConfig.openLandBias ?? 0;
   openLand = clamp(openLand, 0.1, 0.9);
 
   const vegScaleBase = clamp(20 + openLand * 80, 10, 140);
@@ -577,35 +677,7 @@ export function generateColorMap(
     160
   );
 
-  const baseElevation = biome?.elevation?.base ?? 0.5;
-  const baseVariance = biome?.elevation?.variance ?? 0.5;
-  const baseScale = biome?.elevation?.scale ?? 50;
-
-  const elevationOptions = {
-    base: clamp(
-      baseElevation +
-        waterBias * -0.12 +
-        rainfallBias * -0.08 +
-        mountainsBias * 0.05 +
-        (((adv.elevationBase ?? 50) - 50) / 100) * 0.3,
-      0.05,
-      0.95
-    ),
-    variance: clamp(
-      baseVariance +
-        mountainsBias * 0.45 +
-        (((adv.elevationVariance ?? 50) - 50) / 100) * 0.5,
-      0.05,
-      1.5
-    ),
-    scale: clamp(
-      baseScale +
-        mountainsBias * 40 +
-        (((adv.elevationScale ?? 50) - 50) / 100) * 70,
-      12,
-      200
-    )
-  };
+  const elevationOptions = deriveElevationOptions(biome, world, { skipResolve: true });
 
   const oreThresholdBase = clamp(0.95 - (world.oreDensity / 100) * 0.35, 0.55, 0.98);
   const oreThreshold = clamp(
@@ -620,9 +692,9 @@ export function generateColorMap(
   const substrateTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
   const elevations = [];
 
-  const worldScale = Math.max(mapWidth, mapHeight) * (landmassPreset.worldScaleFactor ?? 1.2);
-  const maskStrengthBase = landmassPreset.maskStrength ?? 0.55;
-  const maskBiasBase = landmassPreset.maskBias ?? 0;
+  const worldScale = Math.max(mapWidth, mapHeight) * (landmassConfig.worldScaleFactor ?? 1.2);
+  const maskStrengthBase = landmassConfig.maskStrength ?? 0.55;
+  const maskBiasBase = landmassConfig.maskBias ?? 0;
   const maskStrength = clamp(maskStrengthBase + mountainsBias * 0.15 - waterBias * 0.1, 0.2, 0.92);
   const maskBias = clamp(maskBiasBase + (waterBias + rainfallBias) * -0.08, -0.3, 0.3);
   const elevationSampler = createElevationSampler(seed, {
@@ -646,8 +718,8 @@ export function generateColorMap(
     elevations.push(eRow);
   }
 
-  const waterCoverageTarget = clamp(landmassPreset.waterCoverageTarget ?? 0.32, 0.08, 0.85);
-  const minOceanFraction = clamp(landmassPreset.minOceanFraction ?? 0.02, 0, 0.4);
+  const waterCoverageTarget = clamp(landmassConfig.waterCoverageTarget ?? 0.32, 0.08, 0.85);
+  const minOceanFraction = clamp(landmassConfig.minOceanFraction ?? 0.02, 0, 0.4);
 
   const hydrology = generateHydrology({
     seed,
