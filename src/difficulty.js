@@ -12,6 +12,9 @@ export const defaultWorldParameters = {
   mountains: 50,
   rivers100: 45,
   lakes100: 35,
+  mapIslands: 50,
+  mapElevationMax: 50,
+  mapElevationVariance: 50,
   mapType: 'continent',
   advanced: {
     elevationBase: 50,
@@ -58,7 +61,10 @@ export function resolveWorldParameters(partial = {}) {
     rainfall: clamp01(resolved.rainfall),
     mountains: clamp01(resolved.mountains),
     rivers100: clamp01(resolved.rivers100),
-    lakes100: clamp01(resolved.lakes100)
+    lakes100: clamp01(resolved.lakes100),
+    mapIslands: clamp01(resolved.mapIslands),
+    mapElevationMax: clamp01(resolved.mapElevationMax),
+    mapElevationVariance: clamp01(resolved.mapElevationVariance)
   };
 }
 
@@ -102,6 +108,9 @@ const SCORE_WEIGHTS = {
   mountains: 7,
   rivers100: -3,
   lakes100: -2,
+  mapIslands: 4,
+  mapElevationMax: 5,
+  mapElevationVariance: 6,
   advanced: {
     // Fine-tune bias so custom tweaks can slightly shift score without dominating.
     elevationVariance: 3,
@@ -130,6 +139,9 @@ export function difficultyScore(parameters = {}) {
   apply(resolved.mountains, SCORE_WEIGHTS.mountains);
   apply(resolved.rivers100, SCORE_WEIGHTS.rivers100);
   apply(resolved.lakes100, SCORE_WEIGHTS.lakes100);
+  apply(resolved.mapIslands, SCORE_WEIGHTS.mapIslands);
+  apply(resolved.mapElevationMax, SCORE_WEIGHTS.mapElevationMax);
+  apply(resolved.mapElevationVariance, SCORE_WEIGHTS.mapElevationVariance);
 
   const advWeights = SCORE_WEIGHTS.advanced;
   Object.entries(advWeights).forEach(([key, weight]) => {
@@ -162,6 +174,9 @@ export const difficultySettings = {
     mountains: 35,
     rivers100: 72,
     lakes100: 68,
+    mapIslands: 35,
+    mapElevationMax: 45,
+    mapElevationVariance: 42,
     advanced: {
       vegetationScale: 62,
       oreThresholdOffset: 68,
@@ -176,7 +191,10 @@ export const difficultySettings = {
     rainfall: 50,
     mountains: 50,
     rivers100: 45,
-    lakes100: 35
+    lakes100: 35,
+    mapIslands: 50,
+    mapElevationMax: 50,
+    mapElevationVariance: 50
   }),
   hard: withWorld('hard', {
     oreDensity: 38,
@@ -186,6 +204,9 @@ export const difficultySettings = {
     mountains: 68,
     rivers100: 32,
     lakes100: 28,
+    mapIslands: 62,
+    mapElevationMax: 64,
+    mapElevationVariance: 68,
     advanced: {
       elevationVariance: 68,
       elevationScale: 64,

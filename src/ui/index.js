@@ -219,10 +219,37 @@ const PRIMARY_WORLD_PARAMETERS = [
     min: 0,
     max: 100,
     step: 1
+  },
+  {
+    id: 'mapIslands',
+    path: ['mapIslands'],
+    label: 'Island Density',
+    hint: 'Adjusts how broken apart coastlines and land bridges become.',
+    min: 0,
+    max: 100,
+    step: 1
   }
 ];
 
 const ADVANCED_WORLD_PARAMETERS = [
+  {
+    id: 'mapElevationMax',
+    path: ['mapElevationMax'],
+    label: 'Elevation Bias',
+    hint: 'Raises or lowers the overall terrain height relative to sea level.',
+    min: 0,
+    max: 100,
+    step: 1
+  },
+  {
+    id: 'mapElevationVariance',
+    path: ['mapElevationVariance'],
+    label: 'Terrain Variance',
+    hint: 'Controls the contrast between lowlands and peaks across the world.',
+    min: 0,
+    max: 100,
+    step: 1
+  },
   {
     id: 'advanced.elevationBase',
     path: ['advanced', 'elevationBase'],
@@ -301,6 +328,19 @@ const ALL_WORLD_PARAMETERS = [...PRIMARY_WORLD_PARAMETERS, ...ADVANCED_WORLD_PAR
 
 const PARAMETER_CATEGORIES = [
   {
+    id: 'landmass',
+    label: 'Landmass',
+    parameters: [
+      'mountains',
+      'mapIslands',
+      'mapElevationMax',
+      'mapElevationVariance',
+      'advanced.elevationBase',
+      'advanced.elevationVariance',
+      'advanced.elevationScale'
+    ]
+  },
+  {
     id: 'water',
     label: 'Water',
     parameters: [
@@ -312,11 +352,8 @@ const PARAMETER_CATEGORIES = [
     ]
   },
   { id: 'ore', label: 'Ore', parameters: ['oreDensity', 'advanced.oreNoiseScale', 'advanced.oreThresholdOffset'] },
-  { id: 'fauna', label: 'Fauna', parameters: ['advanced.elevationVariance'] },
   { id: 'flora', label: 'Flora', parameters: ['rainfall', 'advanced.vegetationScale'] },
-  { id: 'climate', label: 'Climate', parameters: ['temperature', 'advanced.elevationBase'] },
-  { id: 'events', label: 'Events', parameters: ['mountains'] },
-  { id: 'misc', label: 'Misc', parameters: ['advanced.elevationScale'] }
+  { id: 'climate', label: 'Climate', parameters: ['temperature'] }
 ];
 
 function clampParameter(value, min = 0, max = 100) {
