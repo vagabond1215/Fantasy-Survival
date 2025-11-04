@@ -1,4 +1,4 @@
-import { LANDMASS_PRESETS, DEFAULT_LANDMASS_TYPE } from '../landmassPresets.js';
+import { LANDMASS_PRESETS, DEFAULT_LANDMASS_TYPE } from '../landmassPresets/index.js';
 
 function clamp(value, min, max) {
     if (!Number.isFinite(value))
