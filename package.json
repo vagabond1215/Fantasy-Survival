@@ -14,7 +14,8 @@
     "check:types": "tsc --noEmit",
     "sync-docs": "node ./scripts/sync-docs.js",
     "check:docs": "node ./scripts/check-docs-sync.cjs",
-    "guard:paths": "node scripts/guard-no-root-paths.cjs"
+    "guard:paths": "node scripts/guard-no-root-paths.cjs",
+    "hydrology:tune": "node ./scripts/hydrology-tune.mjs"
   },
   "devDependencies": {
     "@types/node": "^20.12.7",
