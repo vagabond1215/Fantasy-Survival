@@ -10,7 +10,7 @@ import {
   DEFAULT_LANDMASS_TYPE,
   LANDMASS_PRESETS,
   resolveLandmassPreset
-} from './map/landmassPresets.js';
+} from './map/landmassPresets/index.js';
 import { applyMangroveZones } from './map/generation/vegetation.js';
 import { resolveBiomeOpenTerrain } from './terrainTypes.js';
 
