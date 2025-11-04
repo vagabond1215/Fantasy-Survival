@@ -3176,6 +3176,20 @@ export function createMapView(container, {
     scheduleRender();
   }
 
+  function readNumericStyle(element, property) {
+    if (!element || typeof window === 'undefined' || !window.getComputedStyle) {
+      return 0;
+    }
+    try {
+      const value = window.getComputedStyle(element).getPropertyValue(property);
+      if (!value) return 0;
+      const parsed = parseFloat(value);
+      return Number.isFinite(parsed) ? parsed : 0;
+    } catch (_error) {
+      return 0;
+    }
+  }
+
   function updateWrapperSize() {
     if (!mapWrapper) return;
 
@@ -3184,15 +3198,36 @@ export function createMapView(container, {
     mapWrapper.style.minWidth = '100%';
     mapWrapper.style.minHeight = '100%';
 
-    const rect = typeof mapWrapper.getBoundingClientRect === 'function'
+    const wrapperRect = typeof mapWrapper.getBoundingClientRect === 'function'
       ? mapWrapper.getBoundingClientRect()
       : null;
-    const width = Number.isFinite(rect?.width) && rect.width > 0
-      ? rect.width
+    const containerRect = typeof container?.getBoundingClientRect === 'function'
+      ? container.getBoundingClientRect()
+      : null;
+
+    let width = Number.isFinite(wrapperRect?.width) && wrapperRect.width > 0
+      ? wrapperRect.width
       : mapWrapper.clientWidth || 0;
-    const height = Number.isFinite(rect?.height) && rect.height > 0
-      ? rect.height
+    if (!(width > 0)) {
+      width = Number.isFinite(containerRect?.width) && containerRect.width > 0
+        ? containerRect.width
+        : container?.clientWidth || 0;
+    }
+
+    let height = Number.isFinite(wrapperRect?.height) && wrapperRect.height > 0
+      ? wrapperRect.height
       : mapWrapper.clientHeight || 0;
+    if (!(height > 0)) {
+      height = Number.isFinite(containerRect?.height) && containerRect.height > 0
+        ? containerRect.height
+        : container?.clientHeight || 0;
+    }
+    if (!(height > 0)) {
+      height = readNumericStyle(container, 'min-height') || readNumericStyle(mapWrapper, 'min-height');
+    }
+    if (!(height > 0)) {
+      height = DEFAULT_VIEWPORT_SIZE;
+    }
 
     const pixelWidth = Math.max(0, Math.round(width));
     const pixelHeight = Math.max(0, Math.round(height));
