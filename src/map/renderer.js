@@ -104,6 +104,7 @@ export class MapRenderer {
         : DEFAULT_PREFETCH_MARGIN,
     );
     this.cacheSignature = 1;
+    this._missingMapLogged = false;
   }
   setTileBaseSize(size) {
     if (!Number.isFinite(size) || size <= 0) return;
@@ -175,10 +176,27 @@ export class MapRenderer {
     ctx.save();
     ctx.setTransform(this.devicePixelRatio, 0, 0, this.devicePixelRatio, 0, 0);
     ctx.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
-    if (!this.map || !this.map.tiles?.length) {
+    const hasTiles = Array.isArray(this.map?.tiles) && this.map.tiles.length > 0;
+    if (!this.map || !hasTiles) {
+      if (!this._missingMapLogged) {
+        const reason = !this.map
+          ? "Map data is not available."
+          : "The current map is missing tile data.";
+        console.error(`[MapRenderer] Unable to render map: ${reason}`, {
+          hasMap: Boolean(this.map),
+          tilesPresent: Array.isArray(this.map?.tiles),
+          tileCount: this.map?.tiles?.length ?? 0,
+        });
+        this._missingMapLogged = true;
+      }
+      const primaryMessage = !this.map
+        ? "Map data unavailable"
+        : "Map tiles missing";
+      this.drawMissingMapFallback(ctx, primaryMessage);
       ctx.restore();
       return;
     }
+    this._missingMapLogged = false;
     const tileSize = this.camera?.getScaledTileSize
       ? Math.max(2, this.camera.getScaledTileSize(this.tileBaseSize))
       : Math.max(2, this.tileBaseSize * (this.scale || 1));
@@ -505,6 +523,28 @@ export class MapRenderer {
         this.drawTileBase(ctx, drawX, drawY, style, type);
       }
     }
+  }
+  drawMissingMapFallback(ctx, message) {
+    const width = this.viewportWidth;
+    const height = this.viewportHeight;
+    if (width <= 0 || height <= 0) {
+      return;
+    }
+    const backgroundColor = readCssVariable(
+      "--surface-strong",
+      "rgba(17, 24, 39, 0.78)",
+    );
+    if (backgroundColor) {
+      ctx.fillStyle = backgroundColor;
+      ctx.fillRect(0, 0, width, height);
+    }
+    const textColor = readCssVariable("--text-strong", "#ffffff");
+    const fontSize = Math.max(12, Math.round(Math.min(width, height) / 12));
+    ctx.fillStyle = textColor || "#ffffff";
+    ctx.font = `600 ${fontSize}px system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`;
+    ctx.textAlign = "center";
+    ctx.textBaseline = "middle";
+    ctx.fillText(message, width / 2, height / 2);
   }
   drawVisibleDevelopments(ctx, tileSize) {
     if (!this.developments || this.developments.size === 0) {
