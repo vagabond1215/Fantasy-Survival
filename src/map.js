@@ -6,7 +6,11 @@ import { notifySanityCheck } from './notifications.js';
 import { AdjustmentSolver } from './map/generation/adjustmentSolver.js';
 import { createElevationSampler } from './map/generation/elevation.js';
 import { generateHydrology } from './map/generation/hydrology.js';
-import { DEFAULT_LANDMASS_TYPE, resolveLandmassPreset } from './map/landmassPresets.js';
+import {
+  DEFAULT_LANDMASS_TYPE,
+  LANDMASS_PRESETS,
+  resolveLandmassPreset
+} from './map/landmassPresets.js';
 import { applyMangroveZones } from './map/generation/vegetation.js';
 import { resolveBiomeOpenTerrain } from './terrainTypes.js';
 
@@ -268,10 +272,27 @@ function sliderBias(world, key, fallback = 50) {
 
 export function deriveLandmassModifiers(world, { skipResolve = false } = {}) {
   const resolved = skipResolve ? world : resolveWorldParameters(world || {});
-  const landmassType =
-    typeof resolved?.mapType === 'string' && resolved.mapType
-      ? resolved.mapType
-      : DEFAULT_LANDMASS_TYPE;
+  const rawMapType = resolved?.mapType;
+  let normalizedMapType = '';
+  if (typeof rawMapType === 'string') {
+    normalizedMapType = rawMapType.trim();
+  } else if (rawMapType != null) {
+    normalizedMapType = String(rawMapType).trim();
+  }
+
+  const isKnownMapType = Object.prototype.hasOwnProperty.call(
+    LANDMASS_PRESETS,
+    normalizedMapType
+  );
+
+  const landmassType = normalizedMapType && isKnownMapType ? normalizedMapType : DEFAULT_LANDMASS_TYPE;
+
+  if (normalizedMapType && !isKnownMapType) {
+    console.warn(
+      `Unknown map type "${normalizedMapType}" supplied to deriveLandmassModifiers. Falling back to ${DEFAULT_LANDMASS_TYPE}.`
+    );
+  }
+
   const preset = resolveLandmassPreset(landmassType) || {};
   const islandsBias = sliderBias(resolved, 'mapIslands', 50);
 

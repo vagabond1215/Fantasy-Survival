@@ -1,4 +1,4 @@
-import { describe, expect, it } from 'vitest';
+import { describe, expect, it, vi } from 'vitest';
 import { deriveElevationOptions, deriveLandmassModifiers } from '../src/map.js';
 
 const mockBiome = {
@@ -18,6 +18,30 @@ describe('world parameter transforms', () => {
     expect(abundantIslands.maskStrength).toBeGreaterThan(minimalIslands.maskStrength);
     expect(abundantIslands.waterCoverageTarget).toBeGreaterThan(minimalIslands.waterCoverageTarget);
     expect(abundantIslands.openLandBias).toBeLessThan(minimalIslands.openLandBias);
+  });
+
+  it('falls back to the default landmass type when an unknown type is provided', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = deriveLandmassModifiers({ mapType: 'unknown-type' });
+
+    expect(result.landmassType).toBe('continent');
+    expect(warnSpy).toHaveBeenCalledWith(
+      'Unknown map type "unknown-type" supplied to deriveLandmassModifiers. Falling back to continent.'
+    );
+
+    warnSpy.mockRestore();
+  });
+
+  it('coerces non-string map types before resolving presets', () => {
+    const warnSpy = vi.spyOn(console, 'warn').mockImplementation(() => {});
+
+    const result = deriveLandmassModifiers({ mapType: ['continent'] });
+
+    expect(result.landmassType).toBe('continent');
+    expect(warnSpy).not.toHaveBeenCalled();
+
+    warnSpy.mockRestore();
   });
 
   it('raises or lowers elevation profile when sliders change', () => {
