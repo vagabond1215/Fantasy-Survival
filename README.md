@@ -188,3 +188,38 @@ Use `npm run sync-docs` (powered by `scripts/sync-docs.js`) to copy the shared
 added under `src/` so they are automatically mirrored—check existing modules for
 reusable helpers before creating new ones to comply with the project’s “reuse
 before creating” policy.
+
+### Hydrology tuning CLI
+
+Run `npm run hydrology:tune` to inspect how landmass presets and world
+parameters influence the standalone hydrology pipeline. The script generates a
+synthetic elevation field, calls `generateHydrology`, and reports aggregate
+metrics (total water coverage, lake count, river density, and similar signals)
+for each requested scenario. By default every landmass preset is paired with the
+`normal` world settings and displayed as a summary table.
+
+Common flags:
+
+- `--map-type=<type|all>` – choose a specific landmass preset or run every
+  preset.
+- `--difficulty=<id|all>` – select world parameter sets by difficulty id.
+- `--set key=value` – override individual world sliders (dot notation such as
+  `advanced.waterFlowMultiplier=60` is supported).
+- `--format=json` – emit the raw metrics as JSON instead of a table.
+- `--list` – print available landmass presets, biomes, and difficulty ids.
+
+Example usage:
+
+```bash
+npm run hydrology:tune -- \
+  --map-type=archipelago \
+  --difficulty=hard \
+  --set rainfall=68 \
+  --format=json
+```
+
+The command can also load additional world presets from disk via
+`--world-file=path/to/world.json`, enabling quick comparisons against
+experimentally tuned parameter sets. Because the tool is deterministic for a
+given seed, the JSON output is stable and can be fed into downstream analytics
+or regression dashboards.
