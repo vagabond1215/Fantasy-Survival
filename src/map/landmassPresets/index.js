@@ -1,4 +1,18 @@
-const modules = import.meta.glob('./*.js', { eager: true, import: 'default' });
+import archipelago from './archipelago.js';
+import coastal from './coastal.js';
+import continent from './continent.js';
+import inland from './inland.js';
+import island from './island.js';
+import pangea from './pangea.js';
+
+const modules = {
+  archipelago,
+  coastal,
+  continent,
+  inland,
+  island,
+  pangea
+};
 
 /**
  * @typedef {Readonly<{
@@ -13,10 +27,7 @@ const modules = import.meta.glob('./*.js', { eager: true, import: 'default' });
 
 /** @type {Array<[string, LandmassPreset]>} */
 const entries = Object.entries(modules)
-  .filter(([path]) => !path.endsWith('/index.js'))
-  .map(([path, config]) => {
-    const match = path.match(/\.\/(.+)\.js$/);
-    const name = match ? match[1] : path;
+  .map(([name, config]) => {
     if (!config || typeof config !== 'object') {
       throw new TypeError(`Landmass preset "${name}" must export an object.`);
     }
