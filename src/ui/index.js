@@ -26,7 +26,7 @@ import {
   setTheme,
   setThemeAppearance
 } from '../theme.js';
-import {
+import store, {
   getWorldConfig,
   onWorldConfigChange,
   updateWorldConfig
@@ -583,8 +583,11 @@ export function initSetupUI(onStart) {
         <div class="setup__column setup__column--preview">
           <div class="card section map-section">
             <div class="maptype-row">
-              <div class="section__title maptype-label">Map Type</div>
-              <div class="maptype-switch" id="maptype-seg" role="group" aria-label="Map type selection"></div>
+              <label class="section__title maptype-label" for="maptype-seg">Map Type</label>
+              <div class="maptype-select">
+                <select class="maptype-select__control" id="maptype-seg" aria-describedby="maptype-details"></select>
+                <span class="maptype-select__chevron" aria-hidden="true">▾</span>
+              </div>
             </div>
             <div class="sub" id="maptype-details"></div>
             <div class="map-preview-layout">
@@ -672,7 +675,7 @@ export function initSetupUI(onStart) {
   const biomeGrid = setupRoot.querySelector('#biome-grid');
   const biomeDetails = setupRoot.querySelector('#biome-details');
   const seasonSeg = setupRoot.querySelector('#season-seg');
-  const mapTypeSeg = setupRoot.querySelector('#maptype-seg');
+  const mapTypeSelect = setupRoot.querySelector('#maptype-seg');
   const mapTypeDetails = setupRoot.querySelector('#maptype-details');
   const seedInput = contentRoot.querySelector('#seed-input');
   const seedRandomBtn = contentRoot.querySelector('#seed-rand');
@@ -685,7 +688,7 @@ export function initSetupUI(onStart) {
     !biomeGrid ||
     !biomeDetails ||
     !seasonSeg ||
-    !mapTypeSeg ||
+    !mapTypeSelect ||
     !mapTypeDetails ||
     !seedInput ||
     !seedRandomBtn ||
@@ -849,7 +852,6 @@ export function initSetupUI(onStart) {
   }
 
   const biomeTiles = [];
-  const mapTypeButtons = [];
   const seasonButtons = [];
   const parameterControls = new Map();
   const categoryTabs = new Map();
@@ -1809,25 +1811,15 @@ export function initSetupUI(onStart) {
     });
   }
 
-  function renderMapTypeButtons() {
-    if (!mapTypeSeg) return;
-    mapTypeSeg.innerHTML = '';
-    mapTypeButtons.length = 0;
+  function renderMapTypeOptions() {
+    if (!mapTypeSelect) return;
+    mapTypeSelect.innerHTML = '';
     mapTypes.forEach(type => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'season-switch__button maptype-switch__button';
-      button.dataset.mapType = type.id;
-      button.textContent = type.label;
-      const description = type.description || type.label;
-      button.title = description;
-      button.setAttribute('aria-label', `${type.label}: ${description}`);
-      button.setAttribute('aria-pressed', 'false');
-      button.addEventListener('click', () => {
-        selectMapType(type.id);
-      });
-      mapTypeButtons.push(button);
-      mapTypeSeg.appendChild(button);
+      const option = document.createElement('option');
+      option.value = type.id;
+      option.textContent = type.label;
+      option.dataset.description = type.description || '';
+      mapTypeSelect.appendChild(option);
     });
     syncMapTypeSelection(selectedMapType);
     updateMapTypeDetails();
@@ -1864,9 +1856,13 @@ export function initSetupUI(onStart) {
   }
 
   renderSeasonButtons();
-  renderMapTypeButtons();
+  renderMapTypeOptions();
   renderBiomeTiles();
   initializeDifficultyDrawer();
+
+  mapTypeSelect?.addEventListener('change', () => {
+    selectMapType(mapTypeSelect.value);
+  });
 
   mapView = createMapView(mapPreview, {
     legendLabels: legendLabelMap,
@@ -2271,16 +2267,17 @@ export function initSetupUI(onStart) {
   }
 
   function syncMapTypeSelection(id) {
-    const button = mapTypeButtons.find(item => item.dataset.mapType === id);
-    if (button) {
-      setActive(mapTypeButtons, button);
-      button.setAttribute('aria-pressed', 'true');
+    if (!mapTypeSelect) return;
+    const normalized = normalizeMapType(id);
+    if (mapTypeSelect.value !== normalized) {
+      mapTypeSelect.value = normalized;
     }
-    mapTypeButtons.forEach(item => {
-      if (item !== button) {
-        item.setAttribute('aria-pressed', 'false');
-      }
-    });
+    const selectedOption = mapTypeSelect.selectedOptions?.[0];
+    if (selectedOption) {
+      const description = selectedOption.dataset.description || '';
+      const label = selectedOption.textContent || selectedOption.value;
+      mapTypeSelect.title = description ? `${label}: ${description}` : label;
+    }
   }
 
   function updateMapTypeDetails() {
@@ -2288,9 +2285,16 @@ export function initSetupUI(onStart) {
     const entry = mapTypes.find(type => type.id === selectedMapType);
     if (!entry) {
       mapTypeDetails.textContent = '';
+      if (mapTypeSelect) {
+        mapTypeSelect.title = '';
+      }
       return;
     }
     mapTypeDetails.textContent = `${entry.label} – ${entry.description}`;
+    if (mapTypeSelect) {
+      const description = entry.description || '';
+      mapTypeSelect.title = description ? `${entry.label}: ${description}` : entry.label;
+    }
   }
 
   function selectMapType(id) {
@@ -2310,6 +2314,7 @@ export function initSetupUI(onStart) {
     if (presetSelect && presetSelect.value !== 'custom') {
       presetSelect.value = 'custom';
     }
+    store.worldSettings = cloneWorldParameters(resolved);
     syncMapTypeSelection(nextId);
     updateMapTypeDetails();
     updateWorldConfig({
@@ -2392,7 +2397,9 @@ export function initSetupUI(onStart) {
       shouldRefreshBiome = true;
     }
     if (nextWorld) {
-      worldParameters = cloneWorldParameters(nextWorld);
+      const clonedWorld = cloneWorldParameters(nextWorld);
+      worldParameters = clonedWorld;
+      store.worldSettings = cloneWorldParameters(clonedWorld);
       syncWorldControls();
       const normalizedType = normalizeMapType(worldParameters.mapType);
       if (normalizedType !== selectedMapType) {
@@ -2400,6 +2407,8 @@ export function initSetupUI(onStart) {
       }
       syncMapTypeSelection(selectedMapType);
       updateMapTypeDetails();
+    } else {
+      store.worldSettings = null;
     }
     if (shouldRefreshBiome) {
       resolvedBiomeId = resolveBiomeId(selectedBiome, { mode: 'stable', seed: mapSeed });

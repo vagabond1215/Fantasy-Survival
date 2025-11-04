@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initSetupUI } from '../src/ui/index.js';
-import { resetWorldConfig } from '../src/state.js';
+import store, { resetWorldConfig } from '../src/state.js';
+import { generateColorMap } from '../src/map.js';
 
 vi.mock('../src/biomes.js', () => ({
   biomes: [
@@ -196,6 +197,7 @@ beforeEach(() => {
     }
   } as unknown as Crypto);
   resetWorldConfig();
+  store.worldSettings = null;
 });
 
 describe('setup layout', () => {
@@ -205,10 +207,11 @@ describe('setup layout', () => {
 
     const biomeCard = document.querySelector<HTMLElement>('#biome-card');
     const seasonSeg = biomeCard?.querySelector<HTMLElement>('#season-seg');
-    const mapTypeSeg = document.querySelector<HTMLElement>('#maptype-seg');
+    const mapTypeSeg = document.querySelector<HTMLSelectElement>('#maptype-seg');
     const biomeGrid = biomeCard?.querySelector<HTMLElement>('#biome-grid');
     expect(seasonSeg).toBeTruthy();
     expect(mapTypeSeg).toBeTruthy();
+    expect(mapTypeSeg?.tagName).toBe('SELECT');
     expect(biomeGrid).toBeTruthy();
     if (seasonSeg && biomeGrid) {
       const position = seasonSeg.compareDocumentPosition(biomeGrid);
@@ -274,10 +277,12 @@ describe('season selection buttons', () => {
   });
 });
 
-describe('map type selection buttons', () => {
+describe('map type selection dropdown', () => {
   it('lists the available landmass options', () => {
     initSetupUI(() => {});
-    const buttons = Array.from(document.querySelectorAll<HTMLButtonElement>('#maptype-seg button'));
+    const select = document.querySelector<HTMLSelectElement>('#maptype-seg');
+    expect(select).toBeTruthy();
+    const options = Array.from(select?.options ?? []);
     const expected = [
       { id: 'continent', label: 'Continent' },
       { id: 'island', label: 'Island' },
@@ -286,11 +291,30 @@ describe('map type selection buttons', () => {
       { id: 'pangea', label: 'Pangea' },
       { id: 'inland', label: 'Inland' }
     ];
-    expect(buttons).toHaveLength(expected.length);
-    const mapped = buttons.map(button => ({
-      id: button.dataset.mapType,
-      label: button.textContent?.trim()
+    expect(options).toHaveLength(expected.length);
+    const mapped = options.map(option => ({
+      id: option.value,
+      label: option.textContent?.trim() ?? ''
     }));
     expect(mapped).toEqual(expected);
+    expect(select?.getAttribute('aria-describedby')).toBe('maptype-details');
+  });
+
+  it('updates world settings and regenerates the preview when changed', () => {
+    vi.useFakeTimers();
+    try {
+      initSetupUI(() => {});
+      const select = document.querySelector<HTMLSelectElement>('#maptype-seg');
+      expect(select).toBeTruthy();
+      const mapGenerator = vi.mocked(generateColorMap);
+      mapGenerator.mockClear();
+      select!.value = 'island';
+      select!.dispatchEvent(new Event('change', { bubbles: true }));
+      vi.advanceTimersByTime(200);
+      expect(store.worldSettings?.mapType).toBe('island');
+      expect(mapGenerator).toHaveBeenCalled();
+    } finally {
+      vi.useRealTimers();
+    }
   });
 });
