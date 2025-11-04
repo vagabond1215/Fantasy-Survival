@@ -198,6 +198,113 @@ export function isWaterTerrain(type) {
   return type ? WATER_TERRAIN_TYPES.has(type) : false;
 }
 
+function createFallbackMap({
+  width,
+  height,
+  xStart,
+  yStart,
+  seed,
+  season,
+  world,
+  openTerrainType,
+  message,
+  diagnostics,
+  waterLevel = 0.35
+}) {
+  const mapWidth = Math.max(1, Math.trunc(width));
+  const mapHeight = Math.max(1, Math.trunc(height));
+  const safeOpenTerrain =
+    typeof openTerrainType === 'string' && openTerrainType.trim() ? openTerrainType : 'open';
+
+  const tiles = Array.from({ length: mapHeight }, () => new Array(mapWidth));
+  const terrainTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
+  const substrateTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
+  const hydrologyTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
+  const elevations = Array.from({ length: mapHeight }, () => new Array(mapWidth));
+  const waterTable = Array.from({ length: mapHeight }, () => new Array(mapWidth));
+
+  const centerX = (mapWidth - 1) / 2;
+  const centerY = (mapHeight - 1) / 2;
+  const maxRadius = Math.max(centerX, centerY, 1);
+
+  for (let y = 0; y < mapHeight; y++) {
+    for (let x = 0; x < mapWidth; x++) {
+      const dx = x - centerX;
+      const dy = y - centerY;
+      const distanceRatio = Math.hypot(dx, dy) / maxRadius;
+
+      let terrain = safeOpenTerrain;
+      let hydroType = 'land';
+      let elevation = waterLevel + 0.25 - distanceRatio * 0.15;
+
+      if (distanceRatio >= 0.95) {
+        terrain = 'ocean';
+        hydroType = 'ocean';
+        elevation = waterLevel - 0.05;
+      } else if (distanceRatio >= 0.8) {
+        terrain = 'coast';
+        hydroType = 'coast';
+        elevation = waterLevel + 0.02;
+      } else if (distanceRatio >= 0.6 && safeOpenTerrain === 'open') {
+        terrain = 'grassland';
+      }
+
+      terrainTypes[y][x] = terrain;
+      substrateTypes[y][x] = terrain;
+      hydrologyTypes[y][x] = hydroType;
+      elevations[y][x] = clamp(elevation, 0, 1);
+      waterTable[y][x] = hydroType === 'land' ? Math.max(waterLevel + 0.05, elevations[y][x]) : waterLevel;
+
+      const symbol = TERRAIN_SYMBOLS[terrain] || terrain || TERRAIN_SYMBOLS.open;
+      tiles[y][x] = symbol;
+    }
+  }
+
+  const fallbackMessage = message && typeof message === 'string' ? message : null;
+  const solverMessages = fallbackMessage ? [fallbackMessage] : [];
+
+  const diagnosticDetail = {
+    fallback: true,
+    ...(diagnostics || {})
+  };
+
+  return {
+    scale: 100,
+    seed,
+    xStart,
+    yStart,
+    width: mapWidth,
+    height: mapHeight,
+    tiles,
+    types: terrainTypes,
+    substrateTypes,
+    elevations,
+    season,
+    waterLevel,
+    hydrology: {
+      seaLevel: waterLevel,
+      types: hydrologyTypes,
+      waterTable,
+      filledElevation: waterTable
+    },
+    solver: {
+      metrics: null,
+      history: [],
+      iterations: 0,
+      messages: solverMessages
+    },
+    worldSettings: world,
+    viewport: {
+      xStart,
+      yStart,
+      width: mapWidth,
+      height: mapHeight
+    },
+    openTerrainType: safeOpenTerrain,
+    diagnostics: diagnosticDetail
+  };
+}
+
 export function computeCenteredStart(width = DEFAULT_MAP_WIDTH, height = DEFAULT_MAP_HEIGHT, focusX = 0, focusY = 0) {
   const normalizedWidth = Math.max(1, Math.trunc(width));
   const normalizedHeight = Math.max(1, Math.trunc(height));
@@ -713,61 +820,132 @@ export function generateColorMap(
   const substrateTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
   const elevations = [];
 
+  const generationInputs = () => ({
+    biomeId: biome?.id ?? biomeId ?? null,
+    seed,
+    xStart: effectiveXStart,
+    yStart: effectiveYStart,
+    width: mapWidth,
+    height: mapHeight,
+    season,
+    waterLevelOverride: Number.isFinite(waterLevelOverride)
+      ? clamp(waterLevelOverride, 0, 1)
+      : null,
+    landmassType,
+    worldSettings: worldSettings || null
+  });
+
+  const handleGenerationFailure = error => {
+    const errorMessage =
+      error && typeof error.message === 'string' && error.message.trim()
+        ? error.message
+        : 'Unknown map generation error';
+    const inputs = generationInputs();
+    const message = 'Encountered a map generation error; using simplified fallback terrain.';
+    console.error('generateColorMap fallback', { error, inputs });
+    try {
+      notifySanityCheck(message, {
+        type: 'warning',
+        error: errorMessage,
+        inputs
+      });
+    } catch (notificationError) {
+      console.error('Failed to notify map generation fallback', notificationError);
+    }
+    return createFallbackMap({
+      width: mapWidth,
+      height: mapHeight,
+      xStart: effectiveXStart,
+      yStart: effectiveYStart,
+      seed,
+      season,
+      world,
+      openTerrainType,
+      message,
+      diagnostics: {
+        error: {
+          message: errorMessage,
+          stack: typeof error?.stack === 'string' ? error.stack : undefined
+        },
+        inputs
+      }
+    });
+  };
+
   const worldScale = Math.max(mapWidth, mapHeight) * (landmassConfig.worldScaleFactor ?? 1.2);
   const maskStrengthBase = landmassConfig.maskStrength ?? 0.55;
   const maskBiasBase = landmassConfig.maskBias ?? 0;
   const maskStrength = clamp(maskStrengthBase + mountainsBias * 0.15 - waterBias * 0.1, 0.2, 0.92);
   const maskBias = clamp(maskBiasBase + (waterBias + rainfallBias) * -0.08, -0.3, 0.3);
-  const elevationSampler = createElevationSampler(seed, {
-    base: elevationOptions.base,
-    variance: elevationOptions.variance,
-    scale: elevationOptions.scale,
-    worldScale,
-    maskStrength,
-    maskBias,
-    mapType: landmassType
-  });
 
-  for (let y = 0; y < mapHeight; y++) {
-    const eRow = [];
-    for (let x = 0; x < mapWidth; x++) {
-      const gx = baseXStart + x;
-      const gy = baseYStart + y;
-      const elevation = elevationSampler.sample(gx, gy);
-      eRow.push(elevation);
+  let elevationSampler;
+  try {
+    elevationSampler = createElevationSampler(seed, {
+      base: elevationOptions.base,
+      variance: elevationOptions.variance,
+      scale: elevationOptions.scale,
+      worldScale,
+      maskStrength,
+      maskBias,
+      mapType: landmassType
+    });
+  } catch (error) {
+    return handleGenerationFailure(error);
+  }
+
+  try {
+    for (let y = 0; y < mapHeight; y++) {
+      const eRow = [];
+      for (let x = 0; x < mapWidth; x++) {
+        const gx = baseXStart + x;
+        const gy = baseYStart + y;
+        const elevation = elevationSampler.sample(gx, gy);
+        eRow.push(elevation);
+      }
+      elevations.push(eRow);
     }
-    elevations.push(eRow);
+  } catch (error) {
+    return handleGenerationFailure(error);
   }
 
   const waterCoverageTarget = clamp(landmassConfig.waterCoverageTarget ?? 0.32, 0.08, 0.85);
   const minOceanFraction = clamp(landmassConfig.minOceanFraction ?? 0.02, 0, 0.4);
 
-  const hydrology = generateHydrology({
-    seed,
-    width: mapWidth,
-    height: mapHeight,
-    elevations,
-    biome: biome
-      ? { id: biome.id, features: biome.features, elevation: biome.elevation }
-      : null,
-    world: {
-      ...world,
-      mapType: landmassType,
-      waterCoverageTarget,
-      minOceanFraction
+  let hydrology;
+  try {
+    hydrology = generateHydrology({
+      seed,
+      width: mapWidth,
+      height: mapHeight,
+      elevations,
+      biome: biome
+        ? { id: biome.id, features: biome.features, elevation: biome.elevation }
+        : null,
+      world: {
+        ...world,
+        mapType: landmassType,
+        waterCoverageTarget,
+        minOceanFraction
+      }
+    });
+  } catch (error) {
+    return handleGenerationFailure(error);
+  }
+
+  try {
+    const mangroveReport = applyMangroveZones({
+      hydrology,
+      elevations,
+      seed,
+      random: (x, y, salt = '') =>
+        coordinateRandom(seed, baseXStart + x, baseYStart + y, `mangrove:${salt}`)
+    });
+
+    if (mangroveReport) {
+      hydrology.mangroveStats = mangroveReport;
     }
-  });
-
-  const mangroveReport = applyMangroveZones({
-    hydrology,
-    elevations,
-    seed,
-    random: (x, y, salt = '') =>
-      coordinateRandom(seed, baseXStart + x, baseYStart + y, `mangrove:${salt}`)
-  });
-
-  if (mangroveReport) {
-    hydrology.mangroveStats = mangroveReport;
+  } catch (error) {
+    return handleGenerationFailure(error);
   }
 
   const waterTable = hydrology.waterTable ?? hydrology.filledElevation;
