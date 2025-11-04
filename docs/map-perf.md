@@ -51,3 +51,15 @@ When tuning these values, keep in mind that:
 
 Following these steps keeps the renderer responsive while giving you concrete metrics to justify any
 cache or tile-size tweaks.
+
+## World generation profiling
+
+Set the `FS_DEBUG_MAP_PROFILING` environment variable to a truthy value (for example `1`) before
+running the app or the Vitest suite to record the timing for the most expensive world-generation
+steps. You can also toggle the feature at runtime in the browser console by setting
+`window.__FS_DEBUG_MAP_PROFILING__ = true` before generating a new map.
+
+When enabled, the generator logs a summary like `generateColorMap profiling` with per-step timings
+for `createElevationSampler`, `generateHydrology`, and `applyMangroveZones`. The generated map data
+also includes a `profiling` object so you can inspect the aggregated `total` duration and the raw
+`steps` timings directly from the returned value or in captured snapshots.

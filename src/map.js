@@ -51,6 +51,75 @@ export const TERRAIN_SYMBOLS = {
   stone: 'stone'
 };
 
+function isTruthyDebugValue(value) {
+  if (value == null) return false;
+  if (typeof value === 'string') {
+    const normalized = value.trim().toLowerCase();
+    if (!normalized) return false;
+    return !['0', 'false', 'no', 'off'].includes(normalized);
+  }
+  if (typeof value === 'function') {
+    try {
+      return isTruthyDebugValue(value());
+    } catch (error) {
+      console.warn('Failed to evaluate debug flag function', error);
+      return false;
+    }
+  }
+  return Boolean(value);
+}
+
+function isMapProfilingEnabled() {
+  if (typeof globalThis !== 'undefined') {
+    const globalFlag =
+      globalThis.__FS_DEBUG_MAP_PROFILING__ ??
+      globalThis.__FS_MAP_PROFILING__ ??
+      globalThis.__FS_DEBUG?.mapProfiling;
+    if (globalFlag !== undefined) {
+      if (isTruthyDebugValue(globalFlag)) {
+        return true;
+      }
+      return false;
+    }
+  }
+
+  if (typeof process !== 'undefined' && process?.env) {
+    const envFlag =
+      process.env.FS_DEBUG_MAP_PROFILING ??
+      process.env.FS_MAP_PROFILING ??
+      process.env.VITE_FS_DEBUG_MAP_PROFILING;
+    if (envFlag !== undefined) {
+      return isTruthyDebugValue(envFlag);
+    }
+  }
+
+  return false;
+}
+
+function createMapGenerationProfiler() {
+  if (!isMapProfilingEnabled()) {
+    return null;
+  }
+
+  const timings = Object.create(null);
+  return {
+    timings,
+    total: 0,
+    record(label, durationMs) {
+      if (!Number.isFinite(durationMs)) return;
+      timings[label] = (timings[label] ?? 0) + durationMs;
+      this.total += durationMs;
+    }
+  };
+}
+
+function profilerNow() {
+  if (typeof performance !== 'undefined' && typeof performance.now === 'function') {
+    return performance.now();
+  }
+  return Date.now();
+}
+
 export const DEFAULT_TERRAIN_COLORS = Object.freeze({
   water: '#2d7ff9',
   ocean: '#2563eb',
@@ -820,6 +889,19 @@ export function generateColorMap(
   const substrateTypes = Array.from({ length: mapHeight }, () => new Array(mapWidth));
   const elevations = [];
 
+  const profiler = createMapGenerationProfiler();
+  const measureStep = (label, fn) => {
+    if (!profiler) {
+      return fn();
+    }
+    const start = profilerNow();
+    try {
+      return fn();
+    } finally {
+      profiler.record(label, profilerNow() - start);
+    }
+  };
+
   const generationInputs = () => ({
     biomeId: biome?.id ?? biomeId ?? null,
     seed,
@@ -880,15 +962,17 @@ export function generateColorMap(
 
   let elevationSampler;
   try {
-    elevationSampler = createElevationSampler(seed, {
-      base: elevationOptions.base,
-      variance: elevationOptions.variance,
-      scale: elevationOptions.scale,
-      worldScale,
-      maskStrength,
-      maskBias,
-      mapType: landmassType
-    });
+    elevationSampler = measureStep('createElevationSampler', () =>
+      createElevationSampler(seed, {
+        base: elevationOptions.base,
+        variance: elevationOptions.variance,
+        scale: elevationOptions.scale,
+        worldScale,
+        maskStrength,
+        maskBias,
+        mapType: landmassType
+      })
+    );
   } catch (error) {
     return handleGenerationFailure(error);
   }
@@ -913,33 +997,37 @@ export function generateColorMap(
 
   let hydrology;
   try {
-    hydrology = generateHydrology({
-      seed,
-      width: mapWidth,
-      height: mapHeight,
-      elevations,
-      biome: biome
-        ? { id: biome.id, features: biome.features, elevation: biome.elevation }
-        : null,
-      world: {
-        ...world,
-        mapType: landmassType,
-        waterCoverageTarget,
-        minOceanFraction
-      }
-    });
+    hydrology = measureStep('generateHydrology', () =>
+      generateHydrology({
+        seed,
+        width: mapWidth,
+        height: mapHeight,
+        elevations,
+        biome: biome
+          ? { id: biome.id, features: biome.features, elevation: biome.elevation }
+          : null,
+        world: {
+          ...world,
+          mapType: landmassType,
+          waterCoverageTarget,
+          minOceanFraction
+        }
+      })
+    );
   } catch (error) {
     return handleGenerationFailure(error);
   }
 
   try {
-    const mangroveReport = applyMangroveZones({
-      hydrology,
-      elevations,
-      seed,
-      random: (x, y, salt = '') =>
-        coordinateRandom(seed, baseXStart + x, baseYStart + y, `mangrove:${salt}`)
-    });
+    const mangroveReport = measureStep('applyMangroveZones', () =>
+      applyMangroveZones({
+        hydrology,
+        elevations,
+        seed,
+        random: (x, y, salt = '') =>
+          coordinateRandom(seed, baseXStart + x, baseYStart + y, `mangrove:${salt}`)
+      })
+    );
 
     if (mangroveReport) {
       hydrology.mangroveStats = mangroveReport;
@@ -1739,6 +1827,17 @@ export function generateColorMap(
         height: mapHeight
       };
 
+  let profilingSummary = null;
+  if (profiler) {
+    profilingSummary = {
+      total: profiler.total,
+      steps: { ...profiler.timings }
+    };
+    if (typeof console !== 'undefined' && typeof console.info === 'function') {
+      console.info('generateColorMap profiling', profilingSummary);
+    }
+  }
+
   return {
     scale: 100,
     seed,
@@ -1761,6 +1860,7 @@ export function generateColorMap(
     },
     worldSettings: world,
     viewport: viewportDetails,
-    openTerrainType
+    openTerrainType,
+    ...(profilingSummary ? { profiling: profilingSummary } : {})
   };
 }
