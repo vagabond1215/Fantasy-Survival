@@ -1,4 +1,5 @@
 import { describe, expect, it, vi } from 'vitest';
+import { resolveWorldParameters } from '../src/difficulty.js';
 import { deriveElevationOptions, deriveLandmassModifiers } from '../src/map.js';
 
 const mockBiome = {
@@ -58,4 +59,29 @@ describe('world parameter transforms', () => {
     expect(highProfile.variance).toBeGreaterThan(lowProfile.variance);
     expect(highProfile.scale).toBeLessThan(lowProfile.scale);
   });
+
+  it('preserves provided map type and clamps numeric sliders', () => {
+    const result = resolveWorldParameters({
+      mapType: 'archipelago',
+      oreDensity: 150,
+      rainfall: -20,
+      mapIslands: 135,
+      mapElevationMax: 101.4,
+      advanced: {
+        elevationScale: 130,
+        waterFlowMultiplier: -40
+      }
+    });
+
+    expect(result.mapType).toBe('archipelago');
+    expect(result.oreDensity).toBe(100);
+    expect(result.rainfall).toBe(0);
+    expect(result.mapIslands).toBe(100);
+    expect(result.mapElevationMax).toBe(100);
+    expect(result.advanced.elevationScale).toBe(100);
+    expect(result.advanced.waterFlowMultiplier).toBe(0);
+    expect(result.advanced.vegetationScale).toBe(50);
+  });
+
+  it.todo('rejects invalid map types when validation is added');
 });
