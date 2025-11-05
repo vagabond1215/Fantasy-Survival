@@ -103,7 +103,7 @@ function resolveWetlandProfile({ freshwaterPresence, rainfallBias, waterBias, la
     const borealBias = clamp(Math.max(0, latitudeBias) * 0.6 + Math.max(0, elevationBias) * 0.3, 0, 0.9);
     const bogLean = clamp(freshwaterPresence.lakes * 0.45 + freshwaterPresence.wetlands * 0.5 + borealBias * 0.6, 0, 1.4);
     const fenLean = clamp(freshwaterPresence.springs * 0.6 + freshwaterPresence.streams * 0.4 + climateWetness * 0.4, 0, 1.2);
-    const swampLean = clamp(freshwaterPresence.streams * 0.5 + tropicalBias * 0.8 + climateWetness * 0.4, 0, 1.4);
+    let swampLean = clamp(freshwaterPresence.streams * 0.5 + tropicalBias * 0.8 + climateWetness * 0.4, 0, 1.4);
     if (transitionHints.has('coastal-mangrove')) {
         swampLean += 0.45;
     }
@@ -130,8 +130,8 @@ function resolveMarineEdgeWeights({ freshwaterPresence, rainfallBias, riversBias
     const estuaryWeight = clamp(0.5 + riversBias * 0.4 + nearShoreWetness * 0.5, 0.2, 2.5);
     let deltaWeight = clamp(nearShoreWetness * 0.9 + riversBias * 0.8, 0, 2.2);
     const mangroveWeight = clamp(tropicalBias * (0.4 + nearShoreWetness * 0.6), 0, 1.4);
-    const kelpWeight = clamp(temperateBias * (0.4 + rainfallBias * 0.2), 0, 1.1);
-    const coralWeight = clamp(tropicalBias * (0.6 + Math.max(0, 0.2 - rainfallBias) * 0.4), 0, 1.2);
+    let kelpWeight = clamp(temperateBias * (0.4 + rainfallBias * 0.2), 0, 1.1);
+    let coralWeight = clamp(tropicalBias * (0.6 + Math.max(0, 0.2 - rainfallBias) * 0.4), 0, 1.2);
     const polarWeight = clamp(polarBias * (0.7 + Math.max(0, -rainfallBias) * 0.1), 0, 1.3);
     const openOceanWeight = clamp(0.8 + Math.max(0, -rainfallBias) * 0.3 + Math.max(0, -riversBias) * 0.2, 0.2, 2.5);
     const abyssalWeight = clamp(0.4 + Math.max(0, -mountainBias) * 0.4 + Math.max(0, -rainfallBias) * 0.3, 0, 1.5);

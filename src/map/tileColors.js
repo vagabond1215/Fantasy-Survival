@@ -31,7 +31,6 @@
  *   | 'savanna'
  *   | 'rainforest'
  *   | 'jungle'
- *   | 'swamp'
  *   | 'wetland'
  *   | 'sand'
  *   | 'coast'
@@ -81,7 +80,6 @@ const TILE_VARIABLES = {
   savanna: '--legend-savanna',
   rainforest: '--legend-rainforest',
   jungle: '--legend-jungle',
-  swamp: '--legend-swamp',
   wetland: '--legend-wetland',
   sand: '--legend-sand',
   coast: '--legend-coast',
