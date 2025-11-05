@@ -31,6 +31,8 @@ import store, {
   onWorldConfigChange,
   updateWorldConfig
 } from '../state.js';
+import { BIOME_STARTER_OPTIONS } from '../world/biome/startingBiomes.js';
+import { WheelSelect } from './components/WheelSelect.ts';
 
 const seasons = [
   { id: 'Thawbound', label: 'Spring', icon: '🌱' },
@@ -575,19 +577,16 @@ export function initSetupUI(onStart) {
               <div class="season-label section__title">Starting Season</div>
               <div class="season-switch" id="season-seg"></div>
             </div>
-            <div class="section__title">Biome</div>
-            <div class="grid" id="biome-grid"></div>
+            <div class="section__title" id="biome-wheel-label">Biome</div>
+            <div class="wheel-select-host" id="biome-wheel" aria-describedby="biome-details"></div>
             <div class="sub" id="biome-details"></div>
           </div>
         </div>
         <div class="setup__column setup__column--preview">
           <div class="card section map-section">
             <div class="maptype-row">
-              <label class="section__title maptype-label" for="maptype-seg">Map Type</label>
-              <div class="maptype-select">
-                <select class="maptype-select__control" id="maptype-seg" aria-describedby="maptype-details"></select>
-                <span class="maptype-select__chevron" aria-hidden="true">▾</span>
-              </div>
+              <div class="section__title maptype-label" id="maptype-wheel-label">Map Type</div>
+              <div class="wheel-select-host maptype-wheel" id="maptype-wheel" aria-describedby="maptype-details"></div>
             </div>
             <div class="sub" id="maptype-details"></div>
             <div class="map-preview-layout">
@@ -672,10 +671,10 @@ export function initSetupUI(onStart) {
 
   const landingThemeContainer = landingSettingsPanel.querySelector('#landing-theme-grid');
 
-  const biomeGrid = setupRoot.querySelector('#biome-grid');
+  const biomeWheelRoot = setupRoot.querySelector('#biome-wheel');
   const biomeDetails = setupRoot.querySelector('#biome-details');
   const seasonSeg = setupRoot.querySelector('#season-seg');
-  const mapTypeSelect = setupRoot.querySelector('#maptype-seg');
+  const mapTypeWheelRoot = setupRoot.querySelector('#maptype-wheel');
   const mapTypeDetails = setupRoot.querySelector('#maptype-details');
   const seedInput = contentRoot.querySelector('#seed-input');
   const seedRandomBtn = contentRoot.querySelector('#seed-rand');
@@ -685,10 +684,10 @@ export function initSetupUI(onStart) {
   const startBtn = contentRoot.querySelector('#start-btn');
 
   if (
-    !biomeGrid ||
+    !biomeWheelRoot ||
     !biomeDetails ||
     !seasonSeg ||
-    !mapTypeSelect ||
+    !mapTypeWheelRoot ||
     !mapTypeDetails ||
     !seedInput ||
     !seedRandomBtn ||
@@ -851,7 +850,6 @@ export function initSetupUI(onStart) {
     });
   }
 
-  const biomeTiles = [];
   const seasonButtons = [];
   const parameterControls = new Map();
   const categoryTabs = new Map();
@@ -861,12 +859,13 @@ export function initSetupUI(onStart) {
 
   let currentThemeInfo = getThemeDefinition();
   let mapView = null;
+  let biomeWheel = null;
+  let mapTypeWheel = null;
 
   onThemeChange((themeId, themeDefinition) => {
     currentThemeInfo = themeDefinition || getThemeDefinition(themeId);
     syncLandingAppearance(currentThemeInfo?.activeAppearance || getThemeAppearance());
     updateLandingThemeButtons(themeId);
-    biomeTiles.forEach(applyTileBackground);
     if (mapView?.setTerrainColors) {
       mapView.setTerrainColors(null, { forceRefresh: true });
     }
@@ -1098,80 +1097,6 @@ export function initSetupUI(onStart) {
     });
   }
 
-  function applyTileBackground(button) {
-    if (!button) return;
-    const appearance = currentThemeInfo?.activeAppearance || currentThemeInfo?.appearance;
-    if (appearance === 'dark') {
-      const baseHex =
-        currentThemeInfo?.colors?.neutral?.dark || currentThemeInfo?.colors?.background?.light || DARK_TILE_BASE_COLOR;
-      const baseColor = parseColor(baseHex || DARK_TILE_BASE_COLOR);
-      if (baseColor) {
-        const hoverColor = lightenColor(baseColor, DARK_TILE_HOVER_LIFT);
-        button.style.setProperty('--tile-base-bg', formatColor(baseColor));
-        if (hoverColor) {
-          button.style.setProperty('--tile-hover-bg', formatColor(hoverColor));
-        }
-      }
-      const accentHex =
-        currentThemeInfo?.colors?.accent?.base || currentThemeInfo?.colors?.accent?.light || null;
-      const accentColor = parseColor(accentHex);
-      if (accentColor) {
-        const activeColor = lightenColor(accentColor, 0.22);
-        button.style.setProperty('--tile-active-bg', formatColor(activeColor));
-        const preferredText = parseColor(currentThemeInfo?.text?.primary);
-        const activeText = ensureContrastColor(preferredText, activeColor);
-        if (activeText) {
-          button.style.setProperty('--tile-active-text', formatColor(activeText));
-        } else {
-          button.style.removeProperty('--tile-active-text');
-        }
-      } else {
-        button.style.removeProperty('--tile-active-bg');
-        button.style.removeProperty('--tile-active-text');
-      }
-      return;
-    }
-    const backgroundHex =
-      currentThemeInfo?.colors?.background?.light ||
-      currentThemeInfo?.colors?.background?.base ||
-      currentThemeInfo?.colors?.neutral?.light ||
-      LIGHT_TILE_BASE_COLOR;
-    const neutralHex =
-      currentThemeInfo?.colors?.neutral?.base ||
-      currentThemeInfo?.colors?.background?.base ||
-      LIGHT_TILE_BASE_COLOR;
-    const backgroundColor = parseColor(backgroundHex) || parseColor(LIGHT_TILE_BASE_COLOR);
-    const neutralColor = parseColor(neutralHex);
-    let baseColor = backgroundColor;
-    if (baseColor && neutralColor) {
-      baseColor = mixColors(baseColor, neutralColor, 0.28);
-    }
-    if (baseColor) {
-      button.style.setProperty('--tile-base-bg', formatColor(baseColor));
-      const hoverColor = lightenColor(baseColor, LIGHT_TILE_HOVER_LIFT);
-      if (hoverColor) {
-        button.style.setProperty('--tile-hover-bg', formatColor(hoverColor));
-      }
-    }
-    const accentHex =
-      currentThemeInfo?.colors?.accent?.light || currentThemeInfo?.colors?.accent?.base || null;
-    const accentColor = parseColor(accentHex);
-    if (accentColor) {
-      const accentLift = lightenColor(accentColor, 0.25);
-      const activeColor = accentLift ? mixColors(accentColor, accentLift, 0.4) : accentColor;
-      button.style.setProperty('--tile-active-bg', formatColor(activeColor));
-      const preferredText = parseColor(currentThemeInfo?.text?.primary);
-      const activeText = ensureContrastColor(preferredText, activeColor);
-      if (activeText) {
-        button.style.setProperty('--tile-active-text', formatColor(activeText));
-      } else {
-        button.style.removeProperty('--tile-active-text');
-      }
-    } else {
-      button.style.removeProperty('--tile-active-bg');
-      button.style.removeProperty('--tile-active-text');
-    }
-  }
 
   function hideSpawnPrompt() {
     if (spawnPrompt) {
@@ -1811,58 +1736,60 @@ export function initSetupUI(onStart) {
     });
   }
 
-  function renderMapTypeOptions() {
-    if (!mapTypeSelect) return;
-    mapTypeSelect.innerHTML = '';
-    mapTypes.forEach(type => {
-      const option = document.createElement('option');
-      option.value = type.id;
-      option.textContent = type.label;
-      option.dataset.description = type.description || '';
-      mapTypeSelect.appendChild(option);
-    });
-    syncMapTypeSelection(selectedMapType);
-    updateMapTypeDetails();
-  }
-
-  function renderBiomeTiles() {
-    if (!biomeGrid) return;
-    biomeGrid.innerHTML = '';
-    biomeTiles.length = 0;
-    biomes.forEach(biome => {
-      const button = document.createElement('button');
-      button.type = 'button';
-      button.className = 'tile col-3';
-      button.dataset.biome = biome.id;
-      if (biome.color) {
-        button.style.setProperty('--biome-color', biome.color);
-      } else {
-        button.style.removeProperty('--biome-color');
-      }
-      if (biome.description) {
-        button.title = biome.description;
-      }
-      button.innerHTML = `
-        <span class="tile__accent" aria-hidden="true"></span>
-        <div class="tile__name">${biome.name}</div>
-      `;
-      button.addEventListener('click', () => {
-        updateWorldConfig({ biome: biome.id });
-      });
-      biomeTiles.push(button);
-      biomeGrid.appendChild(button);
-      applyTileBackground(button);
-    });
-  }
-
   renderSeasonButtons();
-  renderMapTypeOptions();
-  renderBiomeTiles();
-  initializeDifficultyDrawer();
 
-  mapTypeSelect?.addEventListener('change', () => {
-    selectMapType(mapTypeSelect.value);
-  });
+  const biomeOptions = BIOME_STARTER_OPTIONS.map(option => ({
+    id: option.id,
+    label: option.label || option.id,
+    description: option.description || '',
+    color: option.color || null
+  }));
+
+  if (biomeWheelRoot) {
+    biomeWheel = new WheelSelect(biomeWheelRoot, {
+      options: biomeOptions,
+      value: selectedBiome,
+      ariaLabelledBy: 'biome-wheel-label',
+      ariaDescribedBy: 'biome-details',
+      onChange: (value, option) => {
+        selectedBiome = value;
+        updateBiomeDetails();
+        scheduleWorldPreview();
+        if (option?.description) {
+          biomeWheelRoot.title = option.description;
+        } else {
+          biomeWheelRoot.removeAttribute('title');
+        }
+      },
+      onCommit: value => {
+        updateWorldConfig({ biome: value });
+      }
+    });
+  }
+
+  const mapTypeOptions = mapTypes.map(type => ({
+    id: type.id,
+    label: type.label,
+    description: type.description || ''
+  }));
+
+  if (mapTypeWheelRoot) {
+    mapTypeWheel = new WheelSelect(mapTypeWheelRoot, {
+      options: mapTypeOptions,
+      value: selectedMapType,
+      ariaLabelledBy: 'maptype-wheel-label',
+      ariaDescribedBy: 'maptype-details',
+      onChange: (value, _option) => {
+        selectMapType(value, { persist: false });
+        scheduleWorldPreview();
+      },
+      onCommit: value => {
+        selectMapType(value, { persist: true });
+      }
+    });
+  }
+
+  initializeDifficultyDrawer();
 
   mapView = createMapView(mapPreview, {
     legendLabels: legendLabelMap,
@@ -2140,7 +2067,6 @@ export function initSetupUI(onStart) {
       presetSelect.value = nextId;
     }
     syncMapTypeSelection(selectedMapType);
-    updateMapTypeDetails();
     updateWorldConfig({
       difficulty: nextId,
       worldParameters: resolved
@@ -2255,29 +2181,25 @@ export function initSetupUI(onStart) {
     presetSelect.value = selectedDifficulty;
   }
 
-  onThemeChange(() => {
-    biomeTiles.forEach(applyTileBackground);
-  });
-
   function syncBiomeSelection(id) {
-    const tile = biomeTiles.find(item => item.dataset.biome === id);
-    if (tile) {
-      setActive(biomeTiles, tile);
+    if (biomeWheel) {
+      biomeWheel.setValue(id, { silent: true });
+      const option = biomeOptions.find(entry => entry.id === id);
+      if (option?.description) {
+        biomeWheelRoot?.setAttribute('title', option.description);
+      } else {
+        biomeWheelRoot?.removeAttribute('title');
+      }
     }
   }
 
   function syncMapTypeSelection(id) {
-    if (!mapTypeSelect) return;
     const normalized = normalizeMapType(id);
-    if (mapTypeSelect.value !== normalized) {
-      mapTypeSelect.value = normalized;
+    selectedMapType = normalized;
+    if (mapTypeWheel) {
+      mapTypeWheel.setValue(normalized, { silent: true });
     }
-    const selectedOption = mapTypeSelect.selectedOptions?.[0];
-    if (selectedOption) {
-      const description = selectedOption.dataset.description || '';
-      const label = selectedOption.textContent || selectedOption.value;
-      mapTypeSelect.title = description ? `${label}: ${description}` : label;
-    }
+    updateMapTypeDetails();
   }
 
   function updateMapTypeDetails() {
@@ -2285,42 +2207,42 @@ export function initSetupUI(onStart) {
     const entry = mapTypes.find(type => type.id === selectedMapType);
     if (!entry) {
       mapTypeDetails.textContent = '';
-      if (mapTypeSelect) {
-        mapTypeSelect.title = '';
-      }
+      mapTypeWheelRoot?.removeAttribute('title');
       return;
     }
     mapTypeDetails.textContent = `${entry.label} – ${entry.description}`;
-    if (mapTypeSelect) {
-      const description = entry.description || '';
-      mapTypeSelect.title = description ? `${entry.label}: ${description}` : entry.label;
+    if (entry.description) {
+      mapTypeWheelRoot?.setAttribute('title', entry.description);
+    } else {
+      mapTypeWheelRoot?.removeAttribute('title');
     }
   }
 
-  function selectMapType(id) {
+  function selectMapType(id, options = {}) {
+    const { persist = true } = options;
     const nextId = normalizeMapType(id);
     if (!nextId) return;
-    if (selectedMapType === nextId && worldParameters.mapType === nextId) {
-      syncMapTypeSelection(nextId);
-      updateMapTypeDetails();
-      return;
-    }
-    selectedMapType = nextId;
+    const previousMapType = worldParameters.mapType;
     const next = cloneWorldParameters(worldParameters);
     next.mapType = nextId;
     const resolved = resolveWorldParameters(next);
+    const changed = selectedMapType !== nextId || previousMapType !== nextId;
+    selectedMapType = nextId;
     worldParameters = resolved;
-    selectedDifficulty = 'custom';
-    if (presetSelect && presetSelect.value !== 'custom') {
-      presetSelect.value = 'custom';
+    if (changed) {
+      selectedDifficulty = 'custom';
+      if (presetSelect && presetSelect.value !== 'custom') {
+        presetSelect.value = 'custom';
+      }
     }
     store.worldSettings = cloneWorldParameters(resolved);
     syncMapTypeSelection(nextId);
-    updateMapTypeDetails();
-    updateWorldConfig({
-      difficulty: 'custom',
-      worldParameters: resolved
-    });
+    if (persist) {
+      updateWorldConfig({
+        difficulty: selectedDifficulty,
+        worldParameters: resolved
+      });
+    }
   }
 
   function syncSeasonSelection(id) {
@@ -2406,7 +2328,6 @@ export function initSetupUI(onStart) {
         selectedMapType = normalizedType;
       }
       syncMapTypeSelection(selectedMapType);
-      updateMapTypeDetails();
     } else {
       store.worldSettings = null;
     }
