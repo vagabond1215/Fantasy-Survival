@@ -9,7 +9,7 @@ describe('hydrology tuning tool', () => {
       width: 24,
       height: 24,
       seed: 'spec-hydrology',
-      biomeId: 'temperate-deciduous'
+      biomeId: 'temperate-broadleaf'
     });
 
     expect(result).toBeTruthy();

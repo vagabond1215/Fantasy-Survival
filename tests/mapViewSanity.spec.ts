@@ -24,7 +24,7 @@ describe('map view sanity safeguards', () => {
       fetchMap: params => {
         fetchCalls.push({ skipSanityChecks: Boolean(params.skipSanityChecks) });
         return generateColorMap(
-          'coastal-temperate',
+          'temperate-maritime',
           'sanity-follow-up',
           params.xStart,
           params.yStart,
@@ -40,7 +40,7 @@ describe('map view sanity safeguards', () => {
     });
 
     const initialMap = generateColorMap(
-      'coastal-temperate',
+      'temperate-maritime',
       'sanity-follow-up',
       null,
       null,
@@ -82,7 +82,7 @@ describe('map view sanity safeguards', () => {
       fetchMap: params => {
         fetchCalls.push(params);
         return generateColorMap(
-          'coastal-temperate',
+          'temperate-maritime',
           'buffer-sizing',
           params.xStart,
           params.yStart,
@@ -99,7 +99,7 @@ describe('map view sanity safeguards', () => {
 
     const viewportSize = 48;
     const initialMap = generateColorMap(
-      'coastal-temperate',
+      'temperate-maritime',
       'buffer-sizing',
       null,
       null,

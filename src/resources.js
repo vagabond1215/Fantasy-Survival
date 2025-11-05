@@ -25,7 +25,7 @@ const woodYieldPerDay = {
  * @param {string} biome - current location biome
  * @returns {number} pounds of wood harvested per day
  */
-export function harvestWood(workers = 0, biome = 'temperate-deciduous') {
+export function harvestWood(workers = 0, biome = 'temperate-broadleaf') {
   let tech = 'stone-hand-axe';
   if (hasTechnology('bronze-tools')) tech = 'bronze-axe';
   if (hasTechnology('iron-tools')) tech = 'iron-axe';

@@ -21,7 +21,7 @@ afterEach(() => {
 describe('map generation profiling instrumentation', () => {
   it('is disabled by default', () => {
     delete process.env.FS_DEBUG_MAP_PROFILING;
-    const result = generateColorMap('temperate-deciduous', 42, null, null, 4, 4);
+    const result = generateColorMap('temperate-broadleaf', 42, null, null, 4, 4);
     expect(result.profiling).toBeUndefined();
   });
 
@@ -29,7 +29,7 @@ describe('map generation profiling instrumentation', () => {
     process.env.FS_DEBUG_MAP_PROFILING = '1';
     const infoSpy = vi.spyOn(console, 'info').mockImplementation(() => {});
 
-    const result = generateColorMap('temperate-deciduous', 101, null, null, 4, 4);
+    const result = generateColorMap('temperate-broadleaf', 101, null, null, 4, 4);
     expect(result.profiling).toBeDefined();
     const { profiling } = result;
     expect(profiling?.steps?.createElevationSampler).toBeGreaterThanOrEqual(0);

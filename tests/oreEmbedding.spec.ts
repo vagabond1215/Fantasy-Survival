@@ -15,7 +15,7 @@ const STONE_NEIGHBORS = [
 describe('ore embedding', () => {
   function generateOreRichMap() {
     return generateColorMap(
-      'coastal-temperate',
+      'temperate-maritime',
       'ore-embedded-test',
       null,
       null,

@@ -71,7 +71,7 @@ describe('generateColorMap fallback handling', () => {
     const { generateColorMap } = await import('../src/map.js');
 
     try {
-      const result = generateColorMap('temperate-deciduous', 123, null, null, 8, 8);
+      const result = generateColorMap('temperate-broadleaf', 123, null, null, 8, 8);
       expect(result.diagnostics?.fallback).toBe(true);
       expect(result.diagnostics?.error?.message).toBe('elevation sample failure');
       expect(result.solver.messages[0]).toMatch(/fallback/i);
@@ -98,7 +98,7 @@ describe('generateColorMap fallback handling', () => {
     const { generateColorMap } = await import('../src/map.js');
 
     try {
-      const result = generateColorMap('temperate-deciduous', 456, 0, 0, 6, 6);
+      const result = generateColorMap('temperate-broadleaf', 456, 0, 0, 6, 6);
       expect(result.diagnostics?.error?.message).toBe('hydrology breakdown');
       expect(result.diagnostics?.fallback).toBe(true);
       expect(notifySanityCheck).toHaveBeenCalledTimes(1);
@@ -119,7 +119,7 @@ describe('generateColorMap fallback handling', () => {
     const { generateColorMap } = await import('../src/map.js');
 
     try {
-      const result = generateColorMap('temperate-deciduous', 789, 0, 0, 6, 6);
+      const result = generateColorMap('temperate-broadleaf', 789, 0, 0, 6, 6);
       expect(result.diagnostics?.error?.message).toBe('vegetation failure');
       expect(result.diagnostics?.fallback).toBe(true);
       expect(notifySanityCheck).toHaveBeenCalledTimes(1);
