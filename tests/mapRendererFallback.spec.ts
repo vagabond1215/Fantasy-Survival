@@ -67,7 +67,7 @@ describe('MapRenderer fallback rendering', () => {
     vi.restoreAllMocks();
   });
 
-  it('draws a fallback message and logs an error when no map is available', () => {
+  it('draws a fallback message without logging an error while a map is loading', () => {
     const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const camera = {
       viewportWidth,
@@ -90,12 +90,10 @@ describe('MapRenderer fallback rendering', () => {
     expect(x).toBeCloseTo(viewportWidth / 2);
     expect(y).toBeCloseTo(viewportHeight / 2);
     expect(ctx.fillRect).toHaveBeenCalledWith(0, 0, viewportWidth, viewportHeight);
-    expect(warnSpy).toHaveBeenCalledTimes(1);
-    const [firstArg] = warnSpy.mock.calls[0];
-    expect(String(firstArg)).toContain('Unable to render map');
+    expect(warnSpy).not.toHaveBeenCalled();
   });
 
-  it('retries logging if the renderer recovers and fails again', () => {
+  it('logs when provided map data is missing tiles and resets after recovery', () => {
     const warnSpy = vi.spyOn(console, 'error').mockImplementation(() => {});
     const camera = {
       viewportWidth,
@@ -111,14 +109,19 @@ describe('MapRenderer fallback rendering', () => {
       tileBaseSize: 16
     });
 
-    vi.spyOn(renderer, 'ensureChunkCanvas').mockReturnValue(null);
-    vi.spyOn(renderer, 'drawChunkDirect').mockImplementation(() => {});
-    vi
-      .spyOn(renderer, 'drawVisibleDevelopments')
-      .mockImplementation(() => {});
+    renderer.setMap({
+      tiles: [],
+      width: 1,
+      height: 1,
+      xStart: 0,
+      yStart: 0
+    });
 
     renderer.render();
-    expect(warnSpy).toHaveBeenCalledTimes(1);
+    let mapLogs = warnSpy.mock.calls.filter(([message]) =>
+      String(message).includes('[MapRenderer]')
+    );
+    expect(mapLogs).toHaveLength(1);
 
     renderer.setMap({
       tiles: [[1]],
@@ -128,13 +131,25 @@ describe('MapRenderer fallback rendering', () => {
       yStart: 0
     });
 
-    // Rendering with a valid map should clear the logged flag
+    renderer.render();
+    mapLogs = warnSpy.mock.calls.filter(([message]) =>
+      String(message).includes('[MapRenderer]')
+    );
+    expect(mapLogs).toHaveLength(1);
+
+    renderer.setMap({
+      tiles: [],
+      width: 1,
+      height: 1,
+      xStart: 0,
+      yStart: 0
+    });
+
     renderer.render();
 
-    // Break the map again and ensure it logs once more
-    renderer.setMap(null);
-    renderer.render();
-
-    expect(warnSpy).toHaveBeenCalledTimes(2);
+    mapLogs = warnSpy.mock.calls.filter(([message]) =>
+      String(message).includes('[MapRenderer]')
+    );
+    expect(mapLogs).toHaveLength(2);
   });
 });
