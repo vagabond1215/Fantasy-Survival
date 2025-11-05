@@ -105,6 +105,7 @@ export class MapRenderer {
     );
     this.cacheSignature = 1;
     this._missingMapLogged = false;
+    this._shouldLogMissingMap = false;
   }
   setTileBaseSize(size) {
     if (!Number.isFinite(size) || size <= 0) return;
@@ -134,6 +135,7 @@ export class MapRenderer {
     this.scale = scale;
   }
   setMap(map) {
+    this._shouldLogMissingMap = Boolean(map);
     const previousSeed = this.map?.seed ?? null;
     const previousSeason = this.map?.season ?? null;
     const previousWater = this.map?.waterLevel ?? null;
@@ -178,7 +180,8 @@ export class MapRenderer {
     ctx.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
     const hasTiles = Array.isArray(this.map?.tiles) && this.map.tiles.length > 0;
     if (!this.map || !hasTiles) {
-      if (!this._missingMapLogged) {
+      const shouldLog = this._shouldLogMissingMap || Boolean(this.map);
+      if (shouldLog && !this._missingMapLogged) {
         const reason = !this.map
           ? "Map data is not available."
           : "The current map is missing tile data.";
