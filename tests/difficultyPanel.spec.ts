@@ -6,7 +6,7 @@ import { resetWorldConfig } from '../src/state.js';
 vi.mock('../src/biomes.js', () => ({
   biomes: [
     {
-      id: 'temperate-deciduous',
+      id: 'temperate-broadleaf',
       name: 'Temperate Woods',
       description: 'Balanced terrain',
       summary: 'Balanced terrain',

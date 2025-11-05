@@ -16,7 +16,7 @@ const WATER_TYPES = new Set(['water', 'lake', 'river', 'ocean', 'marsh']);
 
 function createHydrologyTestMap() {
   return generateColorMap(
-    'coastal-temperate',
+    'temperate-maritime',
     'hydrology-spec',
     null,
     null,

@@ -874,7 +874,7 @@ export function initSetupUI(onStart) {
     immediate: true
   });
 
-  const defaultBiome = biomes.find(b => b.id === 'temperate-deciduous') || biomes[0];
+  const defaultBiome = biomes.find(b => b.id === 'temperate-broadleaf') || biomes[0];
   const defaultSeason = seasons[0];
   const defaultDifficulty = difficulties.find(d => d.id === 'normal') || difficulties[0];
 

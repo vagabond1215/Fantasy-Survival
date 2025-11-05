@@ -18,6 +18,20 @@ export const OPEN_TERRAIN_TYPES = Object.freeze([
 
 const OPEN_TERRAIN_SET = new Set(OPEN_TERRAIN_TYPES);
 
+const CATEGORY_TERRAIN_FALLBACK = Object.freeze({
+  mountain: 'alpine',
+  'subpolar-forest': 'taiga',
+  'coastal-temperate': 'coast',
+  'coastal-tropical': 'coast',
+  wetland: 'wetland',
+  mediterranean: 'grassland',
+  'mountain-forest': 'alpine',
+  'tropical-grassland': 'savanna',
+  'temperate-forest': 'plains',
+  'tropical-forest': 'rainforest',
+  special: 'temperate'
+});
+
 export function isOpenTerrain(type) {
   if (!type) return false;
   return OPEN_TERRAIN_SET.has(String(type).toLowerCase());
@@ -28,6 +42,21 @@ export function resolveBiomeOpenTerrain(biome) {
   const candidate = typeof biome.openTerrainId === 'string' ? biome.openTerrainId.toLowerCase() : '';
   if (candidate && isOpenTerrain(candidate)) {
     return candidate;
+  }
+  if (Array.isArray(biome.openTerrainHints)) {
+    for (const hint of biome.openTerrainHints) {
+      const normalized = typeof hint === 'string' ? hint.toLowerCase() : '';
+      if (normalized && isOpenTerrain(normalized)) {
+        return normalized;
+      }
+    }
+  }
+  if (typeof biome.category === 'string') {
+    const category = biome.category.toLowerCase();
+    const mapped = CATEGORY_TERRAIN_FALLBACK[category];
+    if (mapped && isOpenTerrain(mapped)) {
+      return mapped;
+    }
   }
   return 'open';
 }

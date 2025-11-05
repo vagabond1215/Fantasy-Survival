@@ -66,7 +66,13 @@ function startGame(settings = {}) {
   if (settings.biome) {
     generateLocation('loc1', settings.biome, store.time.season, settings.seed, worldParameters);
   } else if (store.locations.size === 0) {
-    generateLocation('loc1', 'temperate-deciduous', store.time.season, settings.seed, worldParameters);
+    generateLocation(
+      'loc1',
+      'temperate-broadleaf',
+      store.time.season,
+      settings.seed,
+      worldParameters
+    );
   }
 
   const spawn = settings.spawn || {};
@@ -89,7 +95,7 @@ function startGame(settings = {}) {
   store.eventLog = [];
 
   const loc = [...store.locations.values()][0];
-  const wood = harvestWood(1, loc?.biome || 'temperate-deciduous');
+  const wood = harvestWood(1, loc?.biome || 'temperate-broadleaf');
   addItem('wood', wood);
 
   saveGame();

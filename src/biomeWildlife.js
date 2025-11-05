@@ -1,5 +1,7 @@
+import { getBiome } from './biomes.js';
+
 export const biomeWildlifeData = {
-  'alpine': {
+  'mountain-alpine': {
     animals: [
       {
         name: 'Snow Hare',
@@ -103,7 +105,7 @@ export const biomeWildlifeData = {
       }
     ]
   },
-  'boreal-taiga': {
+  'boreal-conifer': {
     animals: [
       {
         name: 'Snowshoe Hare',
@@ -207,7 +209,7 @@ export const biomeWildlifeData = {
       }
     ]
   },
-  'coastal-temperate': {
+  'temperate-maritime': {
     animals: [
       {
         name: 'Harbor Seal',
@@ -264,6 +266,62 @@ export const biomeWildlifeData = {
         diet: 'Carnivore',
         tools: ['Barbed Spears', 'Weighted Traps'],
         notes: 'Hides in tidal caves; require weighted traps or barbed spears to pry from lairs.'
+      },
+      {
+        name: 'Puffin',
+        difficulty: 'Moderate',
+        aggressive: false,
+        diet: 'Piscivore',
+        tools: ['Landing Nets', 'Cliff Ropes'],
+        notes: 'Nest on cliffs; requires rope access and nets.'
+      },
+      {
+        name: 'Red Fox',
+        difficulty: 'Moderate',
+        aggressive: true,
+        diet: 'Omnivore',
+        tools: ['Foot Snares', 'Short Spear'],
+        notes: 'Skittish yet will bite; best taken with baited snares.'
+      },
+      {
+        name: 'Sea Bass',
+        difficulty: 'Easy',
+        aggressive: false,
+        diet: 'Piscivore',
+        tools: ['Hook and Line', 'Fish Traps'],
+        notes: 'Common around rocky shoals; simple traps work.'
+      },
+      {
+        name: 'Fallow Deer',
+        difficulty: 'Moderate',
+        aggressive: false,
+        diet: 'Herbivore',
+        tools: ['Shortbow', 'Spears'],
+        notes: 'Graze in forest glades; stalking at dawn yields success.'
+      },
+      {
+        name: 'Cormorant',
+        difficulty: 'Easy',
+        aggressive: false,
+        diet: 'Piscivore',
+        tools: ['Throwing Net'],
+        notes: 'Fishes near surf; nets or bolas effective.'
+      },
+      {
+        name: 'Grey Seal',
+        difficulty: 'Moderate',
+        aggressive: true,
+        diet: 'Piscivore',
+        tools: ['Harpoons', 'Club'],
+        notes: 'Hauls out on quiet beaches; adults defend pups fiercely so coordinated approach required.'
+      },
+      {
+        name: 'Storm Petrel',
+        difficulty: 'Easy',
+        aggressive: false,
+        diet: 'Piscivore',
+        tools: ['Fine Nets', 'Sling'],
+        notes: 'Small seabirds returning to burrows at dusk; fine mesh nets gather them without damage.'
       }
     ],
     plants: [
@@ -308,10 +366,52 @@ export const biomeWildlifeData = {
         edibleParts: 'Inner cambium can be dried and powdered as survival flour.',
         poisonousParts: 'Spines cause infection if not handled carefully; berries toxic.',
         usefulParts: 'Roots and bark brewed into medicinal wash; stems for protective hedges.'
+      },
+      {
+        name: 'Sea Beet',
+        edibleParts: 'Leaves and roots edible cooked.',
+        poisonousParts: 'None.',
+        usefulParts: 'Leaves as greens; roots for dye extraction.'
+      },
+      {
+        name: 'Heather',
+        edibleParts: 'Flowers for tea.',
+        poisonousParts: 'None.',
+        usefulParts: 'Stems for thatching; flowers for dye and medicine.'
+      },
+      {
+        name: 'Rowan',
+        edibleParts: 'Berries edible when cooked into jams.',
+        poisonousParts: 'Raw berries cause stomach upset.',
+        usefulParts: 'Wood for tool handles; leaves ward insects.'
+      },
+      {
+        name: 'Sea Buckthorn',
+        edibleParts: 'Bright berries packed with vitamins.',
+        poisonousParts: 'Thorns scratch but plant non-toxic.',
+        usefulParts: 'Oil from berries for salves; branches for hedging.'
+      },
+      {
+        name: 'Bog Myrtle',
+        edibleParts: 'Leaves brewed into fragrant tea.',
+        poisonousParts: 'Large doses mildly narcotic.',
+        usefulParts: 'Leaves repel insects; used in tanning hides.'
+      },
+      {
+        name: 'Sea Kale',
+        edibleParts: 'Blanched shoots and leaves eaten like cabbage.',
+        poisonousParts: 'None, though raw leaves can be bitter.',
+        usefulParts: 'Roots stabilize dunes near camps; leaves preserved as salted greens.'
+      },
+      {
+        name: 'Wild Angelica',
+        edibleParts: 'Stems and seeds flavor broths and breads.',
+        poisonousParts: 'Sap may cause photosensitivity; handle with gloves in sunlight.',
+        usefulParts: 'Hollow stems for blowpipes and whistles; aromatic seeds for medicinal tonics.'
       }
     ]
   },
-  'coastal-tropical': {
+  'tropical-maritime': {
     animals: [
       {
         name: 'Green Sea Turtle',
@@ -368,6 +468,62 @@ export const biomeWildlifeData = {
         diet: 'Omnivore',
         tools: ['Hand Nets', 'Baited Traps'],
         notes: 'Powerful claws can injure; baited ground traps or nets at night are effective.'
+      },
+      {
+        name: 'Flying Fox',
+        difficulty: 'Moderate',
+        aggressive: false,
+        diet: 'Herbivore',
+        tools: ['Net Traps'],
+        notes: 'Roosts in fruit groves; nets set at dusk catch returning bats.'
+      },
+      {
+        name: 'Mahi-Mahi',
+        difficulty: 'Challenging',
+        aggressive: true,
+        diet: 'Piscivore',
+        tools: ['Harpoons', 'Heavy Line'],
+        notes: 'Strong open-water fish requiring stout tackle from boats.'
+      },
+      {
+        name: 'Land Crab',
+        difficulty: 'Easy',
+        aggressive: false,
+        diet: 'Omnivore',
+        tools: ['Hand Nets', 'Baskets'],
+        notes: 'Nocturnal forager; easily collected with baskets.'
+      },
+      {
+        name: 'Monitor Lizard',
+        difficulty: 'Challenging',
+        aggressive: true,
+        diet: 'Carnivore',
+        tools: ['Spears', 'Snares'],
+        notes: 'Powerful tail and bite; heavy spears advised.'
+      },
+      {
+        name: 'Triggerfish',
+        difficulty: 'Easy',
+        aggressive: true,
+        diet: 'Omnivore',
+        tools: ['Spearfishing Gear'],
+        notes: 'Territorial around reef; spear quickly before they bite tools.'
+      },
+      {
+        name: 'Hammerhead Shark',
+        difficulty: 'Very Hard',
+        aggressive: true,
+        diet: 'Carnivore',
+        tools: ['Reinforced Harpoons', 'Heavy Line'],
+        notes: 'Powerful open-water predator; only tackle with boats, multiple lines, and barbed harpoons.'
+      },
+      {
+        name: 'Sooty Tern',
+        difficulty: 'Easy',
+        aggressive: true,
+        diet: 'Piscivore',
+        tools: ['Fine Nets', 'Climbing Hooks'],
+        notes: 'Breeds in vast colonies and dive-bombs intruders; collect quickly with nets at nesting ledges.'
       }
     ],
     plants: [
@@ -412,10 +568,46 @@ export const biomeWildlifeData = {
         edibleParts: 'Leaves boiled as emergency greens.',
         poisonousParts: 'Raw leaves mildly laxative.',
         usefulParts: 'Vines stabilize sand for camp foundations; flowers attract pollinators for gardens.'
+      },
+      {
+        name: 'Breadnut',
+        edibleParts: 'Seeds roasted or ground into flour.',
+        poisonousParts: 'Raw seeds mildly toxic.',
+        usefulParts: 'Wood for carvings; leaves as fodder.'
+      },
+      {
+        name: 'Taro',
+        edibleParts: 'Corms and leaves edible when thoroughly cooked.',
+        poisonousParts: 'Raw plant contains calcium oxalate crystals.',
+        usefulParts: 'Leaves as wraps; fibers for cordage.'
+      },
+      {
+        name: 'Turmeric',
+        edibleParts: 'Rhizomes ground into spice.',
+        poisonousParts: 'None.',
+        usefulParts: 'Rhizome for dye and medicine; leaves for wrapping food.'
+      },
+      {
+        name: 'Island Morel',
+        edibleParts: 'Caps edible when cooked.',
+        poisonousParts: 'Raw morels cause digestive upset.',
+        usefulParts: 'Dried mushrooms store well for trade.'
+      },
+      {
+        name: 'Jackfruit',
+        edibleParts: 'Sweet bulbs and seeds eaten cooked or dried.',
+        poisonousParts: 'Latex sap sticky but non-toxic.',
+        usefulParts: 'Wood resistant to rot; fibrous rags from inner bark.'
+      },
+      {
+        name: 'Beach Almond',
+        edibleParts: 'Seeds roasted; young leaves eaten as tart greens.',
+        poisonousParts: 'Fallen fruit ferments quickly; discard if sour.',
+        usefulParts: 'Leaves yield brown dye; timber dense and salt-resistant for tools.'
       }
     ]
   },
-  'flooded-grasslands': {
+  'wetland-floodplain': {
     animals: [
       {
         name: 'Capybara',
@@ -519,215 +711,7 @@ export const biomeWildlifeData = {
       }
     ]
   },
-  'island-temperate': {
-    animals: [
-      {
-        name: 'Puffin',
-        difficulty: 'Moderate',
-        aggressive: false,
-        diet: 'Piscivore',
-        tools: ['Landing Nets', 'Cliff Ropes'],
-        notes: 'Nest on cliffs; requires rope access and nets.'
-      },
-      {
-        name: 'Red Fox',
-        difficulty: 'Moderate',
-        aggressive: true,
-        diet: 'Omnivore',
-        tools: ['Foot Snares', 'Short Spear'],
-        notes: 'Skittish yet will bite; best taken with baited snares.'
-      },
-      {
-        name: 'Sea Bass',
-        difficulty: 'Easy',
-        aggressive: false,
-        diet: 'Piscivore',
-        tools: ['Hook and Line', 'Fish Traps'],
-        notes: 'Common around rocky shoals; simple traps work.'
-      },
-      {
-        name: 'Fallow Deer',
-        difficulty: 'Moderate',
-        aggressive: false,
-        diet: 'Herbivore',
-        tools: ['Shortbow', 'Spears'],
-        notes: 'Graze in forest glades; stalking at dawn yields success.'
-      },
-      {
-        name: 'Cormorant',
-        difficulty: 'Easy',
-        aggressive: false,
-        diet: 'Piscivore',
-        tools: ['Throwing Net'],
-        notes: 'Fishes near surf; nets or bolas effective.'
-      },
-      {
-        name: 'Grey Seal',
-        difficulty: 'Moderate',
-        aggressive: true,
-        diet: 'Piscivore',
-        tools: ['Harpoons', 'Club'],
-        notes: 'Hauls out on quiet beaches; adults defend pups fiercely so coordinated approach required.'
-      },
-      {
-        name: 'Storm Petrel',
-        difficulty: 'Easy',
-        aggressive: false,
-        diet: 'Piscivore',
-        tools: ['Fine Nets', 'Sling'],
-        notes: 'Small seabirds returning to burrows at dusk; fine mesh nets gather them without damage.'
-      }
-    ],
-    plants: [
-      {
-        name: 'Sea Beet',
-        edibleParts: 'Leaves and roots edible cooked.',
-        poisonousParts: 'None.',
-        usefulParts: 'Leaves as greens; roots for dye extraction.'
-      },
-      {
-        name: 'Heather',
-        edibleParts: 'Flowers for tea.',
-        poisonousParts: 'None.',
-        usefulParts: 'Stems for thatching; flowers for dye and medicine.'
-      },
-      {
-        name: 'Rowan',
-        edibleParts: 'Berries edible when cooked into jams.',
-        poisonousParts: 'Raw berries cause stomach upset.',
-        usefulParts: 'Wood for tool handles; leaves ward insects.'
-      },
-      {
-        name: 'Sea Buckthorn',
-        edibleParts: 'Bright berries packed with vitamins.',
-        poisonousParts: 'Thorns scratch but plant non-toxic.',
-        usefulParts: 'Oil from berries for salves; branches for hedging.'
-      },
-      {
-        name: 'Bog Myrtle',
-        edibleParts: 'Leaves brewed into fragrant tea.',
-        poisonousParts: 'Large doses mildly narcotic.',
-        usefulParts: 'Leaves repel insects; used in tanning hides.'
-      },
-      {
-        name: 'Sea Kale',
-        edibleParts: 'Blanched shoots and leaves eaten like cabbage.',
-        poisonousParts: 'None, though raw leaves can be bitter.',
-        usefulParts: 'Roots stabilize dunes near camps; leaves preserved as salted greens.'
-      },
-      {
-        name: 'Wild Angelica',
-        edibleParts: 'Stems and seeds flavor broths and breads.',
-        poisonousParts: 'Sap may cause photosensitivity; handle with gloves in sunlight.',
-        usefulParts: 'Hollow stems for blowpipes and whistles; aromatic seeds for medicinal tonics.'
-      }
-    ]
-  },
-  'island-tropical': {
-    animals: [
-      {
-        name: 'Flying Fox',
-        difficulty: 'Moderate',
-        aggressive: false,
-        diet: 'Herbivore',
-        tools: ['Net Traps'],
-        notes: 'Roosts in fruit groves; nets set at dusk catch returning bats.'
-      },
-      {
-        name: 'Mahi-Mahi',
-        difficulty: 'Challenging',
-        aggressive: true,
-        diet: 'Piscivore',
-        tools: ['Harpoons', 'Heavy Line'],
-        notes: 'Strong open-water fish requiring stout tackle from boats.'
-      },
-      {
-        name: 'Land Crab',
-        difficulty: 'Easy',
-        aggressive: false,
-        diet: 'Omnivore',
-        tools: ['Hand Nets', 'Baskets'],
-        notes: 'Nocturnal forager; easily collected with baskets.'
-      },
-      {
-        name: 'Monitor Lizard',
-        difficulty: 'Challenging',
-        aggressive: true,
-        diet: 'Carnivore',
-        tools: ['Spears', 'Snares'],
-        notes: 'Powerful tail and bite; heavy spears advised.'
-      },
-      {
-        name: 'Triggerfish',
-        difficulty: 'Easy',
-        aggressive: true,
-        diet: 'Omnivore',
-        tools: ['Spearfishing Gear'],
-        notes: 'Territorial around reef; spear quickly before they bite tools.'
-      },
-      {
-        name: 'Hammerhead Shark',
-        difficulty: 'Very Hard',
-        aggressive: true,
-        diet: 'Carnivore',
-        tools: ['Reinforced Harpoons', 'Heavy Line'],
-        notes: 'Powerful open-water predator; only tackle with boats, multiple lines, and barbed harpoons.'
-      },
-      {
-        name: 'Sooty Tern',
-        difficulty: 'Easy',
-        aggressive: true,
-        diet: 'Piscivore',
-        tools: ['Fine Nets', 'Climbing Hooks'],
-        notes: 'Breeds in vast colonies and dive-bombs intruders; collect quickly with nets at nesting ledges.'
-      }
-    ],
-    plants: [
-      {
-        name: 'Breadnut',
-        edibleParts: 'Seeds roasted or ground into flour.',
-        poisonousParts: 'Raw seeds mildly toxic.',
-        usefulParts: 'Wood for carvings; leaves as fodder.'
-      },
-      {
-        name: 'Taro',
-        edibleParts: 'Corms and leaves edible when thoroughly cooked.',
-        poisonousParts: 'Raw plant contains calcium oxalate crystals.',
-        usefulParts: 'Leaves as wraps; fibers for cordage.'
-      },
-      {
-        name: 'Pandanus',
-        edibleParts: 'Fruit segments chewed or boiled.',
-        poisonousParts: 'Sharp leaves irritate skin.',
-        usefulParts: 'Leaves woven into mats; prop roots for scaffolding.'
-      },
-      {
-        name: 'Turmeric',
-        edibleParts: 'Rhizomes ground into spice.',
-        poisonousParts: 'None.',
-        usefulParts: 'Rhizome for dye and medicine; leaves for wrapping food.'
-      },
-      {
-        name: 'Island Morel',
-        edibleParts: 'Caps edible when cooked.',
-        poisonousParts: 'Raw morels cause digestive upset.',
-        usefulParts: 'Dried mushrooms store well for trade.'
-      },
-      {
-        name: 'Jackfruit',
-        edibleParts: 'Sweet bulbs and seeds eaten cooked or dried.',
-        poisonousParts: 'Latex sap sticky but non-toxic.',
-        usefulParts: 'Wood resistant to rot; fibrous rags from inner bark.'
-      },
-      {
-        name: 'Beach Almond',
-        edibleParts: 'Seeds roasted; young leaves eaten as tart greens.',
-        poisonousParts: 'Fallen fruit ferments quickly; discard if sour.',
-        usefulParts: 'Leaves yield brown dye; timber dense and salt-resistant for tools.'
-      }
-    ]
-  },
-  'mangrove': {
+  'coastal-mangrove': {
     animals: [
       {
         name: 'Mud Crab',
@@ -831,7 +815,7 @@ export const biomeWildlifeData = {
       }
     ]
   },
-  'mediterranean-woodland': {
+  'mediterranean-scrub': {
     animals: [
       {
         name: 'Wild Goat',
@@ -935,7 +919,7 @@ export const biomeWildlifeData = {
       }
     ]
   },
-  'montane-cloud': {
+  'mountain-cloudforest': {
     animals: [
       {
         name: 'Spectacled Bear',
@@ -1039,7 +1023,7 @@ export const biomeWildlifeData = {
       }
     ]
   },
-  'savanna': {
+  'tropical-savanna': {
     animals: [
       {
         name: 'Thomson Gazelle',
@@ -1143,7 +1127,7 @@ export const biomeWildlifeData = {
       }
     ]
   },
-  'temperate-deciduous': {
+  'temperate-broadleaf': {
     animals: [
       {
         name: 'White-tailed Deer',
@@ -1247,7 +1231,7 @@ export const biomeWildlifeData = {
       }
     ]
   },
-  'temperate-rainforest': {
+  'temperate-coastal-rainforest': {
     animals: [
       {
         name: 'Roosevelt Elk',
@@ -1351,7 +1335,7 @@ export const biomeWildlifeData = {
       }
     ]
   },
-  'tropical-monsoon': {
+  'tropical-monsoon-forest': {
     animals: [
       {
         name: 'Water Buffalo',
@@ -1455,7 +1439,7 @@ export const biomeWildlifeData = {
       }
     ]
   },
-  'tropical-rainforest': {
+  'equatorial-rainforest': {
     animals: [
       {
         name: 'Tapir',
@@ -1561,7 +1545,24 @@ export const biomeWildlifeData = {
   }
 };
 
+const wildlifeMap = new Map(Object.entries(biomeWildlifeData));
+
+Object.entries(biomeWildlifeData).forEach(([biomeId, entry]) => {
+  const biome = getBiome(biomeId);
+  if (!biome?.legacyIds) return;
+  biome.legacyIds.forEach(alias => {
+    if (!wildlifeMap.has(alias)) {
+      wildlifeMap.set(alias, entry);
+    }
+  });
+});
+
 export function getBiomeWildlife(id) {
-  return biomeWildlifeData[id] || { animals: [], plants: [] };
+  if (!id) {
+    return { animals: [], plants: [] };
+  }
+  const biome = getBiome(id);
+  const match = wildlifeMap.get(biome?.id ?? id);
+  return match || { animals: [], plants: [] };
 }
 

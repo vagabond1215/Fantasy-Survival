@@ -62,7 +62,7 @@ describe('loadGame', () => {
       locations: {
         loc1: {
           id: 'loc1',
-          biome: 'temperate-deciduous',
+          biome: 'temperate-broadleaf',
           map: { ...mapMock },
           siteCapacities: { forest: 10, cleared: 5 }
         }
