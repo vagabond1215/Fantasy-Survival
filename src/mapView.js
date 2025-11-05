@@ -1448,6 +1448,8 @@ export function createMapView(container, {
   layoutRoot.style.gap = '16px';
   layoutRoot.style.width = '100%';
   layoutRoot.style.maxWidth = '100%';
+  layoutRoot.style.height = '100%';
+  layoutRoot.style.minHeight = '100%';
 
   const mapContainer = document.createElement('div');
   mapContainer.className = `${idPrefix}-map-container map-container`;
@@ -1457,6 +1459,8 @@ export function createMapView(container, {
   mapContainer.style.gap = '12px';
   mapContainer.style.width = '100%';
   mapContainer.style.maxWidth = '100%';
+  mapContainer.style.flex = '1 1 auto';
+  mapContainer.style.minHeight = '100%';
 
   const mapPrimaryStack = document.createElement('div');
   mapPrimaryStack.className = `${idPrefix}-primary map-primary-stack`;
@@ -1468,6 +1472,7 @@ export function createMapView(container, {
   mapPrimaryStack.style.maxWidth = '100%';
   mapPrimaryStack.style.flex = '1 1 auto';
   mapPrimaryStack.style.minWidth = '0';
+  mapPrimaryStack.style.minHeight = '100%';
 
   const mapStage = document.createElement('div');
   mapStage.className = `${idPrefix}-stage map-stage`;
@@ -1477,6 +1482,8 @@ export function createMapView(container, {
   mapStage.style.alignItems = 'center';
   mapStage.style.width = '100%';
   mapStage.style.maxWidth = '100%';
+  mapStage.style.flex = '1 1 auto';
+  mapStage.style.minHeight = '100%';
 
   mapStage.appendChild(mapWrapper);
   mapPrimaryStack.appendChild(mapStage);
@@ -3221,6 +3228,12 @@ export function createMapView(container, {
       height = Number.isFinite(containerRect?.height) && containerRect.height > 0
         ? containerRect.height
         : container?.clientHeight || 0;
+    }
+    if (!(height > 0)) {
+      const fallbackSquare = Number.isFinite(width) && width > 0 ? width : 0;
+      if (fallbackSquare > 0) {
+        height = fallbackSquare;
+      }
     }
     if (!(height > 0)) {
       height = readNumericStyle(container, 'min-height') || readNumericStyle(mapWrapper, 'min-height');
