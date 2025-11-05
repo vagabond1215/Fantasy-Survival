@@ -1,0 +1,158 @@
+.wheel-select {
+  --wheel-height: clamp(220px, 32vh, 320px);
+  --wheel-surface: color-mix(in srgb, var(--card-bg, rgba(12, 23, 44, 0.78)) 82%, transparent);
+  --wheel-border: color-mix(in srgb, var(--border-soft, rgba(255, 255, 255, 0.18)) 75%, transparent);
+  --wheel-shadow: 0 18px 46px color-mix(in srgb, rgba(12, 23, 44, 0.65) 32%, transparent);
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 26px;
+  border: 1px solid var(--wheel-border);
+  background:
+    radial-gradient(120% 140% at 50% -20%, color-mix(in srgb, var(--wheel-surface) 65%, transparent), transparent 70%),
+    linear-gradient(160deg, color-mix(in srgb, var(--wheel-surface) 92%, transparent), color-mix(in srgb, var(--wheel-surface) 55%, transparent));
+  padding: clamp(14px, 3.6vw, 22px) clamp(10px, 2.2vw, 16px);
+  box-shadow: var(--wheel-shadow);
+  color: var(--text-strong);
+  cursor: grab;
+  touch-action: none;
+  user-select: none;
+  min-height: var(--wheel-height);
+  outline: none;
+  transition: box-shadow 0.18s ease, border-color 0.18s ease;
+}
+
+.wheel-select:focus-visible {
+  outline: 2px solid var(--accent, #60a5fa);
+  outline-offset: 4px;
+  box-shadow:
+    0 0 0 3px color-mix(in srgb, var(--accent, #60a5fa) 45%, transparent),
+    0 22px 52px color-mix(in srgb, rgba(12, 23, 44, 0.65) 38%, transparent);
+}
+
+.wheel-select--dragging {
+  cursor: grabbing;
+}
+
+.wheel-select__viewport {
+  position: relative;
+  width: 100%;
+  height: var(--wheel-height);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  overflow: hidden;
+  perspective: 1050px;
+}
+
+.wheel-select__track {
+  position: relative;
+  width: 100%;
+  height: 100%;
+}
+
+.wheel-select__item {
+  position: absolute;
+  inset-inline: 0;
+  inset-block-start: 50%;
+  transform: translate3d(0, -50%, 0);
+  margin-inline: auto;
+  width: min(100%, 360px);
+  max-width: 360px;
+  padding: 16px clamp(14px, 4vw, 20px);
+  border-radius: 20px;
+  background:
+    linear-gradient(
+      140deg,
+      color-mix(in srgb, var(--wheel-option-light, rgba(255, 255, 255, 0.08)) 86%, transparent),
+      color-mix(in srgb, var(--wheel-option-dark, rgba(0, 0, 0, 0.35)) 68%, transparent)
+    );
+  border: 1px solid color-mix(in srgb, var(--wheel-option-base, rgba(255, 255, 255, 0.15)) 60%, transparent);
+  box-shadow:
+    0 18px 44px color-mix(in srgb, var(--wheel-option-dark, rgba(12, 23, 44, 0.64)) 42%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--wheel-option-base, rgba(255, 255, 255, 0.14)) 32%, transparent);
+  color: var(--wheel-option-contrast, var(--text-strong));
+  text-align: center;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  pointer-events: auto;
+  transition: opacity 0.16s ease, filter 0.16s ease, box-shadow 0.16s ease, border-color 0.16s ease;
+  will-change: transform, opacity;
+}
+
+.wheel-select__item::after {
+  content: '';
+  position: absolute;
+  inset: 1px;
+  border-radius: inherit;
+  background: linear-gradient(180deg, rgba(255, 255, 255, 0.32), transparent 70%);
+  opacity: 0;
+  transition: opacity 0.18s ease;
+  pointer-events: none;
+}
+
+.wheel-select__item:focus {
+  outline: none;
+}
+
+.wheel-select__item[aria-selected='true'] {
+  filter: saturate(1.08);
+  border-color: color-mix(in srgb, var(--wheel-option-light, rgba(255, 255, 255, 0.4)) 38%, transparent);
+  box-shadow:
+    0 22px 52px color-mix(in srgb, var(--wheel-option-dark, rgba(12, 23, 44, 0.64)) 48%, transparent),
+    0 0 0 1px color-mix(in srgb, var(--wheel-option-base, rgba(255, 255, 255, 0.18)) 40%, transparent);
+}
+
+.wheel-select__item[aria-selected='true']::after {
+  opacity: 1;
+}
+
+.wheel-select__item-label {
+  font-weight: 600;
+  font-size: clamp(0.95rem, 1.6vw, 1.05rem);
+  letter-spacing: 0.01em;
+}
+
+.wheel-select__item-desc {
+  font-size: clamp(0.78rem, 1.4vw, 0.88rem);
+  line-height: 1.35;
+  opacity: 0.86;
+}
+
+.wheel-select::before,
+.wheel-select::after {
+  content: '';
+  position: absolute;
+  inset-inline: clamp(6px, 2vw, 12px);
+  height: clamp(38px, 9vh, 52px);
+  border-radius: clamp(16px, 3vw, 22px);
+  pointer-events: none;
+  z-index: 1;
+  background: linear-gradient(180deg, color-mix(in srgb, var(--wheel-surface) 90%, transparent), transparent);
+}
+
+.wheel-select::before {
+  inset-block-start: clamp(6px, 1.6vw, 12px);
+}
+
+.wheel-select::after {
+  inset-block-end: clamp(6px, 1.6vw, 12px);
+  transform: rotate(180deg);
+}
+
+.wheel-select--animating .wheel-select__item {
+  transition:
+    transform 0.22s cubic-bezier(0.22, 0.61, 0.36, 1),
+    opacity 0.18s ease,
+    filter 0.18s ease,
+    box-shadow 0.18s ease,
+    border-color 0.18s ease;
+}
+
+@media (max-width: 720px) {
+  .wheel-select {
+    --wheel-height: clamp(210px, 38vh, 300px);
+  }
+}

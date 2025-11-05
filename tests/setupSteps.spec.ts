@@ -201,20 +201,21 @@ beforeEach(() => {
 });
 
 describe('setup layout', () => {
-  it('renders season controls above the biome grid without step navigation', () => {
+  it('renders season controls above the biome wheel without step navigation', () => {
     initSetupUI(() => {});
     expect(document.querySelectorAll('.create-step')).toHaveLength(0);
 
     const biomeCard = document.querySelector<HTMLElement>('#biome-card');
     const seasonSeg = biomeCard?.querySelector<HTMLElement>('#season-seg');
-    const mapTypeSeg = document.querySelector<HTMLSelectElement>('#maptype-seg');
-    const biomeGrid = biomeCard?.querySelector<HTMLElement>('#biome-grid');
+    const mapTypeWheel = document.querySelector<HTMLElement>('#maptype-wheel');
+    const biomeWheel = biomeCard?.querySelector<HTMLElement>('#biome-wheel');
     expect(seasonSeg).toBeTruthy();
-    expect(mapTypeSeg).toBeTruthy();
-    expect(mapTypeSeg?.tagName).toBe('SELECT');
-    expect(biomeGrid).toBeTruthy();
-    if (seasonSeg && biomeGrid) {
-      const position = seasonSeg.compareDocumentPosition(biomeGrid);
+    expect(mapTypeWheel).toBeTruthy();
+    expect(mapTypeWheel?.getAttribute('role')).toBe('listbox');
+    expect(biomeWheel).toBeTruthy();
+    expect(biomeWheel?.getAttribute('role')).toBe('listbox');
+    if (seasonSeg && biomeWheel) {
+      const position = seasonSeg.compareDocumentPosition(biomeWheel);
       expect(position & Node.DOCUMENT_POSITION_FOLLOWING).toBe(Node.DOCUMENT_POSITION_FOLLOWING);
     }
   });
@@ -277,12 +278,16 @@ describe('season selection buttons', () => {
   });
 });
 
-describe('map type selection dropdown', () => {
+describe('map type wheel', () => {
   it('lists the available landmass options', () => {
     initSetupUI(() => {});
-    const select = document.querySelector<HTMLSelectElement>('#maptype-seg');
-    expect(select).toBeTruthy();
-    const options = Array.from(select?.options ?? []);
+    const mapTypeWheel = document.querySelector<HTMLElement>('#maptype-wheel');
+    expect(mapTypeWheel).toBeTruthy();
+    expect(mapTypeWheel?.getAttribute('role')).toBe('listbox');
+    expect(mapTypeWheel?.getAttribute('aria-describedby')).toBe('maptype-details');
+    const options = Array.from(
+      mapTypeWheel?.querySelectorAll<HTMLElement>('.wheel-select__item') ?? []
+    );
     const expected = [
       { id: 'continent', label: 'Continent' },
       { id: 'island', label: 'Island' },
@@ -293,23 +298,26 @@ describe('map type selection dropdown', () => {
     ];
     expect(options).toHaveLength(expected.length);
     const mapped = options.map(option => ({
-      id: option.value,
-      label: option.textContent?.trim() ?? ''
+      id: option.dataset.value ?? '',
+      label: option.querySelector('.wheel-select__item-label')?.textContent?.trim() ?? ''
     }));
     expect(mapped).toEqual(expected);
-    expect(select?.getAttribute('aria-describedby')).toBe('maptype-details');
   });
 
   it('updates world settings and regenerates the preview when changed', () => {
     vi.useFakeTimers();
     try {
       initSetupUI(() => {});
-      const select = document.querySelector<HTMLSelectElement>('#maptype-seg');
-      expect(select).toBeTruthy();
+      const mapTypeWheel = document.querySelector<HTMLElement>('#maptype-wheel');
+      expect(mapTypeWheel).toBeTruthy();
+      const options = Array.from(
+        mapTypeWheel?.querySelectorAll<HTMLElement>('.wheel-select__item') ?? []
+      );
+      const target = options.find(option => option.dataset.value === 'island');
+      expect(target).toBeTruthy();
       const mapGenerator = vi.mocked(generateColorMap);
       mapGenerator.mockClear();
-      select!.value = 'island';
-      select!.dispatchEvent(new Event('change', { bubbles: true }));
+      target?.dispatchEvent(new Event('click', { bubbles: true }));
       vi.advanceTimersByTime(200);
       expect(store.worldSettings?.mapType).toBe('island');
       expect(mapGenerator).toHaveBeenCalled();
