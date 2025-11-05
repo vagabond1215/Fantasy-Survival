@@ -25,8 +25,22 @@ export const TERRAIN_SYMBOLS = {
   ocean: 'ocean',
   lake: 'lake',
   river: 'river',
+  stream: 'stream',
+  pond: 'pond',
   marsh: 'marsh',
+  swamp: 'swamp',
+  bog: 'bog',
+  fen: 'fen',
   mangrove: 'mangrove',
+  estuary: 'estuary',
+  delta: 'delta',
+  mangrove_forest: 'mangrove_forest',
+  kelp_forest: 'kelp_forest',
+  coral_reef: 'coral_reef',
+  polar_sea: 'polar_sea',
+  open_ocean: 'open_ocean',
+  abyssal_deep: 'abyssal_deep',
+  seamount: 'seamount',
   open: 'open',
   grassland: 'grassland',
   plains: 'plains',
@@ -125,8 +139,22 @@ export const DEFAULT_TERRAIN_COLORS = Object.freeze({
   ocean: '#2563eb',
   lake: '#38bdf8',
   river: '#0ea5e9',
+  stream: '#38bdf8',
+  pond: '#67e8f9',
   marsh: '#4ade80',
+  swamp: '#166534',
+  bog: '#0f5132',
+  fen: '#22c55e',
   mangrove: '#065f46',
+  estuary: '#2563eb',
+  delta: '#3b82f6',
+  mangrove_forest: '#047857',
+  kelp_forest: '#0f766e',
+  coral_reef: '#f97316',
+  polar_sea: '#bae6fd',
+  open_ocean: '#1d4ed8',
+  abyssal_deep: '#0f172a',
+  seamount: '#334155',
   open: '#facc15',
   grassland: '#a3e635',
   forest: '#16a34a',
@@ -156,8 +184,22 @@ const TERRAIN_COLOR_VARIABLES = Object.freeze({
   ocean: '--legend-ocean',
   lake: '--legend-lake',
   river: '--legend-river',
+  stream: '--legend-stream',
+  pond: '--legend-pond',
   marsh: '--legend-marsh',
+  swamp: '--legend-swamp',
+  bog: '--legend-bog',
+  fen: '--legend-fen',
   mangrove: '--legend-mangrove',
+  estuary: '--legend-estuary',
+  delta: '--legend-delta',
+  mangrove_forest: '--legend-mangrove-forest',
+  kelp_forest: '--legend-kelp-forest',
+  coral_reef: '--legend-coral-reef',
+  polar_sea: '--legend-polar-sea',
+  open_ocean: '--legend-open-ocean',
+  abyssal_deep: '--legend-abyssal-deep',
+  seamount: '--legend-seamount',
   open: '--legend-open',
   grassland: '--legend-grassland',
   forest: '--legend-forest',
@@ -261,7 +303,45 @@ export const TERRAIN_COLORS = new Proxy(
   }
 );
 
-const WATER_TERRAIN_TYPES = new Set(['water', 'ocean', 'lake', 'river', 'marsh', 'mangrove']);
+const WATER_TERRAIN_TYPES = new Set([
+  'water',
+  'ocean',
+  'open_ocean',
+  'polar_sea',
+  'abyssal_deep',
+  'seamount',
+  'estuary',
+  'delta',
+  'mangrove_forest',
+  'kelp_forest',
+  'coral_reef',
+  'lake',
+  'pond',
+  'river',
+  'stream',
+  'marsh',
+  'swamp',
+  'bog',
+  'fen',
+  'mangrove'
+]);
+
+const MARINE_HYDRO_TYPES = new Set([
+  'ocean',
+  'open_ocean',
+  'polar_sea',
+  'abyssal_deep',
+  'seamount',
+  'estuary',
+  'delta',
+  'mangrove_forest',
+  'kelp_forest',
+  'coral_reef'
+]);
+
+const STANDING_WATER_BODIES = new Set(['lake', 'pond', 'marsh', 'swamp', 'bog', 'fen']);
+
+const FLOWING_WATER_BODIES = new Set(['river', 'stream']);
 
 export function isWaterTerrain(type) {
   return type ? WATER_TERRAIN_TYPES.has(type) : false;
@@ -1057,11 +1137,18 @@ export function generateColorMap(
         const elevation = elevations[y][x];
         const originalHydro = baseHydroTypes[y]?.[x] ?? 'land';
         let hydroType = originalHydro ?? 'land';
-        if (hydroType === 'ocean' || hydroType === 'lake') {
+        if (MARINE_HYDRO_TYPES.has(hydroType) || hydroType === 'lake' || hydroType === 'pond') {
           if (elevation >= adjustedSeaLevel) {
             hydroType = 'land';
           }
-        } else if (hydroType === 'land' || hydroType === 'coast' || hydroType === 'marsh') {
+        } else if (
+          hydroType === 'land' ||
+          hydroType === 'coast' ||
+          hydroType === 'marsh' ||
+          hydroType === 'swamp' ||
+          hydroType === 'bog' ||
+          hydroType === 'fen'
+        ) {
           if (elevation < adjustedSeaLevel) {
             hydroType = 'ocean';
           }
@@ -1260,7 +1347,8 @@ export function generateColorMap(
           const nx = x + dx;
           const ny = y + dy;
           if (nx < 0 || ny < 0 || nx >= mapWidth || ny >= mapHeight) return false;
-          return hydrology.types[ny]?.[nx] === 'ocean';
+          const neighbor = hydrology.types[ny]?.[nx];
+          return MARINE_HYDRO_TYPES.has(neighbor);
         });
         if (touchesOcean) {
           coastline.push([x, y]);

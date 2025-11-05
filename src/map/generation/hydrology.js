@@ -58,6 +58,33 @@ const D8 = [
     [0, -1],
     [1, -1]
 ];
+const MARINE_TYPES = new Set([
+    'ocean',
+    'estuary',
+    'delta',
+    'mangrove_forest',
+    'kelp_forest',
+    'coral_reef',
+    'polar_sea',
+    'open_ocean',
+    'abyssal_deep',
+    'seamount'
+]);
+const STANDING_FRESHWATER_TYPES = new Set(['lake', 'pond']);
+const WETLAND_TYPES = new Set(['marsh', 'swamp', 'bog', 'fen']);
+const FLOWING_WATER_TYPES = new Set(['river', 'stream']);
+function isMarine(type) {
+    return MARINE_TYPES.has(type);
+}
+function isStandingWater(type) {
+    return STANDING_FRESHWATER_TYPES.has(type) || WETLAND_TYPES.has(type);
+}
+function isWetland(type) {
+    return WETLAND_TYPES.has(type);
+}
+function isFlowingWater(type) {
+    return FLOWING_WATER_TYPES.has(type);
+}
 function directionIndex(dx, dy) {
     for (let i = 0; i < D8.length; i += 1) {
         if (D8[i][0] === dx && D8[i][1] === dy) {
@@ -146,6 +173,8 @@ function classifyLakes(width, height, elevations, filled, seaLevel, rules) {
     const lakeCells = [];
     const minDepth = rules.lakeMinDepth;
     const minArea = rules.lakeMinArea;
+    const pondMaxArea = Math.max(minArea, rules.pondMaxArea ?? minArea);
+    const pondMaxDepth = Math.max(0.004, Math.min(minDepth, rules.pondMaxDepth ?? minDepth * 0.85));
     const softDepth = Math.max(minDepth * 0.6, 0.006);
     for (let idx = 0; idx < size; idx += 1) {
         if (visited[idx])
@@ -189,10 +218,13 @@ function classifyLakes(width, height, elevations, filled, seaLevel, rules) {
         if (!basin.length)
             continue;
         if (total >= minArea || maxDepth >= minDepth * 1.35) {
+            const basinType = total <= pondMaxArea && maxDepth <= pondMaxDepth ? 'pond' : 'lake';
             for (const cell of basin) {
-                types[cell] = 'lake';
+                types[cell] = basinType;
             }
-            lakeCells.push(...basin);
+            if (basinType === 'lake') {
+                lakeCells.push(...basin);
+            }
         }
     }
     const oceanVisited = new Uint8Array(size);
@@ -237,7 +269,7 @@ function classifyLakes(width, height, elevations, filled, seaLevel, rules) {
             const nIdx = ny * width + nx;
             if (oceanVisited[nIdx])
                 continue;
-            if (filled[nIdx] <= seaLevel + epsilon && types[nIdx] !== 'lake') {
+            if (filled[nIdx] <= seaLevel + epsilon && !STANDING_FRESHWATER_TYPES.has(types[nIdx])) {
                 types[nIdx] = 'ocean';
                 oceanVisited[nIdx] = 1;
                 queue.push(nIdx);
@@ -252,7 +284,7 @@ function computeFlowDirections(width, height, elevations, filled, types, seed) {
     flow.fill(-1);
     const epsilon = 1e-6;
     for (let idx = 0; idx < size; idx += 1) {
-        if (types[idx] === 'ocean')
+        if (isMarine(types[idx]))
             continue;
         const cx = idx % width;
         const cy = Math.floor(idx / width);
@@ -394,7 +426,7 @@ function applyRiverClassification(width, height, types, accumulation, flow, upst
         if (nx < 0 || ny < 0 || nx >= width || ny >= height)
             continue;
         const downstreamIdx = ny * width + nx;
-        if (types[downstreamIdx] === 'ocean' || types[downstreamIdx] === 'lake') {
+        if (isMarine(types[downstreamIdx]) || STANDING_FRESHWATER_TYPES.has(types[downstreamIdx])) {
             mouthQueue.push(idx);
         }
     }
@@ -434,6 +466,40 @@ function applyRiverClassification(width, height, types, accumulation, flow, upst
             }
         }
     }
+    const streamThreshold = Math.max(2, (rules.streamFlowThreshold ?? threshold * 0.4) * (rules.flowMultiplier ?? 1));
+    const streamTributary = Math.max(1.5, (rules.streamTributaryThreshold ?? tributaryThreshold * 0.5) * (rules.flowMultiplier ?? 1));
+    const streamStack = [];
+    for (let idx = 0; idx < size; idx += 1) {
+        if (types[idx] !== 'land')
+            continue;
+        if (accumulation[idx] >= streamThreshold) {
+            types[idx] = 'stream';
+            streamStack.push(idx);
+        }
+    }
+    while (streamStack.length) {
+        const current = streamStack.pop();
+        const dir = flow[current];
+        if (dir >= 0) {
+            const cx = current % width;
+            const cy = Math.floor(current / width);
+            const nx = cx + D8[dir][0];
+            const ny = cy + D8[dir][1];
+            if (nx >= 0 && ny >= 0 && nx < width && ny < height) {
+                const nIdx = ny * width + nx;
+                if (types[nIdx] === 'land' && accumulation[nIdx] >= streamTributary) {
+                    types[nIdx] = 'stream';
+                    streamStack.push(nIdx);
+                }
+            }
+        }
+        for (const source of upstream[current]) {
+            if (types[source] === 'land' && accumulation[source] >= streamTributary) {
+                types[source] = 'stream';
+                streamStack.push(source);
+            }
+        }
+    }
 }
 
 function selectCoastalMouth(width, height, types, elevations, filled, accumulation, seaLevel, rules) {
@@ -453,7 +519,7 @@ function selectCoastalMouth(width, height, types, elevations, filled, accumulati
             const ny = y + dy;
             if (nx < 0 || ny < 0 || nx >= width || ny >= height)
                 continue;
-            if (types[ny * width + nx] === 'ocean') {
+            if (isMarine(types[ny * width + nx])) {
                 touchesOcean = true;
                 break;
             }
@@ -553,7 +619,7 @@ function routeRiverPath(width, height, start, target, filled, types, options) {
             if (nx < 0 || ny < 0 || nx >= width || ny >= height)
                 continue;
             const nIdx = ny * width + nx;
-            if (avoidOcean && types[nIdx] === 'ocean' && nIdx !== target)
+            if (avoidOcean && isMarine(types[nIdx]) && nIdx !== target)
                 continue;
             const base = (i % 2 === 0) ? 1 : Math.SQRT2;
             const slope = Math.max(0, filled[nIdx] - filled[index]);
@@ -592,7 +658,7 @@ function markRiverPath(path, types, flow, width, height, options = {}) {
     const limit = skipLast ? path.length - 1 : path.length;
     for (let i = 0; i < limit; i += 1) {
         const idx = path[i];
-        if (types[idx] !== 'ocean' && types[idx] !== 'lake') {
+        if (!isMarine(types[idx]) && !STANDING_FRESHWATER_TYPES.has(types[idx])) {
             types[idx] = 'river';
         }
     }
@@ -632,7 +698,7 @@ function widenRiverEstuary(width, height, path, types, filled, seaLevel, widenin
                 if (Math.hypot(dx, dy) > radius + 0.25)
                     continue;
                 const nIdx = ny * width + nx;
-                if (types[nIdx] === 'ocean' || types[nIdx] === 'lake')
+                if (isMarine(types[nIdx]) || STANDING_FRESHWATER_TYPES.has(types[nIdx]))
                     continue;
                 types[nIdx] = 'river';
             }
@@ -658,7 +724,7 @@ function createDistributaries(width, height, mouthIdx, types, flow, filled, seaL
             if (dx * dx + dy * dy > radiusSq)
                 continue;
             const idx = y * width + x;
-            if (types[idx] === 'ocean') {
+            if (isMarine(types[idx])) {
                 candidates.push(idx);
             }
         }
@@ -690,7 +756,7 @@ function createDistributaries(width, height, mouthIdx, types, flow, filled, seaL
         });
         if (!path || path.length < 2)
             continue;
-        markRiverPath(path, types, flow, width, height, { skipLast: types[path[path.length - 1]] === 'ocean' });
+        markRiverPath(path, types, flow, width, height, { skipLast: isMarine(types[path[path.length - 1]]) });
         used.add(target);
         created += 1;
     }
@@ -724,7 +790,7 @@ function applyEstuaryMorphology(width, height, mouthIdx, types, radius) {
                 const neighbor = types[ny * width + nx];
                 if (neighbor !== 'land') {
                     waterNeighbors += 1;
-                    if (neighbor === 'ocean') {
+                    if (isMarine(neighbor)) {
                         oceanNeighbors += 1;
                     }
                 }
@@ -800,7 +866,7 @@ function layMarshes(width, height, types, rules) {
     const ring = Math.max(1, Math.trunc(rules.marshRingWidth));
     const newMarsh = new Uint8Array(size);
     for (let idx = 0; idx < size; idx += 1) {
-        if (types[idx] !== 'lake' && types[idx] !== 'river' && types[idx] !== 'ocean')
+        if (!STANDING_FRESHWATER_TYPES.has(types[idx]) && !isFlowingWater(types[idx]) && !isMarine(types[idx]))
             continue;
         const cx = idx % width;
         const cy = Math.floor(idx / width);
@@ -827,6 +893,86 @@ function layMarshes(width, height, types, rules) {
         if (newMarsh[idx]) {
             types[idx] = 'marsh';
         }
+    }
+}
+function refineWetlands(width, height, types, filled, elevations, accumulation, rules) {
+    const size = width * height;
+    const wetlandWeights = rules.wetlandWeights ?? { marsh: 0.4, swamp: 0.25, bog: 0.2, fen: 0.15 };
+    const marshiness = rules.marshiness ?? 0;
+    const peatPreference = clamp(rules.peatlandPreference ?? 0, 0, 1);
+    const fenPreference = clamp(rules.fenPreference ?? 0.5, 0, 1);
+    const peatFlowThreshold = Math.max(1.5, (rules.peatlandFlowThreshold ?? rules.streamFlowThreshold ?? 3) * (rules.flowMultiplier ?? 1));
+    const shallowDepth = Math.max(0.008, (rules.pondMaxDepth ?? 0.012) * 1.2);
+    for (let idx = 0; idx < size; idx += 1) {
+        if (!isWetland(types[idx]))
+            continue;
+        const cx = idx % width;
+        const cy = Math.floor(idx / width);
+        let standingNeighbors = 0;
+        let riverNeighbors = 0;
+        let streamNeighbors = 0;
+        let marineNeighbors = 0;
+        let landNeighbors = 0;
+        let flowSignal = 0;
+        for (const [dx, dy] of D8) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height)
+                continue;
+            const nIdx = ny * width + nx;
+            const neighbor = types[nIdx];
+            if (neighbor === 'land') {
+                landNeighbors += 1;
+            }
+            else if (isWetland(neighbor)) {
+                // neighboring wetlands influence peat development but are handled via type reassignment
+            }
+            else if (STANDING_FRESHWATER_TYPES.has(neighbor)) {
+                standingNeighbors += 1;
+            }
+            else if (neighbor === 'river') {
+                riverNeighbors += 1;
+                flowSignal += (accumulation[nIdx] ?? 0) * 0.8;
+            }
+            else if (neighbor === 'stream') {
+                streamNeighbors += 1;
+                flowSignal += (accumulation[nIdx] ?? 0) * 0.4;
+            }
+            else if (isMarine(neighbor)) {
+                marineNeighbors += 1;
+            }
+        }
+        const localDepth = Math.max(0, filled[idx] - elevations[idx]);
+        const localFlow = accumulation[idx] ?? 0;
+        const lowFlow = localFlow <= peatFlowThreshold * 0.85;
+        const flowFactor = flowSignal / Math.max(1, riverNeighbors + streamNeighbors || 1);
+        const baseMarsh = (wetlandWeights.marsh ?? 0.35) + marshiness * 0.25 + landNeighbors * 0.05 + flowFactor * 0.1;
+        const baseSwamp = (wetlandWeights.swamp ?? 0.25) + riverNeighbors * 0.6 + streamNeighbors * 0.4 + marineNeighbors * 0.35 + Math.max(0, localDepth - shallowDepth) * 18 + marshiness * 0.2 + flowFactor * 0.35;
+        let baseBog = (wetlandWeights.bog ?? 0.2) + (lowFlow ? 0.45 : 0.1) + peatPreference * 0.5 + (standingNeighbors === 0 ? 0.15 : 0) - flowFactor * 0.25;
+        let baseFen = (wetlandWeights.fen ?? 0.2) + standingNeighbors * 0.45 + streamNeighbors * 0.25 + fenPreference * 0.5 + (lowFlow ? 0.2 : 0) + flowFactor * 0.2;
+        if (!lowFlow) {
+            baseBog *= 0.55;
+            baseFen *= 0.8;
+        }
+        if (marineNeighbors > 0) {
+            baseBog *= 0.8;
+            baseFen *= 0.9;
+        }
+        const scores = {
+            marsh: baseMarsh,
+            swamp: baseSwamp,
+            bog: baseBog,
+            fen: baseFen
+        };
+        let bestType = 'marsh';
+        let bestScore = -Infinity;
+        for (const [key, value] of Object.entries(scores)) {
+            if (value > bestScore) {
+                bestScore = value;
+                bestType = key;
+            }
+        }
+        types[idx] = bestType;
     }
 }
 function bridgeDiagonals(width, height, types) {
@@ -860,6 +1006,100 @@ function bridgeDiagonals(width, height, types) {
         }
     }
 }
+function classifyMarineEdges(width, height, types, filled, elevations, seaLevel, rules, accumulation) {
+    const latitudeBias = rules.latitudeBias ?? 0;
+    const marineWeights = rules.marineEdgeWeights ?? {};
+    const shallowDepth = Math.max(0.02, (rules.estuaryWideningDepth ?? 0.05) * 0.8);
+    const deepThreshold = Math.max(0.08, shallowDepth * 2.2);
+    const abyssalThreshold = Math.max(0.16, deepThreshold * 1.6);
+    const tropicalFactor = Math.max(0, 0.6 - Math.abs(latitudeBias + 0.2));
+    const temperateFactor = Math.max(0, 0.6 - Math.abs(latitudeBias - 0.1));
+    const polarFactor = Math.max(0, latitudeBias);
+    for (let idx = 0; idx < width * height; idx += 1) {
+        if (types[idx] !== 'ocean')
+            continue;
+        const cx = idx % width;
+        const cy = Math.floor(idx / width);
+        const depth = Math.max(0, seaLevel - elevations[idx]);
+        let landNeighbors = 0;
+        let wetNeighbors = 0;
+        let marineNeighbors = 0;
+        let flowingNeighbors = 0;
+        let flowSignal = 0;
+        let slope = 0;
+        for (const [dx, dy] of D8) {
+            const nx = cx + dx;
+            const ny = cy + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height)
+                continue;
+            const nIdx = ny * width + nx;
+            const neighbor = types[nIdx];
+            if (neighbor === 'land') {
+                landNeighbors += 1;
+            }
+            else if (isWetland(neighbor) || STANDING_FRESHWATER_TYPES.has(neighbor)) {
+                wetNeighbors += 1;
+            }
+            else if (neighbor === 'river' || neighbor === 'stream') {
+                flowingNeighbors += 1;
+                flowSignal += (accumulation[nIdx] ?? 0);
+            }
+            else if (isMarine(neighbor)) {
+                marineNeighbors += 1;
+            }
+            const neighborDepth = Math.max(0, seaLevel - elevations[nIdx]);
+            slope = Math.max(slope, Math.abs(neighborDepth - depth));
+        }
+        const nearCoast = landNeighbors > 0 || wetNeighbors > 0 || flowingNeighbors > 0;
+        if (nearCoast) {
+            const normalizedFlow = flowSignal / Math.max(1, flowingNeighbors);
+            const estuaryScore = (marineWeights.estuary ?? 0.15) + normalizedFlow * 0.45 + flowingNeighbors * 0.25 + (depth < shallowDepth ? 0.25 : 0);
+            const deltaScore = (marineWeights.delta ?? 0.14) + normalizedFlow * 0.5 + wetNeighbors * 0.35 + Math.max(0, flowingNeighbors - 1) * 0.25 + (depth < shallowDepth * 1.2 ? 0.15 : 0);
+            const mangroveScore = (marineWeights.mangrove_forest ?? 0.1) + wetNeighbors * 0.55 + Math.max(0, -latitudeBias) * 0.35 + (rules.marshiness ?? 0) * 0.3;
+            const kelpScore = (marineWeights.kelp_forest ?? 0.08) + temperateFactor * 0.4 + marineNeighbors * 0.1 + (depth >= shallowDepth && depth <= deepThreshold ? 0.25 : 0);
+            const coralScore = (marineWeights.coral_reef ?? 0.08) + tropicalFactor * 0.5 + (depth <= shallowDepth ? 0.35 : 0.1) - Math.max(0, depth - deepThreshold) * 0.2;
+            const openScore = (marineWeights.open_ocean ?? 0.12) + marineNeighbors * 0.2 + Math.max(0, deepThreshold - depth) * 0.15;
+            const candidates = {
+                estuary: estuaryScore,
+                delta: deltaScore,
+                mangrove_forest: mangroveScore,
+                kelp_forest: kelpScore,
+                coral_reef: coralScore,
+                open_ocean: openScore
+            };
+            let bestType = 'estuary';
+            let bestScore = -Infinity;
+            for (const [key, value] of Object.entries(candidates)) {
+                if (value > bestScore) {
+                    bestScore = value;
+                    bestType = key;
+                }
+            }
+            types[idx] = bestType;
+        }
+        else {
+            const polarScore = (marineWeights.polar_sea ?? 0.12) + polarFactor * 0.5 + (depth < deepThreshold ? 0.25 : 0);
+            const openScore = (marineWeights.open_ocean ?? 0.2) + marineNeighbors * 0.25 + Math.max(0, deepThreshold - depth) * 0.3;
+            const abyssalScore = (marineWeights.abyssal_deep ?? 0.12) + Math.max(0, depth - abyssalThreshold) * 0.5;
+            const seamountScore = (marineWeights.seamount ?? 0.08) + Math.max(0, slope - 0.02) * 1.2 + (depth < abyssalThreshold ? 0.2 : 0);
+            const candidates = {
+                polar_sea: polarScore,
+                open_ocean: openScore,
+                abyssal_deep: abyssalScore,
+                seamount: seamountScore
+            };
+            let bestType = 'open_ocean';
+            let bestScore = -Infinity;
+            for (const [key, value] of Object.entries(candidates)) {
+                if (value > bestScore) {
+                    bestScore = value;
+                    bestType = key;
+                }
+            }
+            types[idx] = bestType;
+        }
+    }
+}
 function normalizeCoastline(width, height, types) {
     const size = width * height;
     const coastline = [];
@@ -873,7 +1113,7 @@ function normalizeCoastline(width, height, types) {
             const ny = y + dy;
             if (nx < 0 || ny < 0 || nx >= width || ny >= height)
                 return false;
-            return types[ny * width + nx] === 'ocean';
+            return isMarine(types[ny * width + nx]);
         });
         if (touchesOcean) {
             coastline.push(idx);
@@ -913,7 +1153,7 @@ function normalizeCoastline(width, height, types) {
                     const py = ny + oy;
                     if (px < 0 || py < 0 || px >= width || py >= height)
                         return false;
-                    return types[py * width + px] === 'ocean';
+                    return isMarine(types[py * width + px]);
                 });
                 if (!touchesOcean)
                     continue;
@@ -998,7 +1238,14 @@ function pruneSingletons(width, height, types, filled, maxFraction) {
     }
 }
 
-const WATER_CLASSIFICATIONS = new Set(['water', 'ocean', 'lake', 'river', 'marsh', 'mangrove']);
+const WATER_CLASSIFICATIONS = new Set([
+    'water',
+    ...MARINE_TYPES,
+    ...STANDING_FRESHWATER_TYPES,
+    ...WETLAND_TYPES,
+    ...FLOWING_WATER_TYPES,
+    'mangrove'
+]);
 
 function computeWaterCoverage(width, height, types, filled, elevations, seaLevel) {
     const size = width * height;
@@ -1012,7 +1259,7 @@ function computeWaterCoverage(width, height, types, filled, elevations, seaLevel
             waterCells += 1;
             continue;
         }
-        if (depth > depthThreshold && type === 'lake') {
+        if (depth > depthThreshold && STANDING_FRESHWATER_TYPES.has(type)) {
             waterCells += 1;
         }
     }
@@ -1052,7 +1299,9 @@ function buildHydrologyState({ width, height, elevationGrid, rules, seed, seaLev
     pruneDisconnectedRivers(width, height, types, flow);
     layMarshes(width, height, types, rules);
     bridgeDiagonals(width, height, types);
+    refineWetlands(width, height, types, filled, elevationGrid, accumulation, rules);
     normalizeCoastline(width, height, types);
+    classifyMarineEdges(width, height, types, filled, elevationGrid, seaLevel, rules, accumulation);
     pruneSingletons(width, height, types, spill, rules.maxSingletonFraction);
     return { filled, types, spill, flow, accumulation, riverStats };
 }
@@ -1077,7 +1326,7 @@ function pruneDisconnectedRivers(width, height, types, flow) {
             component.push(current);
             const cx = current % width;
             const cy = Math.floor(current / width);
-            if (types[current] === 'lake' || types[current] === 'ocean') {
+            if (STANDING_FRESHWATER_TYPES.has(types[current]) || isMarine(types[current])) {
                 reachesWater = true;
                 continue;
             }
@@ -1098,7 +1347,7 @@ function pruneDisconnectedRivers(width, height, types, flow) {
                 if (nx < 0 || ny < 0 || nx >= width || ny >= height)
                     continue;
                 const nIdx = ny * width + nx;
-                if (types[nIdx] === 'lake' || types[nIdx] === 'ocean') {
+                if (STANDING_FRESHWATER_TYPES.has(types[nIdx]) || isMarine(types[nIdx])) {
                     reachesWater = true;
                 }
                 if (types[nIdx] === 'river' && !visitedGlobal[nIdx]) {
@@ -1146,7 +1395,7 @@ export function generateHydrology(input) {
         const delta = Math.abs(coverage - targetCoverage);
         let oceanCells = 0;
         for (let i = 0; i < state.types.length; i += 1) {
-            if (state.types[i] === 'ocean') {
+            if (isMarine(state.types[i])) {
                 oceanCells += 1;
             }
         }

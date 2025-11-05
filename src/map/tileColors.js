@@ -6,12 +6,26 @@
  *   | 'ore'
  *   | 'water'
  *   | 'ocean'
+ *   | 'open_ocean'
+ *   | 'polar_sea'
+ *   | 'abyssal_deep'
+ *   | 'seamount'
+ *   | 'estuary'
+ *   | 'delta'
+ *   | 'mangrove_forest'
+ *   | 'kelp_forest'
+ *   | 'coral_reef'
  *   | 'lake'
+ *   | 'pond'
  *   | 'river'
+ *   | 'stream'
  *   | 'marsh'
- *   | 'mangrove'
- *   | 'desert'
- *   | 'grassland'
+  *   | 'mangrove'
+ *   | 'bog'
+ *   | 'fen'
+ *   | 'swamp'
+  *   | 'desert'
+  *   | 'grassland'
  *   | 'tundra'
  *   | 'taiga'
  *   | 'savanna'
@@ -42,10 +56,24 @@ const TILE_VARIABLES = {
   ore: '--tile-ore',
   water: '--tile-water',
   ocean: '--legend-ocean',
+  open_ocean: '--legend-open-ocean',
+  polar_sea: '--legend-polar-sea',
+  abyssal_deep: '--legend-abyssal-deep',
+  seamount: '--legend-seamount',
+  estuary: '--legend-estuary',
+  delta: '--legend-delta',
+  mangrove_forest: '--legend-mangrove-forest',
+  kelp_forest: '--legend-kelp-forest',
+  coral_reef: '--legend-coral-reef',
   lake: '--legend-lake',
+  pond: '--legend-pond',
   river: '--legend-river',
+  stream: '--legend-stream',
   marsh: '--legend-marsh',
   mangrove: '--legend-mangrove',
+  bog: '--legend-bog',
+  fen: '--legend-fen',
+  swamp: '--legend-swamp',
   grassland: '--legend-grassland',
   desert: '--legend-desert',
   tundra: '--legend-tundra',
@@ -74,10 +102,24 @@ const TILE_FALLBACK_COLORS = {
   ore: '#f97316',
   water: '#2d7ff9',
   ocean: '#2563eb',
+  open_ocean: '#1d4ed8',
+  polar_sea: '#bae6fd',
+  abyssal_deep: '#0f172a',
+  seamount: '#334155',
+  estuary: '#2563eb',
+  delta: '#3b82f6',
+  mangrove_forest: '#047857',
+  kelp_forest: '#0f766e',
+  coral_reef: '#f97316',
   lake: '#38bdf8',
+  pond: '#67e8f9',
   river: '#0ea5e9',
+  stream: '#38bdf8',
   marsh: '#4ade80',
   mangrove: '#065f46',
+  bog: '#0f5132',
+  fen: '#22c55e',
+  swamp: '#166534',
   grassland: '#a3e635',
   desert: '#f4b76b',
   tundra: '#9ac5ff',
@@ -85,7 +127,6 @@ const TILE_FALLBACK_COLORS = {
   savanna: '#f59e0b',
   rainforest: '#047857',
   jungle: '#0f766e',
-  swamp: '#14532d',
   wetland: '#22c55e',
   sand: '#fcd34d',
   coast: '#0ea5e9',
