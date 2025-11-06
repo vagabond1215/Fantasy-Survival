@@ -51,6 +51,10 @@ function createHydrologyTestMap() {
       rainfall: 68,
       rivers100: 72,
       lakes100: 66,
+      streams100: 68,
+      ponds100: 60,
+      marshSwamp: 62,
+      bogFen: 56,
       mountains: 42,
       advanced: {
         waterGuaranteeRadius: 60,

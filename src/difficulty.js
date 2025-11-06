@@ -12,6 +12,10 @@ export const defaultWorldParameters = {
   mountains: 50,
   rivers100: 45,
   lakes100: 35,
+  streams100: 42,
+  ponds100: 30,
+  marshSwamp: 28,
+  bogFen: 24,
   mapIslands: 50,
   mapElevationMax: 50,
   mapElevationVariance: 50,
@@ -62,6 +66,10 @@ export function resolveWorldParameters(partial = {}) {
     mountains: clamp01(resolved.mountains),
     rivers100: clamp01(resolved.rivers100),
     lakes100: clamp01(resolved.lakes100),
+    streams100: clamp01(resolved.streams100),
+    ponds100: clamp01(resolved.ponds100),
+    marshSwamp: clamp01(resolved.marshSwamp),
+    bogFen: clamp01(resolved.bogFen),
     mapIslands: clamp01(resolved.mapIslands),
     mapElevationMax: clamp01(resolved.mapElevationMax),
     mapElevationVariance: clamp01(resolved.mapElevationVariance)
@@ -108,6 +116,10 @@ const SCORE_WEIGHTS = {
   mountains: 7,
   rivers100: -3,
   lakes100: -2,
+  streams100: -2,
+  ponds100: -1,
+  marshSwamp: -1,
+  bogFen: -1,
   mapIslands: 4,
   mapElevationMax: 5,
   mapElevationVariance: 6,
@@ -139,6 +151,10 @@ export function difficultyScore(parameters = {}) {
   apply(resolved.mountains, SCORE_WEIGHTS.mountains);
   apply(resolved.rivers100, SCORE_WEIGHTS.rivers100);
   apply(resolved.lakes100, SCORE_WEIGHTS.lakes100);
+  apply(resolved.streams100, SCORE_WEIGHTS.streams100);
+  apply(resolved.ponds100, SCORE_WEIGHTS.ponds100);
+  apply(resolved.marshSwamp, SCORE_WEIGHTS.marshSwamp);
+  apply(resolved.bogFen, SCORE_WEIGHTS.bogFen);
   apply(resolved.mapIslands, SCORE_WEIGHTS.mapIslands);
   apply(resolved.mapElevationMax, SCORE_WEIGHTS.mapElevationMax);
   apply(resolved.mapElevationVariance, SCORE_WEIGHTS.mapElevationVariance);
@@ -174,6 +190,10 @@ export const difficultySettings = {
     mountains: 35,
     rivers100: 72,
     lakes100: 68,
+    streams100: 60,
+    ponds100: 56,
+    marshSwamp: 58,
+    bogFen: 52,
     mapIslands: 35,
     mapElevationMax: 45,
     mapElevationVariance: 42,
@@ -192,6 +212,10 @@ export const difficultySettings = {
     mountains: 50,
     rivers100: 45,
     lakes100: 35,
+    streams100: 42,
+    ponds100: 30,
+    marshSwamp: 28,
+    bogFen: 24,
     mapIslands: 50,
     mapElevationMax: 50,
     mapElevationVariance: 50
@@ -204,6 +228,10 @@ export const difficultySettings = {
     mountains: 68,
     rivers100: 32,
     lakes100: 28,
+    streams100: 28,
+    ponds100: 18,
+    marshSwamp: 16,
+    bogFen: 14,
     mapIslands: 62,
     mapElevationMax: 64,
     mapElevationVariance: 68,

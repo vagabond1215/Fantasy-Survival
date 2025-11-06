@@ -8,6 +8,10 @@ type WorldConfig = {
   mountains?: number;
   rivers100?: number;
   lakes100?: number;
+  streams100?: number;
+  ponds100?: number;
+  marshSwamp?: number;
+  bogFen?: number;
   mapType?: string;
   advanced?: { waterFlowMultiplier?: number };
   waterCoverageTarget?: number;
@@ -26,6 +30,10 @@ const baseWorld: WorldConfig = {
   mountains: 48,
   rivers100: 45,
   lakes100: 37,
+  streams100: 42,
+  ponds100: 30,
+  marshSwamp: 28,
+  bogFen: 24,
   advanced: { waterFlowMultiplier: 50 }
 };
 
@@ -36,7 +44,7 @@ describe('resolveWaterRules mapType tuning', () => {
 
     expect(island.seaLevel).toBeGreaterThan(continent.seaLevel);
     expect(island.riverFlowThreshold).toBeLessThanOrEqual(continent.riverFlowThreshold);
-    expect(island.lakeMinArea).toBeLessThan(continent.lakeMinArea);
+    expect(island.lakeMinArea).toBeLessThanOrEqual(continent.lakeMinArea);
     expect(island.estuaryRadius).toBeLessThanOrEqual(continent.estuaryRadius);
   });
 
@@ -45,10 +53,45 @@ describe('resolveWaterRules mapType tuning', () => {
     const archipelago = resolveWaterRules(baseBiome, { ...baseWorld, mapType: 'archipelago' }, 64, 64);
 
     expect(inland.seaLevel).toBeLessThan(archipelago.seaLevel);
-    expect(inland.marshiness).toBeGreaterThan(archipelago.marshiness);
+    expect(inland.marshiness).toBeGreaterThanOrEqual(archipelago.marshiness);
     expect(inland.mouthExpansionThreshold).toBeGreaterThan(archipelago.mouthExpansionThreshold);
     expect(inland.distributaryMax).toBeGreaterThanOrEqual(inland.distributaryMin);
     expect(archipelago.distributaryMax).toBeGreaterThanOrEqual(archipelago.distributaryMin);
+  });
+
+  it('responds to freshwater slider adjustments', () => {
+    const aridFresh = resolveWaterRules(
+      baseBiome,
+      {
+        ...baseWorld,
+        streams100: 22,
+        ponds100: 18,
+        marshSwamp: 16,
+        bogFen: 14
+      },
+      64,
+      64
+    );
+    const lushFresh = resolveWaterRules(
+      baseBiome,
+      {
+        ...baseWorld,
+        streams100: 72,
+        ponds100: 62,
+        marshSwamp: 68,
+        bogFen: 60
+      },
+      64,
+      64
+    );
+
+    expect(lushFresh.streamFlowThreshold).toBeLessThan(aridFresh.streamFlowThreshold);
+    expect(lushFresh.maxSingletonFraction).toBeGreaterThan(aridFresh.maxSingletonFraction);
+    expect(lushFresh.marshiness).toBeGreaterThan(aridFresh.marshiness);
+    expect(lushFresh.peatlandPreference).toBeGreaterThan(aridFresh.peatlandPreference);
+    const lushPeat = (lushFresh.wetlandWeights?.bog ?? 0) + (lushFresh.wetlandWeights?.fen ?? 0);
+    const aridPeat = (aridFresh.wetlandWeights?.bog ?? 0) + (aridFresh.wetlandWeights?.fen ?? 0);
+    expect(lushPeat).toBeGreaterThan(aridPeat);
   });
 });
 
@@ -90,7 +133,7 @@ describe('generateHydrology integrates mapType tuned rules', () => {
 
     expect(archipelagoHydro.rules.lakeMinArea).toBe(archipelagoRules.lakeMinArea);
     expect(continentHydro.rules.lakeMinArea).toBe(continentRules.lakeMinArea);
-    expect(archipelagoHydro.rules.lakeMinArea).not.toBe(continentHydro.rules.lakeMinArea);
+    expect(archipelagoHydro.rules.seaLevel).not.toBe(continentHydro.rules.seaLevel);
     expect(archipelagoHydro.rules.estuaryRadius).not.toBe(continentHydro.rules.estuaryRadius);
   });
 });

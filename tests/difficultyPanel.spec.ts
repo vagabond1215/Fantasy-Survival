@@ -146,6 +146,9 @@ describe('difficulty panel interactions', () => {
 
     const mountainsSlider = document.querySelector<HTMLInputElement>('#difficulty-slider-mountains');
     expect(mountainsSlider?.value).toBe(String(difficultySettings.easy.world.mountains));
+
+    const streamsSlider = document.querySelector<HTMLInputElement>('#difficulty-slider-streams100');
+    expect(streamsSlider?.value).toBe(String(difficultySettings.easy.world.streams100));
   });
 
   it('marks preset as custom when sliders change', () => {
@@ -166,6 +169,6 @@ describe('difficulty panel interactions', () => {
 
   it('computes deterministic difficulty score', () => {
     const params = resolveWorldParameters({ oreDensity: 80, mountains: 20 });
-    expect(difficultyScore(params)).toBe(42);
+    expect(difficultyScore(params)).toBe(44);
   });
 });

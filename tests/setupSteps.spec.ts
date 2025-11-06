@@ -37,6 +37,10 @@ vi.mock('../src/difficulty.js', () => {
     mountains: 50,
     rivers100: 50,
     lakes100: 50,
+    streams100: 40,
+    ponds100: 32,
+    marshSwamp: 30,
+    bogFen: 26,
     mapType: 'continent',
     advanced: {
       elevationBase: 50,
@@ -56,13 +60,24 @@ vi.mock('../src/difficulty.js', () => {
     advanced: {
       ...defaultWorldParameters.advanced,
       ...(partial.advanced || {})
-    }
+    },
+    streams100: Number.isFinite(partial.streams100) ? partial.streams100 : defaultWorldParameters.streams100,
+    ponds100: Number.isFinite(partial.ponds100) ? partial.ponds100 : defaultWorldParameters.ponds100,
+    marshSwamp: Number.isFinite(partial.marshSwamp) ? partial.marshSwamp : defaultWorldParameters.marshSwamp,
+    bogFen: Number.isFinite(partial.bogFen) ? partial.bogFen : defaultWorldParameters.bogFen
   });
 
   const difficultySettings = {
     easy: {
       start: { people: 8, foodDays: 6, firewoodDays: 6, tools: {} },
-      world: resolveWorldParameters({ oreDensity: 60, waterTable: 60 })
+      world: resolveWorldParameters({
+        oreDensity: 60,
+        waterTable: 60,
+        streams100: 55,
+        ponds100: 48,
+        marshSwamp: 50,
+        bogFen: 44
+      })
     },
     normal: {
       start: { people: 6, foodDays: 3, firewoodDays: 3, tools: {} },
@@ -70,7 +85,14 @@ vi.mock('../src/difficulty.js', () => {
     },
     hard: {
       start: { people: 4, foodDays: 1, firewoodDays: 1, tools: {} },
-      world: resolveWorldParameters({ oreDensity: 40, mountains: 65 })
+      world: resolveWorldParameters({
+        oreDensity: 40,
+        mountains: 65,
+        streams100: 28,
+        ponds100: 20,
+        marshSwamp: 18,
+        bogFen: 16
+      })
     },
     custom: {
       start: { people: 6, foodDays: 3, firewoodDays: 3, tools: {} },
