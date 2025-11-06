@@ -12,7 +12,26 @@ const EIGHT_NEIGHBORS: Array<[number, number]> = [
   [1, 1]
 ];
 
-const WATER_TYPES = new Set(['water', 'lake', 'river', 'ocean', 'marsh']);
+const STANDING_WATER_TYPES = new Set(['lake', 'pond', 'marsh', 'swamp', 'bog', 'fen']);
+const MARINE_WATER_TYPES = new Set([
+  'ocean',
+  'estuary',
+  'delta',
+  'mangrove_forest',
+  'kelp_forest',
+  'coral_reef',
+  'polar_sea',
+  'open_ocean',
+  'abyssal_deep',
+  'seamount'
+]);
+const FLOWING_WATER_TYPES = new Set(['river', 'stream']);
+const WATER_TYPES = new Set([
+  'water',
+  ...STANDING_WATER_TYPES,
+  ...MARINE_WATER_TYPES,
+  ...FLOWING_WATER_TYPES
+]);
 
 function createHydrologyTestMap() {
   return generateColorMap(
@@ -58,7 +77,7 @@ describe('hydrology generation', () => {
       let y = startY;
       for (let steps = 0; steps < width * height; steps += 1) {
         const kind = types[y]?.[x];
-        if (kind === 'lake' || kind === 'ocean') {
+        if (STANDING_WATER_TYPES.has(kind) || MARINE_WATER_TYPES.has(kind)) {
           return true;
         }
         const dir = flow[y]?.[x];
@@ -68,7 +87,10 @@ describe('hydrology generation', () => {
             const ny = y + dy;
             if (nx < 0 || ny < 0 || nx >= width || ny >= height) return false;
             const neighborType = types[ny]?.[nx];
-            return neighborType === 'lake' || neighborType === 'ocean';
+            return (
+              STANDING_WATER_TYPES.has(neighborType) ||
+              MARINE_WATER_TYPES.has(neighborType)
+            );
           });
         }
         const nx = x + dir.dx;
@@ -140,7 +162,8 @@ describe('hydrology generation', () => {
           const nx = x + dx;
           const ny = y + dy;
           if (nx < 0 || ny < 0 || nx >= width || ny >= height) return false;
-          return hydrology.types[ny]?.[nx] === 'ocean';
+          const hydroType = hydrology.types[ny]?.[nx];
+          return hydroType ? MARINE_WATER_TYPES.has(hydroType) : false;
         });
         if (touchesOcean) {
           coastline.push([x, y]);
