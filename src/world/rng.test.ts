@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canonicalizeSeed } from "./seed";
+import { canonicalizeSeed } from "./seed.js";
 import { fromCanonicalSeed } from "./rng";
 
 describe("xorshift128plus", () => {

@@ -4,6 +4,7 @@ import { computeCenteredStart, DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, generateCo
 import { refreshBuildingUnlocks } from './buildings.js';
 import { initializeTechnologyRegistry } from './technology.js';
 import { getStorageItem, removeStorageItem, setStorageItem } from './safeStorage.js';
+import { canonicalizeSeed } from './world/seed.js';
 
 export const SAVE_KEY = 'fantasy-survival-save';
 
@@ -19,11 +20,172 @@ export function saveGame() {
 
 // Load game state from localStorage.
 // Returns true if a save was loaded.
-export function loadGame() {
+async function migrateLocations(locations, topLevelWorld) {
+  if (!locations) return { changed: false, primarySeed: null };
+
+  const entries = Array.isArray(locations)
+    ? locations
+    : typeof locations === 'object'
+      ? Object.entries(locations)
+      : [];
+
+  let changed = false;
+  let primarySeed = null;
+
+  await Promise.all(
+    entries.map(async entry => {
+      if (!Array.isArray(entry) || entry.length < 2) return;
+      const [, location] = entry;
+      if (!location || typeof location !== 'object') return;
+
+      const map = location.map && typeof location.map === 'object' ? location.map : null;
+      let worldSettings;
+      if (location.worldSettings && typeof location.worldSettings === 'object') {
+        worldSettings = location.worldSettings;
+      } else if (map && map.worldSettings && typeof map.worldSettings === 'object') {
+        worldSettings = map.worldSettings;
+        location.worldSettings = worldSettings;
+        changed = true;
+      } else {
+        worldSettings = {};
+        location.worldSettings = worldSettings;
+        changed = true;
+      }
+
+      const existingSeed =
+        (map && map.seed !== undefined ? map.seed : undefined) ??
+        (worldSettings && worldSettings.seed !== undefined ? worldSettings.seed : undefined) ??
+        (topLevelWorld && topLevelWorld.seed !== undefined ? topLevelWorld.seed : undefined) ??
+        '';
+      const seedString = typeof existingSeed === 'string' ? existingSeed : String(existingSeed ?? '');
+
+      const canonical = await canonicalizeSeed(seedString);
+
+      if (map) {
+        if (map.seed === undefined) {
+          map.seed = existingSeed;
+          changed = true;
+        }
+        if (map.seedHash !== canonical.hex) {
+          map.seedHash = canonical.hex;
+          changed = true;
+        }
+        if (!Array.isArray(map.seedLanes) || map.seedLanes.length !== 8) {
+          map.seedLanes = Array.from(canonical.lanes);
+          changed = true;
+        }
+      }
+
+      if (!worldSettings.seed || worldSettings.seed !== map?.seed) {
+        worldSettings.seed = map?.seed ?? existingSeed ?? canonical.raw;
+        changed = true;
+      }
+      if (worldSettings.seedHash !== canonical.hex) {
+        worldSettings.seedHash = canonical.hex;
+        changed = true;
+      }
+      if (!Array.isArray(worldSettings.seedLanes) || worldSettings.seedLanes.length !== 8) {
+        worldSettings.seedLanes = Array.from(canonical.lanes);
+        changed = true;
+      }
+
+      const startingBiome = location.startingBiomeId || worldSettings.startingBiomeId || location.biome || null;
+      if (startingBiome && worldSettings.startingBiomeId !== startingBiome) {
+        worldSettings.startingBiomeId = startingBiome;
+        changed = true;
+      }
+      if (startingBiome && location.startingBiomeId !== startingBiome) {
+        location.startingBiomeId = startingBiome;
+        changed = true;
+      }
+
+      if (!primarySeed) {
+        primarySeed = {
+          seed: map?.seed ?? existingSeed ?? canonical.raw,
+          canonical,
+          startingBiome
+        };
+      }
+
+      if (map && (!map.worldSettings || typeof map.worldSettings !== 'object')) {
+        map.worldSettings = { ...worldSettings };
+        changed = true;
+      } else if (map) {
+        const mapWorld = map.worldSettings;
+        let mapChanged = false;
+        if (mapWorld.seedHash !== worldSettings.seedHash) {
+          mapWorld.seedHash = worldSettings.seedHash;
+          mapChanged = true;
+        }
+        if (!Array.isArray(mapWorld.seedLanes) || mapWorld.seedLanes.length !== 8) {
+          mapWorld.seedLanes = Array.from(canonical.lanes);
+          mapChanged = true;
+        }
+        if (worldSettings.seed !== undefined && mapWorld.seed !== worldSettings.seed) {
+          mapWorld.seed = worldSettings.seed;
+          mapChanged = true;
+        }
+        if (startingBiome && mapWorld.startingBiomeId !== startingBiome) {
+          mapWorld.startingBiomeId = startingBiome;
+          mapChanged = true;
+        }
+        if (mapChanged) {
+          changed = true;
+        }
+      }
+    })
+  );
+
+  return { changed, primarySeed };
+}
+
+async function migrateSaveData(parsed) {
+  if (!parsed || typeof parsed !== 'object') {
+    return { data: parsed, changed: false };
+  }
+
+  const worldSettings =
+    parsed.worldSettings && typeof parsed.worldSettings === 'object' ? parsed.worldSettings : null;
+
+  const { changed: locationChanged, primarySeed } = await migrateLocations(parsed.locations, worldSettings);
+  let changed = locationChanged;
+
+  if (primarySeed && worldSettings) {
+    if (worldSettings.seed !== primarySeed.seed) {
+      worldSettings.seed = primarySeed.seed;
+      changed = true;
+    }
+    if (worldSettings.seedHash !== primarySeed.canonical.hex) {
+      worldSettings.seedHash = primarySeed.canonical.hex;
+      changed = true;
+    }
+    if (!Array.isArray(worldSettings.seedLanes) || worldSettings.seedLanes.length !== 8) {
+      worldSettings.seedLanes = Array.from(primarySeed.canonical.lanes);
+      changed = true;
+    }
+    if (primarySeed.startingBiome && worldSettings.startingBiomeId !== primarySeed.startingBiome) {
+      worldSettings.startingBiomeId = primarySeed.startingBiome;
+      changed = true;
+    }
+  }
+
+  return { data: parsed, changed };
+}
+
+export async function loadGame() {
   try {
     const data = getStorageItem(SAVE_KEY);
     if (!data) return false;
-    store.deserialize(JSON.parse(data));
+    const parsed = JSON.parse(data);
+    const { data: migrated, changed } = await migrateSaveData(parsed);
+    if (changed) {
+      try {
+        setStorageItem(SAVE_KEY, JSON.stringify(migrated));
+      } catch (persistError) {
+        console.warn('Failed to persist migrated save data', persistError);
+      }
+    }
+    store.deserialize(migrated);
     initializeTechnologyRegistry();
     for (const loc of store.locations.values()) {
       let storedWorld = loc.worldSettings;

@@ -78,10 +78,16 @@ export function generateLocation(
     worldSettings,
     false
   );
+  if (map?.worldSettings && typeof map.worldSettings === 'object') {
+    if (!map.worldSettings.startingBiomeId) {
+      map.worldSettings.startingBiomeId = biome;
+    }
+  }
   const siteCapacities = computeSiteCapacities(map);
   const location = {
     id,
     biome,
+    startingBiomeId: biome,
     features,
     pointsOfInterest,
     map,

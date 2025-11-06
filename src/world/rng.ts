@@ -1,5 +1,5 @@
 // src/world/rng.ts
-import type { CanonicalSeed } from "./seed";
+import type { CanonicalSeed } from "./seed.js";
 
 export type XorShift128Plus = {
   /** Next 64-bit unsigned integer as BigInt in [0, 2^64). */
