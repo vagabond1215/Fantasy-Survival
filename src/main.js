@@ -39,6 +39,11 @@ function startGame(settings = {}) {
   const preset = difficultySettings[diff] || difficultySettings.normal;
   const startCfg = preset.start;
   const worldParameters = settings.world || preset.world;
+  const startingBiomeId = settings.biome || worldParameters?.startingBiomeId || null;
+  const enrichedWorld = {
+    ...worldParameters,
+    ...(startingBiomeId ? { startingBiomeId } : {})
+  };
   // MIGRATION: startGame now expects settings.world to include world generation parameters.
 
   store.jobs = { gather: 0, hunt: 0, craft: 0, build: 0, guard: 0 };
@@ -64,14 +69,14 @@ function startGame(settings = {}) {
   }
   resetToDawn();
   if (settings.biome) {
-    generateLocation('loc1', settings.biome, store.time.season, settings.seed, worldParameters);
+    generateLocation('loc1', settings.biome, store.time.season, settings.seed, enrichedWorld);
   } else if (store.locations.size === 0) {
     generateLocation(
       'loc1',
       'temperate-broadleaf',
       store.time.season,
       settings.seed,
-      worldParameters
+      enrichedWorld
     );
   }
 
@@ -87,7 +92,7 @@ function startGame(settings = {}) {
   unlockTechnology({ id: 'basic-tools', name: 'Basic Tools' });
   refreshBuildingUnlocks();
   store.difficulty = diff;
-  store.worldSettings = worldParameters;
+  store.worldSettings = enrichedWorld;
   store.craftTargets = new Map();
   store.buildQueue = 0;
   store.haulQueue = 0;
@@ -109,7 +114,7 @@ function startGame(settings = {}) {
   initGameUI();
 }
 
-function init() {
+async function init() {
   initTopMenu(showJobs, closeJobs, () => {
     clearSave();
     window.location.reload();
@@ -120,24 +125,28 @@ function init() {
     renderHeader(mainRoot);
   }
   initBottomMenu();
-  if (!loadGame()) {
+  const loaded = await loadGame();
+  if (!loaded) {
     initSetupUI(startGame);
-  } else {
-    const setupDiv = document.getElementById('setup');
-    if (setupDiv) setupDiv.style.display = 'none';
-    const createSteps = document.querySelector('.create-steps');
-    const createStepContent = document.getElementById('create-step-content');
-    if (createSteps instanceof HTMLElement) createSteps.style.display = 'none';
-    if (createStepContent instanceof HTMLElement) createStepContent.style.display = 'none';
-    removeLandingTheme();
-    initGameUI();
+    return;
   }
+
+  const setupDiv = document.getElementById('setup');
+  if (setupDiv) setupDiv.style.display = 'none';
+  const createSteps = document.querySelector('.create-steps');
+  const createStepContent = document.getElementById('create-step-content');
+  if (createSteps instanceof HTMLElement) createSteps.style.display = 'none';
+  if (createStepContent instanceof HTMLElement) createStepContent.style.display = 'none';
+  removeLandingTheme();
+  initGameUI();
 }
 
 if (document.readyState === 'loading') {
-  document.addEventListener('DOMContentLoaded', init);
+  document.addEventListener('DOMContentLoaded', () => {
+    void init();
+  });
 } else {
-  init();
+  void init();
 }
 
 /** @type {any} */ (window).Game = { store, saveGame };
