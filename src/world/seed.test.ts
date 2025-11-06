@@ -1,5 +1,5 @@
 import { describe, it, expect } from "vitest";
-import { canonicalizeSeed } from "./seed";
+import { canonicalizeSeed } from "./seed.js";
 
 describe("canonicalizeSeed", () => {
   it("normalizes NFC and trims", async () => {

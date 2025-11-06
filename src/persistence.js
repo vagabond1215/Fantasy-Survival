@@ -4,7 +4,7 @@ import { computeCenteredStart, DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, generateCo
 import { refreshBuildingUnlocks } from './buildings.js';
 import { initializeTechnologyRegistry } from './technology.js';
 import { getStorageItem, removeStorageItem, setStorageItem } from './safeStorage.js';
-import { canonicalizeSeed } from './world/seed.ts';
+import { canonicalizeSeed } from './world/seed.js';
 
 export const SAVE_KEY = 'fantasy-survival-save';
 

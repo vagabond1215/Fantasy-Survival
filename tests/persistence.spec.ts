@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import store from '../src/state.js';
 import { loadGame } from '../src/persistence.js';
-import { canonicalizeSeed } from '../src/world/seed.ts';
+import { canonicalizeSeed } from '../src/world/seed.js';
 
 vi.mock('../src/people.js', () => ({
   refreshStats: vi.fn()
