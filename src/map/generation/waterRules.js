@@ -96,26 +96,26 @@ function resolveFreshwaterPresence(biome) {
         combined
     };
 }
-function resolveWetlandProfile({ freshwaterPresence, rainfallBias, waterBias, latitudeBias, elevationBias, transitionHints }) {
+function resolveWetlandProfile({ freshwaterPresence, rainfallBias, waterBias, latitudeBias, elevationBias, transitionHints, marshBias = 0, bogBias = 0, }) {
     const climateWetness = clamp(0.4 + rainfallBias * 0.35 + waterBias * 0.25, 0, 1);
-    const wetlandBase = clamp(freshwaterPresence.wetlands * 0.7 + freshwaterPresence.lakes * 0.35 + climateWetness * 0.6, 0, 1.5);
+    const wetlandBase = clamp(freshwaterPresence.wetlands * 0.7 + freshwaterPresence.lakes * 0.35 + climateWetness * 0.6 + marshBias * 0.9, 0, 1.6);
     const tropicalBias = clamp(0.6 - Math.abs(latitudeBias) * 0.6, 0, 0.6);
     const borealBias = clamp(Math.max(0, latitudeBias) * 0.6 + Math.max(0, elevationBias) * 0.3, 0, 0.9);
-    const bogLean = clamp(freshwaterPresence.lakes * 0.45 + freshwaterPresence.wetlands * 0.5 + borealBias * 0.6, 0, 1.4);
-    const fenLean = clamp(freshwaterPresence.springs * 0.6 + freshwaterPresence.streams * 0.4 + climateWetness * 0.4, 0, 1.2);
-    let swampLean = clamp(freshwaterPresence.streams * 0.5 + tropicalBias * 0.8 + climateWetness * 0.4, 0, 1.4);
+    const bogLean = clamp(freshwaterPresence.lakes * 0.45 + freshwaterPresence.wetlands * 0.5 + borealBias * 0.6 + bogBias * 0.9, 0, 1.6);
+    const fenLean = clamp(freshwaterPresence.springs * 0.6 + freshwaterPresence.streams * 0.4 + climateWetness * 0.4 + bogBias * 0.7, 0, 1.4);
+    let swampLean = clamp(freshwaterPresence.streams * 0.5 + tropicalBias * 0.8 + climateWetness * 0.4 + marshBias * 0.6, 0, 1.6);
     if (transitionHints.has('coastal-mangrove')) {
         swampLean += 0.45;
     }
-    const marshLean = clamp(wetlandBase + rainfallBias * 0.4 + waterBias * 0.2, 0.2, 1.6);
+    const marshLean = clamp(wetlandBase + rainfallBias * 0.4 + waterBias * 0.2 + marshBias * 0.9, 0.2, 1.8);
     const weights = normalizeWeights({
         marsh: marshLean,
         swamp: swampLean,
         bog: bogLean,
         fen: fenLean
     });
-    const peatlandPreference = clamp((weights.bog + weights.fen) * 0.9 + borealBias * 0.2, 0, 1);
-    const fenPreference = clamp(weights.fen / Math.max(1e-6, weights.fen + weights.bog), 0, 1);
+    const peatlandPreference = clamp((weights.bog + weights.fen) * 0.9 + borealBias * 0.2 + Math.max(0, bogBias) * 0.4, 0, 1);
+    const fenPreference = clamp(weights.fen / Math.max(1e-6, weights.fen + weights.bog) + Math.max(0, bogBias) * 0.2, 0, 1);
     return {
         weights,
         peatlandPreference,
@@ -250,11 +250,19 @@ export function resolveWaterRules(biome, world, width, height) {
     const mountains = normalizePercent(world?.mountains, 50);
     const rivers = normalizePercent(world?.rivers100, 45);
     const lakes = normalizePercent(world?.lakes100, 35);
+    const streams = normalizePercent(world?.streams100, 42);
+    const ponds = normalizePercent(world?.ponds100, 30);
+    const marshSetting = normalizePercent(world?.marshSwamp, 28);
+    const bogSetting = normalizePercent(world?.bogFen, 24);
     const rainfallBias = (rainfall - 50) / 100;
     const waterBias = (waterTable - 50) / 100;
     const mountainBias = (mountains - 50) / 100;
     const riversBias = (rivers - 50) / 100;
     const lakesBias = (lakes - 50) / 100;
+    const streamsBias = (streams - 50) / 100;
+    const pondsBias = (ponds - 50) / 100;
+    const marshBias = (marshSetting - 50) / 100;
+    const bogBias = (bogSetting - 50) / 100;
     const latitudeBias = resolveLatitudeBias(biome);
     const elevationBias = resolveElevationBias(biome);
     const hydrologyPreset = resolveHydrologyPreset(world?.mapType);
@@ -263,7 +271,7 @@ export function resolveWaterRules(biome, world, width, height) {
     const adjustedSeaLevel = clamp(baseSeaLevel + hydrologyPreset.seaLevelOffset, 0.02, 0.82);
     const flowMultiplier = resolveFlowMultiplier(world?.advanced?.waterFlowMultiplier);
     const area = Math.max(16, width * height);
-    const densityBias = clamp(riversBias * 0.45 + rainfallBias * 0.35 + waterBias * 0.25, -0.6, 0.9);
+    const densityBias = clamp(riversBias * 0.45 + rainfallBias * 0.35 + waterBias * 0.25 + streamsBias * 0.2, -0.6, 0.95);
     const baseRiverDensity = clamp(0.0025 + densityBias * 0.0018, 0.0012, 0.0075);
     const riverDensity = clamp(baseRiverDensity * hydrologyPreset.riverDensityScale + hydrologyPreset.riverDensityOffset, 0.0008, 0.012);
     const targetRiverCells = area * riverDensity;
@@ -271,14 +279,14 @@ export function resolveWaterRules(biome, world, width, height) {
     const tributaryThreshold = Math.max(6, riverFlowThreshold * 0.45);
     const mouthExpansionThreshold = riverFlowThreshold * (1.35 * hydrologyPreset.estuaryFlowScale);
     const wetlandBias = biomeSuggestsWetlands(biome) ? 0.4 : 0;
-    const marshiness = clamp(rainfallBias * 0.5 + lakesBias * 0.35 + wetlandBias + hydrologyPreset.marshinessBias, 0, 1);
+    const marshiness = clamp(rainfallBias * 0.5 + lakesBias * 0.35 + wetlandBias + hydrologyPreset.marshinessBias + marshBias * 0.6, 0, 1);
     const marshRingWidth = marshiness > 0.35 ? 2 : 1;
     const lakeDepthBase = clamp(0.03 + rainfallBias * 0.03 + lakesBias * 0.02, 0.01, 0.16);
     const lakeMinDepth = lakeDepthBase / Math.max(0.75, flowMultiplier * 0.85);
-    const lakeAreaBias = clamp(lakesBias + rainfallBias * 0.4, -0.5, 1.2);
+    const lakeAreaBias = clamp(lakesBias + rainfallBias * 0.4 + pondsBias * 0.5, -0.5, 1.4);
     const baseLakeMinArea = Math.max(4, Math.round(6 + lakeAreaBias * 8));
     const lakeMinArea = Math.max(4, Math.round(baseLakeMinArea * hydrologyPreset.lakeAreaScale));
-    const maxSingletonFraction = clamp(0.0005 + lakesBias * 0.00015, 0.0002, 0.001);
+    const maxSingletonFraction = clamp(0.0005 + lakesBias * 0.00015 + pondsBias * 0.0003, 0.0002, 0.0015);
     const estuaryRadiusBase = clamp(Math.round(4 + (waterBias + rainfallBias) * 6), 3, 12);
     const estuaryRadius = clamp(Math.round(estuaryRadiusBase * hydrologyPreset.estuaryScale), 2, 14);
     const distributaryBase = clamp(Math.round(2 + riversBias * 1.2 + rainfallBias * 0.8), 2, 4);
@@ -297,13 +305,18 @@ export function resolveWaterRules(biome, world, width, height) {
         waterBias,
         latitudeBias,
         elevationBias,
-        transitionHints
+        transitionHints,
+        marshBias,
+        bogBias
     });
-    const streamFlowThreshold = Math.max(4, riverFlowThreshold * 0.32 * (1 - freshwaterPresence.streams * 0.15));
-    const streamTributaryThreshold = Math.max(2, tributaryThreshold * 0.6);
-    const pondMaxArea = Math.max(3, Math.round(lakeMinArea * (0.5 + freshwaterPresence.lakes * 0.45)));
-    const pondMaxDepth = clamp(lakeMinDepth * (0.55 + freshwaterPresence.lakes * 0.35), 0.006, lakeMinDepth * 0.95);
-    const peatlandFlowThreshold = Math.max(2, streamFlowThreshold * (0.55 + freshwaterPresence.streams * 0.15));
+    const streamDensityScale = clamp(1 + streamsBias * 0.8, 0.35, 1.8);
+    const streamFlowThreshold = Math.max(4, (riverFlowThreshold * 0.32 * (1 - freshwaterPresence.streams * 0.15)) / streamDensityScale);
+    const streamTributaryThreshold = Math.max(2, (tributaryThreshold * 0.6) / Math.max(0.5, Math.sqrt(streamDensityScale)));
+    const pondAreaScale = clamp(1 + pondsBias * 0.9, 0.3, 2);
+    const pondMaxArea = Math.max(3, Math.round(lakeMinArea * (0.5 + freshwaterPresence.lakes * 0.45) * pondAreaScale));
+    const pondMaxDepthBase = clamp(lakeMinDepth * (0.55 + freshwaterPresence.lakes * 0.35), 0.006, lakeMinDepth * 0.95);
+    const pondMaxDepth = clamp(pondMaxDepthBase * clamp(1 + pondsBias * 0.4, 0.5, 1.6), 0.004, lakeMinDepth * 0.95);
+    const peatlandFlowThreshold = Math.max(2, streamFlowThreshold * clamp(0.55 + freshwaterPresence.streams * 0.15 - marshBias * 0.08 - bogBias * 0.12, 0.3, 0.85));
     const marineEdgeWeights = resolveMarineEdgeWeights({
         freshwaterPresence,
         rainfallBias,

@@ -223,6 +223,42 @@ const PRIMARY_WORLD_PARAMETERS = [
     step: 1
   },
   {
+    id: 'streams100',
+    path: ['streams100'],
+    label: 'Streams (100 tiles)',
+    hint: 'Small flowing watercourses weaving through the start area.',
+    min: 0,
+    max: 100,
+    step: 1
+  },
+  {
+    id: 'ponds100',
+    path: ['ponds100'],
+    label: 'Ponds (100 tiles)',
+    hint: 'Chance of shallow pond basins and vernal pools forming nearby.',
+    min: 0,
+    max: 100,
+    step: 1
+  },
+  {
+    id: 'marshSwamp',
+    path: ['marshSwamp'],
+    label: 'Marsh & Swamp',
+    hint: 'Bias toward saturated marsh flats and wooded swampland.',
+    min: 0,
+    max: 100,
+    step: 1
+  },
+  {
+    id: 'bogFen',
+    path: ['bogFen'],
+    label: 'Bog & Fen',
+    hint: 'Preference for peat bogs and spring-fed fens in lowlands.',
+    min: 0,
+    max: 100,
+    step: 1
+  },
+  {
     id: 'mapIslands',
     path: ['mapIslands'],
     label: 'Island Density',
@@ -349,6 +385,10 @@ const PARAMETER_CATEGORIES = [
       'waterTable',
       'rivers100',
       'lakes100',
+      'streams100',
+      'ponds100',
+      'marshSwamp',
+      'bogFen',
       'advanced.waterGuaranteeRadius',
       'advanced.waterFlowMultiplier'
     ]
