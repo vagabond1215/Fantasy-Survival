@@ -136,7 +136,7 @@ class DataStore {
       ]),
       jobSettings: this.jobSettings,
       jobDaily: this.jobDaily,
-      worldSettings: this.worldSettings
+      worldSettings: normalizeWorldSettings(this.worldSettings)
     };
   }
 
@@ -195,7 +195,7 @@ class DataStore {
     this.gatherNodes = new Map(normalizeEntryCollection(data.gatherNodes));
     this.jobSettings = data.jobSettings || {};
     this.jobDaily = data.jobDaily || {};
-    this.worldSettings = data.worldSettings || null;
+    this.worldSettings = normalizeWorldSettings(data.worldSettings);
     const faunaEntries = Array.isArray(data.discoveredFauna)
       ? data.discoveredFauna
       : Object.entries(data.discoveredFauna || {});
@@ -219,8 +219,27 @@ class DataStore {
 
 export const WORLD_CONFIG_CHANGED = 'WORLD_CONFIG_CHANGED';
 
+/**
+ * @typedef {Object} WorldConfig
+ * @property {string | null} startingBiomeId
+ * @property {string | null} season
+ * @property {string | null} seed
+ * @property {string | null} difficulty
+ * @property {Record<string, any> | null} worldParameters
+ */
+
+/**
+ * @typedef {Object} WorldConfigUpdate
+ * @property {string | null | undefined} [startingBiomeId]
+ * @property {string | null | undefined} [biome]
+ * @property {string | null | undefined} [season]
+ * @property {string | null | undefined} [seed]
+ * @property {string | null | undefined} [difficulty]
+ * @property {Record<string, any> | null | undefined} [worldParameters]
+ */
+
 const worldConfigState = {
-  biome: null,
+  startingBiomeId: null,
   season: null,
   seed: null,
   difficulty: null,
@@ -229,12 +248,39 @@ const worldConfigState = {
 
 const worldConfigListeners = new Set();
 
+function normalizeWorldSettings(world) {
+  if (!world || typeof world !== 'object') return null;
+  const { advanced, ...rest } = world;
+  const normalized = { ...rest };
+  const clonedAdvanced =
+    advanced && typeof advanced === 'object' ? { ...advanced } : advanced ?? null;
+  normalized.advanced = clonedAdvanced;
+  if ('startingBiomeId' in world) {
+    normalized.startingBiomeId = world.startingBiomeId ?? null;
+  } else if ('biome' in world) {
+    normalized.startingBiomeId = world.biome ?? null;
+  }
+  if ('biome' in normalized) {
+    delete normalized.biome;
+  }
+  return normalized;
+}
+
 function cloneWorldConfigParameters(params) {
   if (!params || typeof params !== 'object') return null;
   const { advanced, ...rest } = params;
+  const normalized = { ...rest };
+  if ('startingBiomeId' in normalized) {
+    normalized.startingBiomeId = normalized.startingBiomeId ?? null;
+  } else if ('biome' in normalized) {
+    normalized.startingBiomeId = normalized.biome ?? null;
+    delete normalized.biome;
+  }
+  const clonedAdvanced =
+    advanced && typeof advanced === 'object' ? { ...advanced } : advanced ?? null;
   return {
-    ...rest,
-    advanced: advanced && typeof advanced === 'object' ? { ...advanced } : advanced ?? null
+    ...normalized,
+    advanced: clonedAdvanced
   };
 }
 
@@ -259,9 +305,12 @@ function areWorldParametersEqual(a, b) {
   return true;
 }
 
+/**
+ * @returns {WorldConfig}
+ */
 export function getWorldConfig() {
   return {
-    biome: worldConfigState.biome,
+    startingBiomeId: worldConfigState.startingBiomeId,
     season: worldConfigState.season,
     seed: worldConfigState.seed,
     difficulty: worldConfigState.difficulty,
@@ -298,6 +347,11 @@ export function onWorldConfigChange(listener, options = {}) {
   return () => worldConfigListeners.delete(listener);
 }
 
+/**
+ * @param {WorldConfigUpdate | null | undefined} partial
+ * @param {{ silent?: boolean, force?: boolean }} [options]
+ * @returns {WorldConfig}
+ */
 export function updateWorldConfig(partial = {}, options = {}) {
   if (!partial || typeof partial !== 'object') {
     return getWorldConfig();
@@ -305,9 +359,17 @@ export function updateWorldConfig(partial = {}, options = {}) {
   const { silent = false, force = false } = options;
   let changed = false;
 
-  if ('biome' in partial && partial.biome !== worldConfigState.biome) {
-    worldConfigState.biome = partial.biome ?? null;
-    changed = true;
+  const hasStartingBiome =
+    Object.prototype.hasOwnProperty.call(partial, 'startingBiomeId') ||
+    Object.prototype.hasOwnProperty.call(partial, 'biome');
+  if (hasStartingBiome) {
+    const nextStartingBiomeId = Object.prototype.hasOwnProperty.call(partial, 'startingBiomeId')
+      ? /** @type {WorldConfigUpdate} */ (partial).startingBiomeId
+      : /** @type {WorldConfigUpdate} */ (partial).biome;
+    if (nextStartingBiomeId !== worldConfigState.startingBiomeId) {
+      worldConfigState.startingBiomeId = nextStartingBiomeId ?? null;
+      changed = true;
+    }
   }
   if ('season' in partial && partial.season !== worldConfigState.season) {
     worldConfigState.season = partial.season ?? null;
@@ -322,9 +384,8 @@ export function updateWorldConfig(partial = {}, options = {}) {
     changed = true;
   }
   if ('worldParameters' in partial) {
-    const nextWorld = partial.worldParameters
-      ? cloneWorldConfigParameters(partial.worldParameters)
-      : null;
+    const nextWorldParams = /** @type {WorldConfigUpdate} */ (partial).worldParameters;
+    const nextWorld = nextWorldParams ? cloneWorldConfigParameters(nextWorldParams) : null;
     if (!areWorldParametersEqual(worldConfigState.worldParameters, nextWorld)) {
       worldConfigState.worldParameters = nextWorld;
       changed = true;
@@ -337,13 +398,26 @@ export function updateWorldConfig(partial = {}, options = {}) {
   return getWorldConfig();
 }
 
+/**
+ * @param {WorldConfigUpdate | null | undefined} next
+ * @returns {WorldConfig}
+ */
 export function resetWorldConfig(next = {}) {
-  worldConfigState.biome = next.biome ?? null;
-  worldConfigState.season = next.season ?? null;
-  worldConfigState.seed = next.seed ?? null;
-  worldConfigState.difficulty = next.difficulty ?? null;
-  worldConfigState.worldParameters = next.worldParameters
-    ? cloneWorldConfigParameters(next.worldParameters)
+  const hasStartingBiome =
+    next && typeof next === 'object' &&
+    (Object.prototype.hasOwnProperty.call(next, 'startingBiomeId') ||
+      Object.prototype.hasOwnProperty.call(next, 'biome'));
+  worldConfigState.startingBiomeId = hasStartingBiome
+    ? (Object.prototype.hasOwnProperty.call(next, 'startingBiomeId')
+        ? /** @type {WorldConfigUpdate} */ (next).startingBiomeId
+        : /** @type {WorldConfigUpdate} */ (next).biome) ?? null
+    : null;
+  worldConfigState.season = next?.season ?? null;
+  worldConfigState.seed = next?.seed ?? null;
+  worldConfigState.difficulty = next?.difficulty ?? null;
+  const nextWorldParams = next?.worldParameters;
+  worldConfigState.worldParameters = nextWorldParams
+    ? cloneWorldConfigParameters(nextWorldParams)
     : null;
   emitWorldConfigChanged();
   return getWorldConfig();
