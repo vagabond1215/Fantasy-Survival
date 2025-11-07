@@ -219,6 +219,25 @@ class DataStore {
 
 export const WORLD_CONFIG_CHANGED = 'WORLD_CONFIG_CHANGED';
 
+/**
+ * @typedef {Object} WorldConfig
+ * @property {string | null} startingBiomeId
+ * @property {string | null} season
+ * @property {string | null} seed
+ * @property {string | null} difficulty
+ * @property {Record<string, any> | null} worldParameters
+ */
+
+/**
+ * @typedef {Object} WorldConfigUpdate
+ * @property {string | null | undefined} [startingBiomeId]
+ * @property {string | null | undefined} [biome]
+ * @property {string | null | undefined} [season]
+ * @property {string | null | undefined} [seed]
+ * @property {string | null | undefined} [difficulty]
+ * @property {Record<string, any> | null | undefined} [worldParameters]
+ */
+
 const worldConfigState = {
   startingBiomeId: null,
   season: null,
@@ -286,6 +305,9 @@ function areWorldParametersEqual(a, b) {
   return true;
 }
 
+/**
+ * @returns {WorldConfig}
+ */
 export function getWorldConfig() {
   return {
     startingBiomeId: worldConfigState.startingBiomeId,
@@ -325,6 +347,11 @@ export function onWorldConfigChange(listener, options = {}) {
   return () => worldConfigListeners.delete(listener);
 }
 
+/**
+ * @param {WorldConfigUpdate | null | undefined} partial
+ * @param {{ silent?: boolean, force?: boolean }} [options]
+ * @returns {WorldConfig}
+ */
 export function updateWorldConfig(partial = {}, options = {}) {
   if (!partial || typeof partial !== 'object') {
     return getWorldConfig();
@@ -337,8 +364,8 @@ export function updateWorldConfig(partial = {}, options = {}) {
     Object.prototype.hasOwnProperty.call(partial, 'biome');
   if (hasStartingBiome) {
     const nextStartingBiomeId = Object.prototype.hasOwnProperty.call(partial, 'startingBiomeId')
-      ? partial.startingBiomeId
-      : partial.biome;
+      ? /** @type {WorldConfigUpdate} */ (partial).startingBiomeId
+      : /** @type {WorldConfigUpdate} */ (partial).biome;
     if (nextStartingBiomeId !== worldConfigState.startingBiomeId) {
       worldConfigState.startingBiomeId = nextStartingBiomeId ?? null;
       changed = true;
@@ -357,9 +384,8 @@ export function updateWorldConfig(partial = {}, options = {}) {
     changed = true;
   }
   if ('worldParameters' in partial) {
-    const nextWorld = partial.worldParameters
-      ? cloneWorldConfigParameters(partial.worldParameters)
-      : null;
+    const nextWorldParams = /** @type {WorldConfigUpdate} */ (partial).worldParameters;
+    const nextWorld = nextWorldParams ? cloneWorldConfigParameters(nextWorldParams) : null;
     if (!areWorldParametersEqual(worldConfigState.worldParameters, nextWorld)) {
       worldConfigState.worldParameters = nextWorld;
       changed = true;
@@ -372,20 +398,26 @@ export function updateWorldConfig(partial = {}, options = {}) {
   return getWorldConfig();
 }
 
+/**
+ * @param {WorldConfigUpdate | null | undefined} next
+ * @returns {WorldConfig}
+ */
 export function resetWorldConfig(next = {}) {
   const hasStartingBiome =
-    Object.prototype.hasOwnProperty.call(next, 'startingBiomeId') ||
-    Object.prototype.hasOwnProperty.call(next, 'biome');
+    next && typeof next === 'object' &&
+    (Object.prototype.hasOwnProperty.call(next, 'startingBiomeId') ||
+      Object.prototype.hasOwnProperty.call(next, 'biome'));
   worldConfigState.startingBiomeId = hasStartingBiome
     ? (Object.prototype.hasOwnProperty.call(next, 'startingBiomeId')
-        ? next.startingBiomeId
-        : next.biome) ?? null
+        ? /** @type {WorldConfigUpdate} */ (next).startingBiomeId
+        : /** @type {WorldConfigUpdate} */ (next).biome) ?? null
     : null;
-  worldConfigState.season = next.season ?? null;
-  worldConfigState.seed = next.seed ?? null;
-  worldConfigState.difficulty = next.difficulty ?? null;
-  worldConfigState.worldParameters = next.worldParameters
-    ? cloneWorldConfigParameters(next.worldParameters)
+  worldConfigState.season = next?.season ?? null;
+  worldConfigState.seed = next?.seed ?? null;
+  worldConfigState.difficulty = next?.difficulty ?? null;
+  const nextWorldParams = next?.worldParameters;
+  worldConfigState.worldParameters = nextWorldParams
+    ? cloneWorldConfigParameters(nextWorldParams)
     : null;
   emitWorldConfigChanged();
   return getWorldConfig();
