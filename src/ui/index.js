@@ -938,8 +938,11 @@ export function initSetupUI(onStart) {
   const seedDispatchDelay = 200;
 
   const existingConfig = getWorldConfig();
-  if (existingConfig?.biome) {
-    selectedBiome = existingConfig.biome;
+  const configStartingBiome = Object.prototype.hasOwnProperty.call(existingConfig ?? {}, 'startingBiomeId')
+    ? existingConfig.startingBiomeId
+    : existingConfig?.biome;
+  if (configStartingBiome !== null && configStartingBiome !== undefined) {
+    selectedBiome = configStartingBiome;
   }
   if (existingConfig?.season) {
     selectedSeason = existingConfig.season;
@@ -1802,7 +1805,7 @@ export function initSetupUI(onStart) {
         }
       },
       onCommit: value => {
-        updateWorldConfig({ biome: value });
+        updateWorldConfig({ startingBiomeId: value });
       }
     });
   }
@@ -2330,11 +2333,19 @@ export function initSetupUI(onStart) {
   }
 
   function handleWorldConfigUpdate(config = {}) {
-    const { biome, season, difficulty, seed, worldParameters: nextWorld } = config;
+    const { season, difficulty, seed, worldParameters: nextWorld } = config;
+    const hasStartingBiome =
+      Object.prototype.hasOwnProperty.call(config, 'startingBiomeId') ||
+      Object.prototype.hasOwnProperty.call(config, 'biome');
+    const nextStartingBiomeId = hasStartingBiome
+      ? (Object.prototype.hasOwnProperty.call(config, 'startingBiomeId')
+          ? config.startingBiomeId
+          : config.biome)
+      : undefined;
     let shouldRefreshBiome = false;
-    if (biome) {
-      selectedBiome = biome;
-      syncBiomeSelection(biome);
+    if (hasStartingBiome && nextStartingBiomeId !== null && nextStartingBiomeId !== undefined) {
+      selectedBiome = nextStartingBiomeId;
+      syncBiomeSelection(nextStartingBiomeId);
       shouldRefreshBiome = true;
     }
     if (season) {
@@ -2384,7 +2395,7 @@ export function initSetupUI(onStart) {
 
   updateWorldConfig(
     {
-      biome: selectedBiome,
+      startingBiomeId: selectedBiome,
       season: selectedSeason,
       difficulty: selectedDifficulty,
       seed: mapSeed,
@@ -2427,14 +2438,20 @@ export function initSetupUI(onStart) {
       seed: mapSeed
     });
     resolvedSeasonId = effectiveSeason;
-    const snapshotBiome = snapshot.biome || selectedBiome;
+    const snapshotStartingBiome = Object.prototype.hasOwnProperty.call(snapshot, 'startingBiomeId')
+      ? snapshot.startingBiomeId
+      : snapshot.biome;
+    const baseStartingBiome =
+      snapshotStartingBiome !== null && snapshotStartingBiome !== undefined
+        ? snapshotStartingBiome
+        : selectedBiome;
     const effectiveBiome =
-      snapshotBiome === RANDOM_BIOME_ID
-        ? resolvedBiomeId || resolveBiomeId(snapshotBiome, { mode: 'stable', seed: mapSeed })
-        : snapshotBiome;
+      baseStartingBiome === RANDOM_BIOME_ID
+        ? resolvedBiomeId || resolveBiomeId(baseStartingBiome, { mode: 'stable', seed: mapSeed })
+        : baseStartingBiome;
     const effectiveBiomeColor = getBiome(effectiveBiome)?.color || null;
     onStart({
-      biome: effectiveBiome,
+      startingBiomeId: effectiveBiome,
       biomeColor: effectiveBiomeColor,
       season: effectiveSeason,
       difficulty: snapshot.difficulty || selectedDifficulty,

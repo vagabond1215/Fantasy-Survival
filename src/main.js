@@ -39,7 +39,9 @@ function startGame(settings = {}) {
   const preset = difficultySettings[diff] || difficultySettings.normal;
   const startCfg = preset.start;
   const worldParameters = settings.world || preset.world;
-  const startingBiomeId = settings.biome || worldParameters?.startingBiomeId || null;
+  const hasStartingBiome = Object.prototype.hasOwnProperty.call(settings, 'startingBiomeId');
+  const configuredStartingBiome = hasStartingBiome ? settings.startingBiomeId : settings.biome;
+  const startingBiomeId = configuredStartingBiome ?? worldParameters?.startingBiomeId ?? null;
   const enrichedWorld = {
     ...worldParameters,
     ...(startingBiomeId ? { startingBiomeId } : {})
@@ -68,8 +70,8 @@ function startGame(settings = {}) {
     store.time.season = getSeasonForMonth(store.time.month);
   }
   resetToDawn();
-  if (settings.biome) {
-    generateLocation('loc1', settings.biome, store.time.season, settings.seed, enrichedWorld);
+  if (startingBiomeId) {
+    generateLocation('loc1', startingBiomeId, store.time.season, settings.seed, enrichedWorld);
   } else if (store.locations.size === 0) {
     generateLocation(
       'loc1',
