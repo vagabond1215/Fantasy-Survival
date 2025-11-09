@@ -938,11 +938,16 @@ export function initSetupUI(onStart) {
   const seedDispatchDelay = 200;
 
   const existingConfig = getWorldConfig();
-  const configStartingBiome = Object.prototype.hasOwnProperty.call(existingConfig ?? {}, 'startingBiomeId')
-    ? existingConfig.startingBiomeId
-    : existingConfig?.biome;
-  if (configStartingBiome !== null && configStartingBiome !== undefined) {
-    selectedBiome = configStartingBiome;
+  const hasConfigStartingBiome = Object.prototype.hasOwnProperty.call(
+    existingConfig ?? {},
+    'startingBiomeId'
+  );
+  if (
+    hasConfigStartingBiome &&
+    existingConfig.startingBiomeId !== null &&
+    existingConfig.startingBiomeId !== undefined
+  ) {
+    selectedBiome = existingConfig.startingBiomeId;
   }
   if (existingConfig?.season) {
     selectedSeason = existingConfig.season;
@@ -2334,14 +2339,8 @@ export function initSetupUI(onStart) {
 
   function handleWorldConfigUpdate(config = {}) {
     const { season, difficulty, seed, worldParameters: nextWorld } = config;
-    const hasStartingBiome =
-      Object.prototype.hasOwnProperty.call(config, 'startingBiomeId') ||
-      Object.prototype.hasOwnProperty.call(config, 'biome');
-    const nextStartingBiomeId = hasStartingBiome
-      ? (Object.prototype.hasOwnProperty.call(config, 'startingBiomeId')
-          ? config.startingBiomeId
-          : config.biome)
-      : undefined;
+    const hasStartingBiome = Object.prototype.hasOwnProperty.call(config, 'startingBiomeId');
+    const nextStartingBiomeId = hasStartingBiome ? config.startingBiomeId : undefined;
     let shouldRefreshBiome = false;
     if (hasStartingBiome && nextStartingBiomeId !== null && nextStartingBiomeId !== undefined) {
       selectedBiome = nextStartingBiomeId;
@@ -2438,9 +2437,11 @@ export function initSetupUI(onStart) {
       seed: mapSeed
     });
     resolvedSeasonId = effectiveSeason;
-    const snapshotStartingBiome = Object.prototype.hasOwnProperty.call(snapshot, 'startingBiomeId')
-      ? snapshot.startingBiomeId
-      : snapshot.biome;
+    const hasSnapshotStartingBiome = Object.prototype.hasOwnProperty.call(
+      snapshot,
+      'startingBiomeId'
+    );
+    const snapshotStartingBiome = hasSnapshotStartingBiome ? snapshot.startingBiomeId : undefined;
     const baseStartingBiome =
       snapshotStartingBiome !== null && snapshotStartingBiome !== undefined
         ? snapshotStartingBiome

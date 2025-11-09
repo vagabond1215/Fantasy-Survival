@@ -231,7 +231,7 @@ export const WORLD_CONFIG_CHANGED = 'WORLD_CONFIG_CHANGED';
 /**
  * @typedef {Object} WorldConfigUpdate
  * @property {string | null | undefined} [startingBiomeId]
- * @property {string | null | undefined} [biome]
+ * @property {string | null | undefined} [biome] Legacy alias for `startingBiomeId`.
  * @property {string | null | undefined} [season]
  * @property {string | null | undefined} [seed]
  * @property {string | null | undefined} [difficulty]
@@ -246,6 +246,19 @@ const worldConfigState = {
   worldParameters: null
 };
 
+function extractStartingBiomeId(source) {
+  if (!source || typeof source !== 'object') {
+    return { present: false, value: undefined };
+  }
+  if (Object.prototype.hasOwnProperty.call(source, 'startingBiomeId')) {
+    return { present: true, value: source.startingBiomeId ?? null };
+  }
+  if (Object.prototype.hasOwnProperty.call(source, 'biome')) {
+    return { present: true, value: source.biome ?? null };
+  }
+  return { present: false, value: undefined };
+}
+
 const worldConfigListeners = new Set();
 
 function normalizeWorldSettings(world) {
@@ -255,10 +268,9 @@ function normalizeWorldSettings(world) {
   const clonedAdvanced =
     advanced && typeof advanced === 'object' ? { ...advanced } : advanced ?? null;
   normalized.advanced = clonedAdvanced;
-  if ('startingBiomeId' in world) {
-    normalized.startingBiomeId = world.startingBiomeId ?? null;
-  } else if ('biome' in world) {
-    normalized.startingBiomeId = world.biome ?? null;
+  const { present: hasStartingBiome, value: normalizedBiome } = extractStartingBiomeId(world);
+  if (hasStartingBiome) {
+    normalized.startingBiomeId = normalizedBiome;
   }
   if ('biome' in normalized) {
     delete normalized.biome;
@@ -270,10 +282,11 @@ function cloneWorldConfigParameters(params) {
   if (!params || typeof params !== 'object') return null;
   const { advanced, ...rest } = params;
   const normalized = { ...rest };
-  if ('startingBiomeId' in normalized) {
-    normalized.startingBiomeId = normalized.startingBiomeId ?? null;
-  } else if ('biome' in normalized) {
-    normalized.startingBiomeId = normalized.biome ?? null;
+  const { present: hasStartingBiome, value: normalizedBiome } = extractStartingBiomeId(normalized);
+  if (hasStartingBiome) {
+    normalized.startingBiomeId = normalizedBiome;
+  }
+  if ('biome' in normalized) {
     delete normalized.biome;
   }
   const clonedAdvanced =
@@ -359,17 +372,10 @@ export function updateWorldConfig(partial = {}, options = {}) {
   const { silent = false, force = false } = options;
   let changed = false;
 
-  const hasStartingBiome =
-    Object.prototype.hasOwnProperty.call(partial, 'startingBiomeId') ||
-    Object.prototype.hasOwnProperty.call(partial, 'biome');
-  if (hasStartingBiome) {
-    const nextStartingBiomeId = Object.prototype.hasOwnProperty.call(partial, 'startingBiomeId')
-      ? /** @type {WorldConfigUpdate} */ (partial).startingBiomeId
-      : /** @type {WorldConfigUpdate} */ (partial).biome;
-    if (nextStartingBiomeId !== worldConfigState.startingBiomeId) {
-      worldConfigState.startingBiomeId = nextStartingBiomeId ?? null;
-      changed = true;
-    }
+  const { present: hasStartingBiome, value: nextStartingBiomeId } = extractStartingBiomeId(partial);
+  if (hasStartingBiome && nextStartingBiomeId !== worldConfigState.startingBiomeId) {
+    worldConfigState.startingBiomeId = nextStartingBiomeId ?? null;
+    changed = true;
   }
   if ('season' in partial && partial.season !== worldConfigState.season) {
     worldConfigState.season = partial.season ?? null;
@@ -403,15 +409,8 @@ export function updateWorldConfig(partial = {}, options = {}) {
  * @returns {WorldConfig}
  */
 export function resetWorldConfig(next = {}) {
-  const hasStartingBiome =
-    next && typeof next === 'object' &&
-    (Object.prototype.hasOwnProperty.call(next, 'startingBiomeId') ||
-      Object.prototype.hasOwnProperty.call(next, 'biome'));
-  worldConfigState.startingBiomeId = hasStartingBiome
-    ? (Object.prototype.hasOwnProperty.call(next, 'startingBiomeId')
-        ? /** @type {WorldConfigUpdate} */ (next).startingBiomeId
-        : /** @type {WorldConfigUpdate} */ (next).biome) ?? null
-    : null;
+  const { present: hasStartingBiome, value: nextStartingBiomeId } = extractStartingBiomeId(next);
+  worldConfigState.startingBiomeId = hasStartingBiome ? nextStartingBiomeId ?? null : null;
   worldConfigState.season = next?.season ?? null;
   worldConfigState.seed = next?.seed ?? null;
   worldConfigState.difficulty = next?.difficulty ?? null;
