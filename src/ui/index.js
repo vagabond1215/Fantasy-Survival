@@ -32,7 +32,7 @@ import store, {
   updateWorldConfig
 } from '../state.js';
 import { BIOME_STARTER_OPTIONS } from '../world/biome/startingBiomes.js';
-import { generateWorld } from '../world/generate';
+import { generateWorld } from '../world/generate.ts';
 import { canonicalizeSeed } from '../world/seed.js';
 import { WheelSelect } from './components/WheelSelect.ts';
 
