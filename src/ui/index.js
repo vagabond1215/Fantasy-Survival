@@ -12,8 +12,8 @@ import {
   computeCenteredStart,
   DEFAULT_MAP_HEIGHT,
   DEFAULT_MAP_WIDTH,
-  generateColorMap,
-  isWaterTerrain
+  isWaterTerrain,
+  TERRAIN_SYMBOLS
 } from '../map.js';
 import { createMapView } from '../mapView.js';
 import { ensureSanityCheckToasts } from '../notifications.js';
@@ -32,6 +32,8 @@ import store, {
   updateWorldConfig
 } from '../state.js';
 import { BIOME_STARTER_OPTIONS } from '../world/biome/startingBiomes.js';
+import { generateWorld } from '../world/generate';
+import { canonicalizeSeed } from '../world/seed.js';
 import { WheelSelect } from './components/WheelSelect.ts';
 
 const seasons = [
@@ -79,6 +81,205 @@ const RANDOM_SEASON_ID = 'random';
 const RANDOM_BIOME_ID = 'random';
 
 const DEFAULT_MAP_TYPE = mapTypes[0]?.id || 'continent';
+
+const WATER_ELEVATION_THRESHOLD = 0.32;
+const WATER_ELEVATION_BUFFER = 0.08;
+const WATER_RUNOFF_THRESHOLD = 0.82;
+const WATER_MOISTURE_THRESHOLD = 0.88;
+const FOREST_WOOD_THRESHOLD = 0.55;
+const FOREST_VEGETATION_THRESHOLD = 0.65;
+const STONE_ORE_THRESHOLD = 0.6;
+const ORE_RICH_THRESHOLD = 0.78;
+const HIGH_ELEVATION_THRESHOLD = 0.72;
+
+function fallbackCanonicalSeed(seedString = '') {
+  const normalized = (seedString ?? '').trim();
+  const lanes = new Array(8).fill(0);
+  let hash = 0x811c9dc5;
+  for (let index = 0; index < normalized.length; index += 1) {
+    const code = normalized.charCodeAt(index);
+    hash ^= code;
+    hash = Math.imul(hash, 0x01000193) >>> 0;
+    const laneIndex = index % lanes.length;
+    lanes[laneIndex] = Math.imul(lanes[laneIndex] ^ hash, 0x27d4eb2d) >>> 0;
+  }
+  if (!normalized.length) {
+    for (let i = 0; i < lanes.length; i += 1) {
+      lanes[i] = (hash + i * 0x9e3779b1) >>> 0;
+    }
+  } else {
+    for (let i = 0; i < lanes.length; i += 1) {
+      if (!lanes[i]) {
+        lanes[i] = (hash + i * 0x9e3779b1) >>> 0;
+      }
+    }
+  }
+  const hex = lanes.map(lane => lane.toString(16).padStart(8, '0')).join('');
+  return {
+    raw: seedString,
+    normalized,
+    hex,
+    lanes
+  };
+}
+
+function classifyWorldTile(tile) {
+  if (!tile) return 'open';
+  const elevation = Number.isFinite(tile.elevation) ? tile.elevation : 0;
+  const runoff = Number.isFinite(tile.runoff) ? tile.runoff : 0;
+  const moisture = Number.isFinite(tile.moisture) ? tile.moisture : 0;
+  const resources = tile.resources || {};
+  const ore = Number.isFinite(resources.ore) ? resources.ore : 0;
+  const wood = Number.isFinite(resources.wood) ? resources.wood : 0;
+  const vegetation = Number.isFinite(resources.vegetation) ? resources.vegetation : 0;
+
+  if (
+    elevation <= WATER_ELEVATION_THRESHOLD ||
+    (elevation <= WATER_ELEVATION_THRESHOLD + WATER_ELEVATION_BUFFER && runoff >= WATER_RUNOFF_THRESHOLD) ||
+    (moisture >= WATER_MOISTURE_THRESHOLD && elevation <= WATER_ELEVATION_THRESHOLD + WATER_ELEVATION_BUFFER)
+  ) {
+    return 'water';
+  }
+
+  if (ore >= ORE_RICH_THRESHOLD) {
+    return 'ore';
+  }
+
+  if (ore >= STONE_ORE_THRESHOLD || elevation >= HIGH_ELEVATION_THRESHOLD) {
+    return 'stone';
+  }
+
+  if (wood >= FOREST_WOOD_THRESHOLD || vegetation >= FOREST_VEGETATION_THRESHOLD) {
+    return 'forest';
+  }
+
+  return 'open';
+}
+
+function adaptWorldToMapView(world, options = {}) {
+  if (!world) {
+    return {
+      seed: options.seedString || '',
+      seedInfo: options.seedInfo || null,
+      season: options.season || null,
+      tiles: [],
+      types: [],
+      elevations: [],
+      xStart: Number.isFinite(options.xStart) ? Math.trunc(options.xStart) : 0,
+      yStart: Number.isFinite(options.yStart) ? Math.trunc(options.yStart) : 0,
+      width: 0,
+      height: 0,
+      viewport: options.viewport || null,
+      tileData: [],
+      tileMatrix: [],
+      layerBuffers: {
+        elevation: new Float32Array(0),
+        temperature: new Float32Array(0),
+        moisture: new Float32Array(0),
+        runoff: new Float32Array(0)
+      },
+      worldSettings: options.worldSettings || null,
+      buffer: null
+    };
+  }
+
+  const width = Math.max(1, Math.trunc(world.dimensions?.width ?? 0));
+  const height = Math.max(1, Math.trunc(world.dimensions?.height ?? 0));
+  const size = width * height;
+  const xStart = Number.isFinite(options.xStart) ? Math.trunc(options.xStart) : 0;
+  const yStart = Number.isFinite(options.yStart) ? Math.trunc(options.yStart) : 0;
+
+  const tiles = new Array(height);
+  const types = new Array(height);
+  const elevations = new Array(height);
+  const tileMatrix = new Array(height);
+
+  const elevationLayer = world.layers?.elevation instanceof Float32Array
+    ? world.layers.elevation
+    : new Float32Array(size);
+
+  for (let row = 0; row < height; row += 1) {
+    const tileRow = new Array(width);
+    const typeRow = new Array(width);
+    const elevationRow = new Array(width);
+    const tileDetailRow = new Array(width);
+    for (let col = 0; col < width; col += 1) {
+      const index = row * width + col;
+      const tile = world.tiles?.[index] || null;
+      const type = classifyWorldTile(tile);
+      typeRow[col] = type;
+      const symbol = TERRAIN_SYMBOLS[type] ?? TERRAIN_SYMBOLS.open ?? type ?? '?';
+      tileRow[col] = symbol;
+      elevationRow[col] = elevationLayer[index] ?? 0;
+      tileDetailRow[col] = tile;
+    }
+    tiles[row] = tileRow;
+    types[row] = typeRow;
+    elevations[row] = elevationRow;
+    tileMatrix[row] = tileDetailRow;
+  }
+
+  const viewport = options.viewport
+    ? {
+        xStart: Number.isFinite(options.viewport.xStart)
+          ? Math.trunc(options.viewport.xStart)
+          : xStart,
+        yStart: Number.isFinite(options.viewport.yStart)
+          ? Math.trunc(options.viewport.yStart)
+          : yStart,
+        width: Math.max(1, Math.trunc(options.viewport.width ?? width)),
+        height: Math.max(1, Math.trunc(options.viewport.height ?? height))
+      }
+    : {
+        xStart,
+        yStart,
+        width,
+        height
+      };
+
+  const map = {
+    seed: options.seedString ?? options.seedInfo?.raw ?? '',
+    seedInfo: options.seedInfo ?? null,
+    season: options.season ?? null,
+    tiles,
+    types,
+    elevations,
+    xStart,
+    yStart,
+    width,
+    height,
+    viewport,
+    tileData: world.tiles ?? [],
+    tileMatrix,
+    layerBuffers: world.layers ?? {
+      elevation: new Float32Array(size),
+      temperature: new Float32Array(size),
+      moisture: new Float32Array(size),
+      runoff: new Float32Array(size)
+    },
+    worldSettings: options.worldSettings || null,
+    buffer: null
+  };
+
+  map.buffer = {
+    seed: map.seed,
+    season: map.season,
+    tiles,
+    types,
+    elevations,
+    xStart,
+    yStart,
+    width,
+    height,
+    viewport,
+    tileData: map.tileData,
+    tileMatrix,
+    layers: map.layerBuffers,
+    worldSettings: map.worldSettings
+  };
+
+  return map;
+}
 
 function getNonRandomBiomes() {
   return biomes.filter(biome => biome.id !== RANDOM_BIOME_ID);
@@ -925,7 +1126,36 @@ export function initSetupUI(onStart) {
   let selectedDifficulty = defaultDifficulty?.id || '';
   let worldParameters = cloneWorldParameters(getDifficultyPreset(selectedDifficulty)?.world || defaultWorldParameters);
   let selectedMapType = normalizeMapType(worldParameters.mapType);
-  let mapSeed = createSeed();
+  let mapSeed = '';
+  let cachedCanonicalSeed = null;
+  let cachedCanonicalSeedRaw = null;
+  const resolveCanonicalSeed = async (seedString = mapSeed) => {
+    const normalized = typeof seedString === 'string' ? seedString : String(seedString ?? '');
+    if (cachedCanonicalSeed && cachedCanonicalSeedRaw === normalized) {
+      return cachedCanonicalSeed;
+    }
+    try {
+      const canonical = await canonicalizeSeed(normalized);
+      cachedCanonicalSeed = canonical;
+      cachedCanonicalSeedRaw = normalized;
+      return canonical;
+    } catch (error) {
+      console.warn('Failed to canonicalize seed; using deterministic fallback.', error);
+      const fallback = fallbackCanonicalSeed(normalized);
+      cachedCanonicalSeed = fallback;
+      cachedCanonicalSeedRaw = normalized;
+      return fallback;
+    }
+  };
+  const invalidateCanonicalSeed = () => {
+    cachedCanonicalSeed = null;
+    cachedCanonicalSeedRaw = null;
+  };
+  const setMapSeedValue = nextSeed => {
+    mapSeed = typeof nextSeed === 'string' ? nextSeed : String(nextSeed ?? '');
+    invalidateCanonicalSeed();
+  };
+  setMapSeedValue(createSeed());
   let resolvedBiomeId = selectedBiome;
   let mapData = null;
   let spawnCoords = null;
@@ -962,7 +1192,7 @@ export function initSetupUI(onStart) {
     selectedMapType = normalizeMapType(worldParameters.mapType);
   }
   if (existingConfig?.seed) {
-    mapSeed = String(existingConfig.seed);
+    setMapSeedValue(String(existingConfig.seed));
   }
 
   resolvedSeasonId = resolveSeasonId(selectedSeason, { mode: 'stable', seed: mapSeed });
@@ -1267,24 +1497,57 @@ export function initSetupUI(onStart) {
   }
 
   function computeDefaultSpawn(map) {
-    if (!map) return null;
-    const source = map.viewport || map;
-    const width = Math.max(1, Math.trunc(source?.width ?? DEFAULT_MAP_WIDTH));
-    const height = Math.max(1, Math.trunc(source?.height ?? DEFAULT_MAP_HEIGHT));
-    const xStart = Number.isFinite(source?.xStart)
-      ? Math.trunc(source.xStart)
-      : Number.isFinite(map?.xStart)
-        ? Math.trunc(map.xStart)
-        : 0;
-    const yStart = Number.isFinite(source?.yStart)
-      ? Math.trunc(source.yStart)
-      : Number.isFinite(map?.yStart)
-        ? Math.trunc(map.yStart)
-        : 0;
-    return {
-      x: xStart + Math.floor(width / 2),
-      y: yStart + Math.floor(height / 2)
-    };
+    if (!map?.tileMatrix?.length || !map?.types?.length) return null;
+    const width = Math.max(1, Math.trunc(map.width ?? map.tileMatrix[0]?.length ?? 0));
+    const height = Math.max(1, Math.trunc(map.height ?? map.tileMatrix.length ?? 0));
+    if (!width || !height) return null;
+    const xStart = Number.isFinite(map.xStart) ? Math.trunc(map.xStart) : 0;
+    const yStart = Number.isFinite(map.yStart) ? Math.trunc(map.yStart) : 0;
+    const centerX = xStart + Math.floor(width / 2);
+    const centerY = yStart + Math.floor(height / 2);
+
+    let best = null;
+
+    for (let row = 0; row < height; row += 1) {
+      const typeRow = map.types[row];
+      const detailRow = map.tileMatrix[row];
+      if (!typeRow || !detailRow) continue;
+      for (let col = 0; col < width; col += 1) {
+        const type = typeRow[col];
+        if (!type || isWaterTerrain(type)) continue;
+        const tile = detailRow[col];
+        if (!tile) continue;
+
+        const worldX = xStart + col;
+        const worldY = yStart + row;
+        const distance = Math.hypot(worldX - centerX, worldY - centerY);
+        const resources = tile.resources || {};
+        const fertility = Number.isFinite(resources.fertility) ? resources.fertility : 0;
+        const forage = Number.isFinite(resources.forage) ? resources.forage : 0;
+        const wood = Number.isFinite(resources.wood) ? resources.wood : 0;
+        const freshWater = Number.isFinite(resources.freshWater) ? resources.freshWater : 0;
+        const ore = Number.isFinite(resources.ore) ? resources.ore : 0;
+        const elevation = Number.isFinite(tile.elevation) ? tile.elevation : 0.5;
+        const resourceScore =
+          fertility * 0.25 +
+          freshWater * 0.2 +
+          forage * 0.2 +
+          wood * 0.2 +
+          ore * 0.1 +
+          (1 - Math.abs(elevation - 0.55)) * 0.05;
+        const score = resourceScore - distance * 0.02;
+
+        if (
+          !best ||
+          score > best.score ||
+          (Math.abs(score - best.score) < 1e-6 && distance < best.distance)
+        ) {
+          best = { x: worldX, y: worldY, score, distance };
+        }
+      }
+    }
+
+    return best ? { x: best.x, y: best.y } : null;
   }
 
   function getTerrainAt(map, coords = {}) {
@@ -1404,7 +1667,7 @@ export function initSetupUI(onStart) {
     updateSpawnInfo();
   }
 
-  function generatePreview() {
+  async function generatePreview() {
     if (!selectedBiome || !mapPreview) return;
     const width = PREVIEW_MAP_SIZE;
     const height = PREVIEW_MAP_SIZE;
@@ -1419,19 +1682,38 @@ export function initSetupUI(onStart) {
       seed: mapSeed
     });
     resolvedSeasonId = previewSeason;
-    mapData = generateColorMap(
-      previewBiome,
-      mapSeed,
+
+    let canonicalSeed;
+    try {
+      canonicalSeed = await resolveCanonicalSeed(mapSeed);
+    } catch (error) {
+      console.error('Failed to derive canonical seed for preview generation.', error);
+      canonicalSeed = fallbackCanonicalSeed(mapSeed);
+    }
+
+    const world = generateWorld({
+      width,
+      height,
+      seed: canonicalSeed
+    });
+
+    const viewport = {
       xStart,
       yStart,
       width,
-      height,
-      previewSeason,
-      undefined,
-      undefined,
-      worldParameters,
-      false
-    );
+      height
+    };
+
+    mapData = adaptWorldToMapView(world, {
+      seedInfo: canonicalSeed,
+      seedString: mapSeed,
+      season: previewSeason,
+      xStart,
+      yStart,
+      viewport,
+      worldSettings: worldParameters
+    });
+
     const defaultSpawn = computeDefaultSpawn(mapData);
     if (defaultSpawn) {
       setSpawnCoords(defaultSpawn, { silent: true });
@@ -1440,6 +1722,7 @@ export function initSetupUI(onStart) {
       updateSpawnMarker();
       updateSpawnInfo();
     }
+
     renderMapPreview();
     updateBiomeDetails();
   }
@@ -1848,34 +2131,95 @@ export function initSetupUI(onStart) {
     bufferMargin: 8,
     minZoom: 0.4,
     controlsContainer: mapPreviewSidebar,
-    fetchMap: ({ xStart, yStart, width, height, seed, season, viewport, skipSanityChecks }) => {
-      const nextSeed = seed ?? mapSeed;
+    fetchMap: async ({ xStart, yStart, width, height, seed, season, viewport }) => {
+      const requestedSeed = seed ?? mapSeed;
       const biomeId = resolveBiomeId(selectedBiome, {
         mode: 'stable',
-        seed: nextSeed
+        seed: requestedSeed
       });
       resolvedBiomeId = biomeId;
       const resolvedSeason = resolveSeasonId(season ?? selectedSeason, {
         mode: 'stable',
-        seed: nextSeed
+        seed: requestedSeed
       });
       resolvedSeasonId = resolvedSeason;
-      return generateColorMap(
-        biomeId,
-        nextSeed,
-        xStart,
-        yStart,
-        width,
-        height,
-        resolvedSeason,
-        mapData?.waterLevel,
-        viewport,
-        worldParameters,
-        Boolean(skipSanityChecks)
-      );
+
+      let canonicalSeed;
+      try {
+        canonicalSeed = await resolveCanonicalSeed(requestedSeed);
+      } catch (error) {
+        console.error('Failed to canonicalize seed for buffered map fetch.', error);
+        canonicalSeed = fallbackCanonicalSeed(requestedSeed);
+      }
+
+      const normalizedWidth = Math.max(1, Math.trunc(width ?? PREVIEW_MAP_SIZE));
+      const normalizedHeight = Math.max(1, Math.trunc(height ?? PREVIEW_MAP_SIZE));
+      const defaultStart = computeCenteredStart(normalizedWidth, normalizedHeight);
+      const startX = Number.isFinite(xStart) ? Math.trunc(xStart) : defaultStart.xStart;
+      const startY = Number.isFinite(yStart) ? Math.trunc(yStart) : defaultStart.yStart;
+      const world = generateWorld({
+        width: normalizedWidth,
+        height: normalizedHeight,
+        seed: canonicalSeed
+      });
+
+      const normalizedViewport = viewport
+        ? {
+            xStart: Number.isFinite(viewport.xStart) ? Math.trunc(viewport.xStart) : startX,
+            yStart: Number.isFinite(viewport.yStart) ? Math.trunc(viewport.yStart) : startY,
+            width: Math.max(1, Math.trunc(viewport.width ?? normalizedWidth)),
+            height: Math.max(1, Math.trunc(viewport.height ?? normalizedHeight))
+          }
+        : {
+            xStart: startX,
+            yStart: startY,
+            width: normalizedWidth,
+            height: normalizedHeight
+          };
+
+      const adapted = adaptWorldToMapView(world, {
+        seedInfo: canonicalSeed,
+        seedString: requestedSeed,
+        season: resolvedSeason,
+        xStart: startX,
+        yStart: startY,
+        viewport: normalizedViewport,
+        worldSettings: worldParameters
+      });
+
+      mapData = adapted;
+
+      const existingSpawn = spawnCoords ? sanitizeSpawnCoords(spawnCoords) : null;
+      if (existingSpawn) {
+        setSpawnCoords({ x: existingSpawn.x, y: existingSpawn.y }, { silent: true });
+      } else {
+        const defaultSpawn = computeDefaultSpawn(adapted);
+        if (defaultSpawn) {
+          setSpawnCoords(defaultSpawn, { silent: true });
+        } else {
+          spawnCoords = null;
+          updateSpawnMarker();
+          updateSpawnInfo();
+        }
+      }
+
+      return adapted;
     },
     onMapUpdate: updated => {
-      mapData = { ...updated, worldSettings: updated.worldSettings || worldParameters };
+      const bufferSource = updated?.buffer || mapData?.buffer || null;
+      const tileMatrix = bufferSource?.tileMatrix || mapData?.tileMatrix || null;
+      const tileData = bufferSource?.tileData || mapData?.tileData || null;
+      const layerBuffers = bufferSource?.layers || mapData?.layerBuffers || null;
+      mapData = {
+        ...mapData,
+        ...updated,
+        tileMatrix,
+        tileData,
+        layerBuffers,
+        buffer: bufferSource ? { ...bufferSource } : mapData?.buffer || null,
+        seedInfo: mapData?.seedInfo || null,
+        worldSettings: updated.worldSettings || mapData?.worldSettings || worldParameters
+      };
       updateSpawnMarker();
       updateSpawnInfo();
     },
@@ -2085,7 +2429,9 @@ export function initSetupUI(onStart) {
     }
     worldPreviewTimer = setTimeout(() => {
       worldPreviewTimer = null;
-      generatePreview();
+      generatePreview().catch(error => {
+        console.error('Failed to generate world preview', error);
+      });
     }, worldConfigDebounceDelay);
   }
 
@@ -2322,7 +2668,7 @@ export function initSetupUI(onStart) {
     const trimmed = typeof value === 'string' ? value.trim() : String(value ?? '');
     if (immediate) {
       const nextSeed = trimmed || createSeed();
-      mapSeed = nextSeed;
+      setMapSeedValue(nextSeed);
       seedInput.value = nextSeed;
       updateWorldConfig({ seed: nextSeed });
       return;
@@ -2332,7 +2678,7 @@ export function initSetupUI(onStart) {
     }
     seedUpdateTimer = setTimeout(() => {
       seedUpdateTimer = null;
-      mapSeed = trimmed;
+      setMapSeedValue(trimmed);
       updateWorldConfig({ seed: trimmed });
     }, seedDispatchDelay);
   }
@@ -2360,7 +2706,7 @@ export function initSetupUI(onStart) {
       syncDifficultySelection(difficulty);
     }
     if (typeof seed === 'string' && seed && seed !== mapSeed) {
-      mapSeed = seed;
+      setMapSeedValue(seed);
       syncSeedInput(seed);
       resolvedSeasonId = resolveSeasonId(selectedSeason, {
         mode: 'stable',
