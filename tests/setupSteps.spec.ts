@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest';
 import { initSetupUI } from '../src/ui/index.js';
 import store, { resetWorldConfig } from '../src/state.js';
-import { generateColorMap } from '../src/map.js';
+import { generateWorld } from '../src/world/generate';
 
 vi.mock('../src/biomes.js', () => ({
   biomes: [
@@ -112,38 +112,96 @@ vi.mock('../src/difficulty.js', () => {
   };
 });
 
-const { PREVIEW_MAP_SIZE, mockTypes, mockMap } = vi.hoisted(() => {
+const { PREVIEW_MAP_SIZE, buildMockWorld } = vi.hoisted(() => {
   const PREVIEW_MAP_SIZE = 128;
-  const mockTypes = Array.from({ length: PREVIEW_MAP_SIZE }, (_, row) =>
-    Array.from({ length: PREVIEW_MAP_SIZE }, (_, col) => {
-      if (row === 0 && col === PREVIEW_MAP_SIZE - 1) return 'water';
-      if (row === 1 && col === 0) return 'forest';
-      return 'open';
-    })
-  );
-  const mockMap = {
-    xStart: 0,
-    yStart: 0,
-    width: PREVIEW_MAP_SIZE,
-    height: PREVIEW_MAP_SIZE,
-    seed: 'seed-value',
-    season: 'Thawbound',
-    types: mockTypes
+  const buildMockWorld = (width = PREVIEW_MAP_SIZE, height = PREVIEW_MAP_SIZE) => {
+    const normalizedWidth = Math.max(1, Math.trunc(width));
+    const normalizedHeight = Math.max(1, Math.trunc(height));
+    const size = normalizedWidth * normalizedHeight;
+    const elevation = new Float32Array(size).fill(0.6);
+    const temperature = new Float32Array(size).fill(0.5);
+    const moisture = new Float32Array(size).fill(0.5);
+    const runoff = new Float32Array(size).fill(0.2);
+    const tiles = new Array(size);
+    for (let y = 0; y < normalizedHeight; y += 1) {
+      for (let x = 0; x < normalizedWidth; x += 1) {
+        const index = y * normalizedWidth + x;
+        let elev = 0.6;
+        let wood = 0.3;
+        let vegetation = 0.4;
+        let moistureValue = 0.5;
+        let runoffValue = 0.2;
+        if (y === 0 && x === normalizedWidth - 1) {
+          elev = 0.1;
+          runoffValue = 0.9;
+          moistureValue = 0.95;
+        } else if (y === 1 && x === 0) {
+          wood = 0.9;
+          vegetation = 0.85;
+        }
+        elevation[index] = elev;
+        moisture[index] = moistureValue;
+        runoff[index] = runoffValue;
+        tiles[index] = Object.freeze({
+          index,
+          x,
+          y,
+          elevation: elev,
+          temperature: 0.5,
+          moisture: moistureValue,
+          runoff: runoffValue,
+          climate: Object.freeze({ temperature: 'mild', moisture: 'moderate', runoff: 'minimal', frostRisk: 0 }),
+          biome: Object.freeze({ id: 'temperate-broadleaf', score: 0.5, reason: 'test-biome' }),
+          resources: Object.freeze({
+            vegetation,
+            wood,
+            forage: 0.3,
+            ore: 0.2,
+            freshWater: 0.3,
+            fertility: 0.4
+          })
+        });
+      }
+    }
+    return {
+      dimensions: Object.freeze({ width: normalizedWidth, height: normalizedHeight, size }),
+      layers: Object.freeze({
+        elevation,
+        temperature,
+        moisture,
+        runoff
+      }),
+      tiles: Object.freeze(tiles)
+    };
   };
-  return { PREVIEW_MAP_SIZE, mockTypes, mockMap };
+  return { PREVIEW_MAP_SIZE, buildMockWorld };
 });
 
 vi.mock('../src/map.js', () => ({
   computeCenteredStart: () => ({ xStart: 0, yStart: 0 }),
   DEFAULT_MAP_HEIGHT: PREVIEW_MAP_SIZE,
   DEFAULT_MAP_WIDTH: PREVIEW_MAP_SIZE,
-  generateColorMap: vi.fn(() => ({ ...mockMap })),
   isWaterTerrain: (terrain: string) => terrain === 'water',
-  TERRAIN_COLORS: {
-    open: '#ffffff',
-    forest: '#228b22',
-    water: '#3399ff'
+  TERRAIN_SYMBOLS: {
+    open: '.',
+    forest: 'F',
+    water: '~',
+    stone: 'S',
+    ore: 'O'
   }
+}));
+
+vi.mock('../src/world/generate', () => ({
+  generateWorld: vi.fn(({ width, height } = {}) => buildMockWorld(width, height))
+}));
+
+vi.mock('../src/world/seed.js', () => ({
+  canonicalizeSeed: vi.fn(async (seed: string) => ({
+    raw: seed,
+    normalized: seed,
+    hex: `hex-${seed}`,
+    lanes: [0x1, 0x2, 0x3, 0x4, 0x5, 0x6, 0x7, 0x8]
+  }))
 }));
 
 vi.mock('../src/mapView.js', () => ({
@@ -326,7 +384,7 @@ describe('map type wheel', () => {
     expect(mapped).toEqual(expected);
   });
 
-  it('updates world settings and regenerates the preview when changed', () => {
+  it('updates world settings and regenerates the preview when changed', async () => {
     vi.useFakeTimers();
     try {
       initSetupUI(() => {});
@@ -337,10 +395,10 @@ describe('map type wheel', () => {
       );
       const target = options.find(option => option.dataset.value === 'island');
       expect(target).toBeTruthy();
-      const mapGenerator = vi.mocked(generateColorMap);
+      const mapGenerator = vi.mocked(generateWorld);
       mapGenerator.mockClear();
       target?.dispatchEvent(new Event('click', { bubbles: true }));
-      vi.advanceTimersByTime(200);
+      await vi.advanceTimersByTimeAsync(200);
       expect(store.worldSettings?.mapType).toBe('island');
       expect(mapGenerator).toHaveBeenCalled();
     } finally {
