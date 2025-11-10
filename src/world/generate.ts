@@ -144,7 +144,7 @@ export type WorldArtifact = {
     temperature: Float32Array;
     moisture: Float32Array;
     runoff: Float32Array;
-    biome: Uint16Array;
+    biome: Uint8Array;
     ore: Float32Array;
     stone: Float32Array;
     water: Float32Array;
@@ -635,7 +635,7 @@ function generateWorldArtifact(seed: CanonicalSeed, config: GenerationConfig): W
   const temperature = new Float32Array(size);
   const moisture = new Float32Array(size);
   const runoff = new Float32Array(size);
-  const biome = new Uint16Array(size);
+  const biome = new Uint8Array(size);
   const ore = new Float32Array(size);
   const stone = new Float32Array(size);
   const water = new Float32Array(size);

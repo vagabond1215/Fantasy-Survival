@@ -8,6 +8,7 @@ import {
 } from './map/tileColors.js';
 import { createCamera } from './map/camera.js';
 import { createMapRenderer } from './map/renderer.js';
+import { getBiomeCssColor, getBiomeName, getBiomeId } from './map/biomePalette.js';
 import { createZoomControls } from './ui/ZoomControls.js';
 import { chunkDataCache, tileCanvasCache, sharedCanvasPool } from './storage/chunkCache.js';
 
@@ -43,6 +44,8 @@ const KEYBOARD_SNAP_DELAY = 220;
 
 const DEBUG_QUERY_PARAM = 'debug';
 const DEBUG_QUERY_VALUE = '1';
+
+const SPAWN_SUGGESTION_LIMIT = 5;
 
 function isDebugModeEnabled() {
   if (typeof window === 'undefined' || typeof URLSearchParams === 'undefined') {
@@ -622,6 +625,40 @@ function createSubGridView(view, offsetX, offsetY, width, height) {
   return view.slice(offsetX, offsetY, width, height);
 }
 
+function getWorldDimensions(stateRef) {
+  const width = Number.isFinite(stateRef.world?.dimensions?.width)
+    ? Math.max(0, Math.trunc(stateRef.world.dimensions.width))
+    : 0;
+  const height = Number.isFinite(stateRef.world?.dimensions?.height)
+    ? Math.max(0, Math.trunc(stateRef.world.dimensions.height))
+    : 0;
+  return { width, height };
+}
+
+function getWorldIndex(stateRef, x, y) {
+  const { width, height } = getWorldDimensions(stateRef);
+  if (!width || !height) return -1;
+  const col = Math.trunc(x);
+  const row = Math.trunc(y);
+  if (col < 0 || row < 0 || col >= width || row >= height) return -1;
+  return row * width + col;
+}
+
+function readWorldLayerValue(layer, index, fallback = 0) {
+  if (!layer || index < 0) return fallback;
+  if (index >= layer.length) return fallback;
+  const value = layer[index];
+  return Number.isFinite(value) ? value : fallback;
+}
+
+function formatPercent(value, digits = 0) {
+  if (!Number.isFinite(value)) return '0%';
+  const percent = value * 100;
+  const factor = 10 ** digits;
+  const rounded = Math.round(percent * factor) / factor;
+  return `${rounded.toFixed(digits)}%`;
+}
+
 function getGridWidth(grid, fallback = 0) {
   if (!grid) return fallback;
   if (Number.isFinite(grid.width)) {
@@ -707,7 +744,8 @@ function extractBufferMap(mapLike) {
     height,
     size: width * height,
     xStart: toInteger(candidate.xStart, 0),
-    yStart: toInteger(candidate.yStart, 0)
+    yStart: toInteger(candidate.yStart, 0),
+    world: candidate.world || null
   };
 }
 
@@ -810,6 +848,7 @@ export function createMapView(container, {
   const state = {
     map: null,
     buffer: null,
+    world: null,
     context: {},
     home: { xStart: 0, yStart: 0 },
     focus: { x: 0, y: 0 },
@@ -849,6 +888,9 @@ export function createMapView(container, {
     dataLayer: null,
     markerElements: new Map(),
     markerDefs: [],
+    spawnSuggestionMarkers: [],
+    spawnSuggestionRank: new Map(),
+    spawnSuggestionLimit: SPAWN_SUGGESTION_LIMIT,
     useTerrainColors: Boolean(useTerrainColors),
     terrainColorOverrides,
     pendingZoomSync: false,
@@ -864,6 +906,64 @@ export function createMapView(container, {
   };
 
   const getCurrentZoom = () => (state.camera ? state.camera.zoom : state.zoom);
+
+  function updateSpawnSuggestionMarkers() {
+    state.spawnSuggestionRank.clear();
+    if (!state.world?.spawnSuggestions || !state.world.spawnSuggestions.length) {
+      state.spawnSuggestionMarkers = [];
+      syncMarkers();
+      return;
+    }
+    const { width, height } = getWorldDimensions(state);
+    if (!width || !height) {
+      state.spawnSuggestionMarkers = [];
+      syncMarkers();
+      return;
+    }
+    const suggestions = state.world.spawnSuggestions;
+    const limit = Math.max(
+      1,
+      Math.min(state.spawnSuggestionLimit || SPAWN_SUGGESTION_LIMIT, suggestions.length)
+    );
+    const markers = [];
+    for (let i = 0; i < limit; i += 1) {
+      const suggestionIndex = suggestions[i];
+      const x = suggestionIndex % width;
+      const y = Math.floor(suggestionIndex / width);
+      state.spawnSuggestionRank.set(suggestionIndex, i);
+      markers.push({
+        id: `spawn-suggestion-${i}`,
+        x,
+        y,
+        icon: i === 0 ? '★' : '☆',
+        className: 'map-marker--suggestion',
+        emphasis: i === 0,
+        label: `Spawn suggestion #${i + 1}`,
+        color: i === 0
+          ? 'var(--map-suggestion-primary, #facc15)'
+          : 'var(--map-suggestion-secondary, #fde047)',
+        index: suggestionIndex
+      });
+    }
+    const normalized = markers
+      .map((marker, markerIndex) => normalizeMarker(marker, markerIndex))
+      .filter(Boolean);
+    state.spawnSuggestionMarkers = normalized;
+    syncMarkers();
+  }
+
+  function applyWorldArtifact(world) {
+    if (state.world === world) {
+      return;
+    }
+    state.world = world || null;
+    state.spawnSuggestionRank.clear();
+    state.spawnSuggestionMarkers = [];
+    if (state.renderer) {
+      state.renderer.setWorld(state.world);
+    }
+    updateSpawnSuggestionMarkers();
+  }
 
   const getVisibleDimensions = () => {
     const cols = Number.isFinite(state.map?.width)
@@ -961,7 +1061,8 @@ export function createMapView(container, {
       yStart: state.viewport.yStart,
       width,
       height,
-      viewport: { ...state.viewport }
+      viewport: { ...state.viewport },
+      world: state.world
     };
 
     return true;
@@ -980,7 +1081,8 @@ export function createMapView(container, {
       yStart: state.map.yStart,
       width: state.map.width,
       height: state.map.height,
-      viewport: { ...state.viewport }
+      viewport: { ...state.viewport },
+      world: state.world
     };
 
     if (state.buffer?.tiles) {
@@ -1002,6 +1104,9 @@ export function createMapView(container, {
         width: bufferWidth,
         height: bufferHeight
       };
+      if (state.buffer.world) {
+        payload.buffer.world = state.buffer.world;
+      }
     }
 
     return payload;
@@ -1227,7 +1332,8 @@ export function createMapView(container, {
     state.context = {
       ...state.context,
       focus: { ...state.focus },
-      viewport: { ...state.viewport }
+      viewport: { ...state.viewport },
+      world: state.world
     };
 
     if (typeof state.onMapUpdate === 'function') {
@@ -1364,6 +1470,9 @@ export function createMapView(container, {
     buffer.height = normalizedHeight;
 
     state.buffer = buffer;
+    if (buffer.world) {
+      applyWorldArtifact(buffer.world);
+    }
     if (Number.isFinite(targetX)) state.viewport.xStart = toInteger(targetX, buffer.xStart);
     if (Number.isFinite(targetY)) state.viewport.yStart = toInteger(targetY, buffer.yStart);
 
@@ -1497,6 +1606,7 @@ export function createMapView(container, {
     getTerrainGradient: type => resolveTerrainGradient(type),
     prefetchMargin: state.bufferMargin
   });
+  state.renderer.setWorld(state.world);
   state.renderer.setDevelopments(state.developmentTiles);
   state.renderer.setPrefetchMargin(state.bufferMargin);
   state.dataLayer = mapDataLayer;
@@ -1629,7 +1739,7 @@ export function createMapView(container, {
     boxShadow: '0 8px 18px rgba(0, 0, 0, 0.35)',
     transform: 'translate(-50%, calc(-100% - 12px))',
     zIndex: '12',
-    whiteSpace: 'nowrap',
+    whiteSpace: 'pre-line',
     letterSpacing: '0.02em'
   });
   mapWrapper.appendChild(tileTooltip);
@@ -1677,28 +1787,58 @@ export function createMapView(container, {
 
   const describeTile = tileInfo => {
     if (!tileInfo) return 'Unknown terrain';
-    const type = tileInfo.type || '';
-    const label = legendLabels[type] || type || 'Unknown terrain';
-    const symbol = tileInfo.symbol?.trim() || '';
-    const showSymbol =
-      symbol &&
-      symbol.toLowerCase() !== type.toLowerCase() &&
-      symbol.toLowerCase() !== String(label).toLowerCase();
-    const coordText = ` (${tileInfo.x}, ${tileInfo.y})`;
-    const developmentDetail = tileInfo.development?.tooltip || tileInfo.development?.structures?.join(', ');
-    let developmentText = '';
-    if (tileInfo.development?.tooltip) {
-      developmentText = ` — ${tileInfo.development.tooltip}`;
-    } else if (!developmentDetail) {
+    const worldIndex = Number.isFinite(tileInfo.index)
+      ? Math.trunc(tileInfo.index)
+      : getWorldIndex(state, tileInfo.x, tileInfo.y);
+    const layers = state.world?.layers || null;
+    let biomeCode = Number.isFinite(tileInfo.biomeCode) ? tileInfo.biomeCode : null;
+    if (biomeCode === null && worldIndex >= 0 && layers?.biome) {
+      biomeCode = layers.biome[worldIndex] ?? null;
+    }
+    const biomeLabel = biomeCode !== null ? getBiomeName(biomeCode) : null;
+    const headerParts = [];
+    if (biomeLabel) {
+      headerParts.push(biomeLabel);
+    } else {
+      const type = tileInfo.type || '';
+      headerParts.push(legendLabels[type] || type || 'Unknown terrain');
+    }
+    headerParts.push(`(${tileInfo.x}, ${tileInfo.y})`);
+    if (worldIndex >= 0) {
+      const rank = state.spawnSuggestionRank.get(worldIndex);
+      if (rank !== undefined) {
+        headerParts.push(`Spawn suggestion #${rank + 1}`);
+      }
+    }
+
+    const stats = [];
+    if (layers && worldIndex >= 0) {
+      stats.push(`Elev ${formatPercent(readWorldLayerValue(layers.elevation, worldIndex, 0), 0)}`);
+      stats.push(`Temp ${formatPercent(readWorldLayerValue(layers.temperature, worldIndex, 0), 0)}`);
+      stats.push(`Moist ${formatPercent(readWorldLayerValue(layers.moisture, worldIndex, 0), 0)}`);
+      stats.push(`Ore ${formatPercent(readWorldLayerValue(layers.ore, worldIndex, 0), 0)}`);
+      stats.push(`Stone ${formatPercent(readWorldLayerValue(layers.stone, worldIndex, 0), 0)}`);
+      stats.push(`Water ${formatPercent(readWorldLayerValue(layers.water, worldIndex, 0), 0)}`);
+      stats.push(`Fertility ${formatPercent(readWorldLayerValue(layers.fertility, worldIndex, 0), 0)}`);
+    }
+
+    let developmentDetail = tileInfo.development?.tooltip || tileInfo.development?.structures?.join(', ');
+    if (!developmentDetail) {
       const info = getDevelopmentInfo(tileInfo.x, tileInfo.y);
       const detail = info?.tooltip || (info?.structures?.length ? info.structures.join(', ') : '');
       if (detail) {
-        developmentText = ` — ${detail}`;
+        developmentDetail = detail;
       }
-    } else {
-      developmentText = ` — ${developmentDetail}`;
     }
-    return `${showSymbol ? `${symbol} ` : ''}${label}${coordText}${developmentText}`;
+
+    const lines = [headerParts.join(' • ')];
+    if (stats.length) {
+      lines.push(stats.join(' · '));
+    }
+    if (developmentDetail) {
+      lines.push(`Development: ${developmentDetail}`);
+    }
+    return lines.join('\n');
   };
 
   const showTooltip = (tileInfo, event = null) => {
@@ -3332,7 +3472,9 @@ export function createMapView(container, {
     const className = marker.className || '';
     const emphasis = Boolean(marker.emphasis);
     const label = marker.label || '';
-    return { id, x, y, icon, className, emphasis, label };
+    const color = marker.color || '';
+    const worldIndex = Number.isFinite(marker.index) ? Math.trunc(marker.index) : null;
+    return { id, x, y, icon, className, emphasis, label, color, index: worldIndex };
   }
 
   function syncMarkers() {
@@ -3358,7 +3500,8 @@ export function createMapView(container, {
     }
 
     const activeIds = new Set();
-    state.markerDefs.forEach(marker => {
+    const combinedMarkers = state.markerDefs.concat(state.spawnSuggestionMarkers || []);
+    combinedMarkers.forEach(marker => {
       const col = marker.x - state.map.xStart;
       const row = marker.y - state.map.yStart;
       if (!Number.isFinite(col) || !Number.isFinite(row)) return;
@@ -3383,6 +3526,11 @@ export function createMapView(container, {
 
       element.textContent = marker.icon;
       element.style.fontSize = marker.emphasis ? '1.6em' : '1.4em';
+      if (marker.color) {
+        element.style.color = marker.color;
+      } else {
+        element.style.color = '';
+      }
       if (marker.label) {
         element.title = marker.label;
         element.setAttribute('aria-label', marker.label);
@@ -3827,15 +3975,25 @@ export function createMapView(container, {
         const type = state.map.types?.get
           ? state.map.types.get(colIndex, rowIndex)
           : state.map.types?.[rowIndex]?.[colIndex] ?? null;
-        if (type) {
+        const worldIndex = getWorldIndex(state, worldX, worldY);
+        const biomeLayer = state.world?.layers?.biome || null;
+        const biomeCode = biomeLayer && worldIndex >= 0 ? biomeLayer[worldIndex] ?? null : null;
+        const biomeName = biomeCode !== null ? getBiomeName(biomeCode) : null;
+        const biomeId = biomeCode !== null ? getBiomeId(biomeCode) : null;
+        if (biomeId) {
+          tile.dataset.terrain = biomeId;
+          tile.dataset.biome = biomeId;
+        } else if (type) {
           tile.dataset.terrain = type;
+          delete tile.dataset.biome;
         } else {
           delete tile.dataset.terrain;
+          delete tile.dataset.biome;
         }
 
-        const symbol = tileView.get(colIndex, rowIndex) ?? '';
-        const fillColor = resolveTerrainColor(type);
-        const labelText = legendLabels[type] || symbol || type || '';
+        const fallbackSymbol = tileView.get(colIndex, rowIndex) ?? '';
+        const fillColor = biomeCode !== null ? getBiomeCssColor(biomeCode) : resolveTerrainColor(type);
+        const labelText = biomeName || legendLabels[type] || fallbackSymbol || type || '';
         if (symbolEl) {
           symbolEl.textContent = labelText;
           symbolEl.style.backgroundColor = fillColor || 'transparent';
@@ -3866,6 +4024,7 @@ export function createMapView(container, {
   function render() {
     if (!state.renderer) return;
     if (!state.map?.tiles || !state.map.tiles.size) {
+      state.renderer.setWorld(state.world);
       state.renderer.setMap(null);
       state.renderer.render();
       syncMarkers();
@@ -3873,6 +4032,7 @@ export function createMapView(container, {
       updateDebugOverlay({ fromRender: true });
       return;
     }
+    state.renderer.setWorld(state.world);
     state.renderer.setMap({ ...state.map });
     state.renderer.render();
     updateTileDataLayer();
@@ -4167,6 +4327,7 @@ export function createMapView(container, {
       if (!map) {
         state.map = null;
         state.buffer = null;
+        applyWorldArtifact(null);
         state.context = { ...state.context, focus: { ...state.focus } };
         state.zoomBase = { width: 0, height: 0 };
         state.zoomDisplayFactor = 1;
@@ -4192,6 +4353,11 @@ export function createMapView(container, {
         state.hasInitializedBaseChunk = true;
       }
       state.buffer = buffer;
+      if (buffer?.world) {
+        applyWorldArtifact(buffer.world);
+      } else if (map.world) {
+        applyWorldArtifact(map.world);
+      }
       ensureViewportDimensions(buffer);
 
       const incomingViewport = map.viewport ?? buffer?.viewport ?? null;
@@ -4315,6 +4481,9 @@ export function createMapView(container, {
       state.markerElements.clear();
       state.markerDefs = [];
       state.markerLayer = null;
+      state.spawnSuggestionMarkers = [];
+      state.spawnSuggestionRank.clear();
+      state.world = null;
       if (layoutRoot.parentElement) {
         layoutRoot.parentElement.removeChild(layoutRoot);
       }
