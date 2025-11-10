@@ -15,7 +15,7 @@ vi.mock('../src/technology.js', () => ({
   initializeTechnologyRegistry: vi.fn()
 }));
 
-const { mapMock, generateColorMapMock } = vi.hoisted(() => {
+const { mapMock, generateWorldMapMock } = vi.hoisted(() => {
   const baseMap = {
     tiles: Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => 'open')),
     types: Array.from({ length: 4 }, () => Array.from({ length: 4 }, () => 'open')),
@@ -26,7 +26,7 @@ const { mapMock, generateColorMapMock } = vi.hoisted(() => {
   };
   return {
     mapMock: baseMap,
-    generateColorMapMock: vi.fn(() => ({ ...baseMap }))
+    generateWorldMapMock: vi.fn(() => ({ map: { ...baseMap }, world: null, seedInfo: null }))
   };
 });
 
@@ -34,7 +34,7 @@ vi.mock('../src/map.js', () => ({
   computeCenteredStart: () => ({ xStart: 0, yStart: 0 }),
   DEFAULT_MAP_WIDTH: 4,
   DEFAULT_MAP_HEIGHT: 4,
-  generateColorMap: generateColorMapMock
+  generateWorldMap: generateWorldMapMock
 }));
 
 const STORAGE_KEY = 'fantasy-survival-save';
@@ -61,7 +61,7 @@ vi.stubGlobal('localStorage', localStorageMock);
 beforeEach(() => {
   storageData.clear();
   store.deserialize({});
-  generateColorMapMock.mockClear();
+  generateWorldMapMock.mockClear();
 });
 
 describe('loadGame', () => {
@@ -158,8 +158,8 @@ describe('loadGame', () => {
     expect(saved.worldSettings?.seedHash).toBe(canonical.hex);
     expect(saved.worldSettings?.startingBiomeId).toBe('temperate-broadleaf');
 
-    const generatedWorld = generateColorMapMock.mock.calls[0]?.[9];
-    expect(generatedWorld?.seedHash).toBe(canonical.hex);
-    expect(Array.isArray(generatedWorld?.seedLanes)).toBe(true);
+    const generationOptions = generateWorldMapMock.mock.calls[0]?.[0];
+    expect(generationOptions?.worldSettings?.seedHash).toBe(canonical.hex);
+    expect(Array.isArray(generationOptions?.worldSettings?.seedLanes)).toBe(true);
   });
 });

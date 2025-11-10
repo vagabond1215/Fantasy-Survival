@@ -2,10 +2,7 @@ import { afterEach, describe, expect, it } from 'vitest';
 import createMapView from '../src/mapView.js';
 import { generateWorld } from '../src/world/generate';
 import type { CanonicalSeed } from '../src/world/seed.js';
-
-function buildSymbolMatrix(rows: number, cols: number, symbol = '.') {
-  return Array.from({ length: rows }, () => Array.from({ length: cols }, () => symbol));
-}
+import { adaptWorldToMapData } from '../src/world/mapAdapter.js';
 
 function extractViewportOrigin(mapView: ReturnType<typeof createMapView>) {
   const firstTile = mapView.elements.display.querySelector('.map-tile') as HTMLElement | null;
@@ -44,22 +41,14 @@ describe('map view integration with generated worlds', () => {
     const height = world.dimensions.height;
     const viewport = { xStart: width - 6, yStart: height - 5, width: 8, height: 6 };
 
-    const tiles = buildSymbolMatrix(height, width, '.');
-    const types = buildSymbolMatrix(height, width, 'open');
-
-    const mapData = {
-      seed: 'integration-test',
-      tiles,
-      types,
-      elevations: null,
+    const mapData = adaptWorldToMapData(world, {
+      seedInfo: seed,
+      seedString: seed.raw,
+      season: 'Sunheight',
       xStart: 0,
       yStart: 0,
-      width,
-      height,
       viewport,
-      layerBuffers: world.layers,
-      tileData: world.tiles,
-    };
+    });
 
     const focus = {
       x: viewport.xStart + Math.floor(viewport.width / 2),
@@ -68,7 +57,7 @@ describe('map view integration with generated worlds', () => {
 
     mapView.setMap(mapData, { focus });
 
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 20));
 
     const initialOrigin = extractViewportOrigin(mapView);
     const maxStartX = Math.max(0, width - viewport.width);
@@ -84,7 +73,7 @@ describe('map view integration with generated worlds', () => {
       new KeyboardEvent('keydown', { key: 'ArrowRight', bubbles: true })
     );
 
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 20));
     const afterRight = extractViewportOrigin(mapView);
     expect(afterRight.xStart).toBeLessThanOrEqual(maxStartX);
 
@@ -95,7 +84,7 @@ describe('map view integration with generated worlds', () => {
       new KeyboardEvent('keydown', { key: 'ArrowLeft', bubbles: true })
     );
 
-    await new Promise(resolve => setTimeout(resolve, 0));
+    await new Promise(resolve => setTimeout(resolve, 20));
 
     const afterLeft = extractViewportOrigin(mapView);
     expect(afterLeft.xStart).toBeGreaterThanOrEqual(0);

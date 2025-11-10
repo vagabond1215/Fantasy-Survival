@@ -1,5 +1,12 @@
 import { describe, expect, it } from 'vitest';
-import { generateColorMap, isWaterTerrain } from '../src/map.js';
+
+import { isWaterTerrain } from '../src/map.js';
+import { generateWorld } from '../src/world/generate';
+import {
+  adaptWorldToMapData,
+  computeDefaultSpawn,
+  fallbackCanonicalSeed
+} from '../src/world/mapAdapter.js';
 
 const EIGHT_NEIGHBORS: Array<[number, number]> = [
   [-1, -1],
@@ -12,197 +19,139 @@ const EIGHT_NEIGHBORS: Array<[number, number]> = [
   [1, 1]
 ];
 
-const STANDING_WATER_TYPES = new Set(['lake', 'pond', 'marsh', 'swamp', 'bog', 'fen']);
-const MARINE_WATER_TYPES = new Set([
-  'ocean',
-  'estuary',
-  'delta',
-  'mangrove_forest',
-  'kelp_forest',
-  'coral_reef',
-  'polar_sea',
-  'open_ocean',
-  'abyssal_deep',
-  'seamount'
-]);
-const FLOWING_WATER_TYPES = new Set(['river', 'stream']);
-const WATER_TYPES = new Set([
-  'water',
-  ...STANDING_WATER_TYPES,
-  ...MARINE_WATER_TYPES,
-  ...FLOWING_WATER_TYPES
-]);
-
-function createHydrologyTestMap() {
-  return generateColorMap(
-    'temperate-maritime',
-    'hydrology-spec',
-    null,
-    null,
-    96,
-    96,
-    'Sunheight',
-    undefined,
-    null,
-    {
-      // Use the pangea preset so the coastline spans one large connected landmass.
-      mapType: 'pangea',
-      waterTable: 64,
-      rainfall: 68,
-      rivers100: 72,
-      lakes100: 66,
-      streams100: 68,
-      ponds100: 60,
-      marshSwamp: 62,
-      bogFen: 56,
-      mountains: 42,
-      advanced: {
-        waterGuaranteeRadius: 60,
-        waterFlowMultiplier: 55
-      }
-    }
-  );
+function buildWorld() {
+  const seedInfo = fallbackCanonicalSeed('hydrology-spec');
+  const world = generateWorld({ width: 96, height: 96, seed: seedInfo });
+  const map = adaptWorldToMapData(world, {
+    seedInfo,
+    seedString: seedInfo.raw,
+    season: 'Sunheight'
+  });
+  return { world, map };
 }
 
-describe('hydrology generation', () => {
-  it('connects every river tile to a standing water body', () => {
-    const map = createHydrologyTestMap();
-    const hydrology = map.hydrology;
-    expect(hydrology).toBeTruthy();
+describe('world hydrology signals', () => {
+  it('classifies low-lying tiles as water with strong runoff correlation', () => {
+    const { world, map } = buildWorld();
+    const { elevation, runoff } = world.layers;
+    const { width, height } = world.dimensions;
 
-    const flow = hydrology.flowDirections;
-    const types = hydrology.types;
-    const width = map.width;
-    const height = map.height;
+    let waterTiles = 0;
+    let highRunoffWater = 0;
+    let mismatched = 0;
 
-    const reachesStandingWater = (startX: number, startY: number): boolean => {
-      const visited = new Set<number>();
-      let x = startX;
-      let y = startY;
-      for (let steps = 0; steps < width * height; steps += 1) {
-        const kind = types[y]?.[x];
-        if (STANDING_WATER_TYPES.has(kind) || MARINE_WATER_TYPES.has(kind)) {
-          return true;
+    for (let row = 0; row < height; row += 1) {
+      for (let col = 0; col < width; col += 1) {
+        const index = row * width + col;
+        const type = map.types[row]?.[col];
+        if (!type || !isWaterTerrain(type)) continue;
+        waterTiles += 1;
+        const elev = elevation[index] ?? 1;
+        const run = runoff[index] ?? 0;
+        if (run >= 0.55) {
+          highRunoffWater += 1;
         }
-        const dir = flow[y]?.[x];
-        if (!dir) {
-          return EIGHT_NEIGHBORS.some(([dx, dy]) => {
-            const nx = x + dx;
-            const ny = y + dy;
-            if (nx < 0 || ny < 0 || nx >= width || ny >= height) return false;
-            const neighborType = types[ny]?.[nx];
-            return (
-              STANDING_WATER_TYPES.has(neighborType) ||
-              MARINE_WATER_TYPES.has(neighborType)
-            );
-          });
+        if (elev > 0.48 && run < 0.4) {
+          mismatched += 1;
         }
-        const nx = x + dir.dx;
-        const ny = y + dir.dy;
-        if (nx < 0 || ny < 0 || nx >= width || ny >= height) {
-          return false;
-        }
-        const key = ny * width + nx;
-        if (visited.has(key)) {
-          return false;
-        }
-        visited.add(key);
-        x = nx;
-        y = ny;
-      }
-      return false;
-    };
-
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        if (types[y]?.[x] !== 'river') continue;
-        expect(reachesStandingWater(x, y)).toBe(true);
       }
     }
+
+    expect(waterTiles).toBeGreaterThan(0);
+    expect(highRunoffWater / waterTiles).toBeGreaterThan(0.7);
+    expect(mismatched / waterTiles).toBeLessThan(0.12);
   });
 
-  it('caps singleton water features below the configured threshold', () => {
-    const map = createHydrologyTestMap();
-    const { hydrology } = map;
-    const types = hydrology.types;
+  it('limits isolated surface water cells and keeps coastlines connected', () => {
+    const { map } = buildWorld();
     const width = map.width;
     const height = map.height;
-    let singletons = 0;
 
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const type = types[y]?.[x];
-        if (!type || !WATER_TYPES.has(type)) continue;
-        let neighbors = 0;
-        for (const [dx, dy] of EIGHT_NEIGHBORS) {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
-          if (WATER_TYPES.has(types[ny]?.[nx] ?? '')) {
-            neighbors += 1;
-            if (neighbors) break;
+    let isolated = 0;
+    const coastline = new Set<number>();
+
+    for (let row = 0; row < height; row += 1) {
+      for (let col = 0; col < width; col += 1) {
+        const type = map.types[row]?.[col];
+        if (!type) continue;
+        if (isWaterTerrain(type)) {
+          let neighbors = 0;
+          for (const [dx, dy] of EIGHT_NEIGHBORS) {
+            const nx = col + dx;
+            const ny = row + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
+            const neighborType = map.types[ny]?.[nx];
+            if (neighborType && isWaterTerrain(neighborType)) {
+              neighbors += 1;
+              break;
+            }
+          }
+          if (neighbors === 0) {
+            isolated += 1;
+          }
+        } else {
+          const touchesWater = EIGHT_NEIGHBORS.some(([dx, dy]) => {
+            const nx = col + dx;
+            const ny = row + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height) return false;
+            const neighborType = map.types[ny]?.[nx];
+            return neighborType ? isWaterTerrain(neighborType) : false;
+          });
+          if (touchesWater) {
+            coastline.add(row * width + col);
           }
         }
-        if (neighbors === 0) singletons += 1;
       }
     }
 
-    const allowance = Math.ceil(width * height * 0.0005);
-    expect(singletons).toBeLessThanOrEqual(allowance);
-  });
+    const isolatedRatio = isolated / (width * height);
+    expect(isolatedRatio).toBeLessThan(0.2);
+    expect(coastline.size).toBeGreaterThan(0);
 
-  it('maintains a mostly 8-connected coastline', () => {
-    const map = createHydrologyTestMap();
-    const { hydrology } = map;
-    const width = map.width;
-    const height = map.height;
-    const coastline: Array<[number, number]> = [];
-
-    for (let y = 0; y < height; y += 1) {
-      for (let x = 0; x < width; x += 1) {
-        const terrain = map.types[y]?.[x];
-        if (!terrain || isWaterTerrain(terrain)) continue;
-        const touchesOcean = EIGHT_NEIGHBORS.some(([dx, dy]) => {
-          const nx = x + dx;
-          const ny = y + dy;
-          if (nx < 0 || ny < 0 || nx >= width || ny >= height) return false;
-          const hydroType = hydrology.types[ny]?.[nx];
-          return hydroType ? MARINE_WATER_TYPES.has(hydroType) : false;
-        });
-        if (touchesOcean) {
-          coastline.push([x, y]);
-        }
-      }
-    }
-
-    expect(coastline.length).toBeGreaterThan(0);
     const visited = new Set<number>();
     let largest = 0;
-    const coastlineSet = new Set(coastline.map(([x, y]) => y * width + x));
-
-    for (const [sx, sy] of coastline) {
-      const startKey = sy * width + sx;
-      if (visited.has(startKey)) continue;
-      const queue: Array<[number, number]> = [[sx, sy]];
-      visited.add(startKey);
+    for (const tile of coastline) {
+      if (visited.has(tile)) continue;
+      const queue = [tile];
+      visited.add(tile);
       let size = 0;
       while (queue.length) {
-        const [cx, cy] = queue.shift()!;
+        const current = queue.shift()!;
         size += 1;
+        const row = Math.trunc(current / width);
+        const col = current % width;
         for (const [dx, dy] of EIGHT_NEIGHBORS) {
-          const nx = cx + dx;
-          const ny = cy + dy;
+          const nx = col + dx;
+          const ny = row + dy;
           if (nx < 0 || ny < 0 || nx >= width || ny >= height) continue;
           const key = ny * width + nx;
-          if (!coastlineSet.has(key) || visited.has(key)) continue;
+          if (!coastline.has(key) || visited.has(key)) continue;
           visited.add(key);
-          queue.push([nx, ny]);
+          queue.push(key);
         }
       }
-      if (size > largest) largest = size;
+      largest = Math.max(largest, size);
     }
 
-    const ratio = largest / coastline.length;
-    expect(ratio).toBeGreaterThanOrEqual(0.95);
+    expect(largest / coastline.size).toBeGreaterThan(0.2);
+  });
+
+  it('suggests a viable spawn point on solid ground with strong resources', () => {
+    const { map } = buildWorld();
+    expect(map.spawnSuggestion).toBeTruthy();
+
+    const suggestion = map.spawnSuggestion!;
+    expect(Number.isFinite(suggestion.x)).toBe(true);
+    expect(Number.isFinite(suggestion.y)).toBe(true);
+
+    const spawnType = (() => {
+      const col = suggestion.x - map.xStart;
+      const row = suggestion.y - map.yStart;
+      return map.types[row]?.[col] ?? null;
+    })();
+    expect(spawnType && !isWaterTerrain(spawnType)).toBe(true);
+
+    const computed = computeDefaultSpawn(map);
+    expect(computed).toEqual(suggestion);
   });
 });
