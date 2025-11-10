@@ -15,7 +15,13 @@ import {
 import store from './state.js';
 import { showBackButton, mountMenuActions } from './menu.js';
 import { allLocations } from './location.js';
-import { generateWorldMap, TERRAIN_SYMBOLS, GRID_DISTANCE_METERS } from './map.js';
+import {
+  generateWorldMap,
+  TERRAIN_SYMBOLS,
+  GRID_DISTANCE_METERS,
+  DEFAULT_MAP_WIDTH,
+  DEFAULT_MAP_HEIGHT
+} from './map.js';
 import { ensureSanityCheckToasts } from './notifications.js';
 import { getTileResource } from './terrainResources.js';
 import { getBiome } from './biomes.js';
