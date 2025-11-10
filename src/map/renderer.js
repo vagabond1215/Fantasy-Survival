@@ -64,6 +64,102 @@ function resolveDevelopmentStroke(status) {
       return accent;
   }
 }
+
+function isGridView(candidate) {
+  return (
+    candidate &&
+    typeof candidate === "object" &&
+    typeof candidate.get === "function" &&
+    Number.isFinite(candidate.width) &&
+    Number.isFinite(candidate.height)
+  );
+}
+
+function getGridWidth(grid, fallback = 0) {
+  if (!grid) return fallback;
+  if (Number.isFinite(grid.width)) {
+    return Math.max(0, Math.trunc(grid.width));
+  }
+  if (Number.isFinite(grid.baseWidth)) {
+    return Math.max(0, Math.trunc(grid.baseWidth));
+  }
+  if (Array.isArray(grid)) {
+    if (Array.isArray(grid[0])) {
+      return grid[0]?.length || 0;
+    }
+    return grid.length || 0;
+  }
+  return fallback;
+}
+
+function getGridHeight(grid, fallback = 0) {
+  if (!grid) return fallback;
+  if (Number.isFinite(grid.height)) {
+    return Math.max(0, Math.trunc(grid.height));
+  }
+  if (Number.isFinite(grid.baseHeight)) {
+    return Math.max(0, Math.trunc(grid.baseHeight));
+  }
+  if (Array.isArray(grid)) {
+    if (Array.isArray(grid[0])) {
+      return grid.length || 0;
+    }
+    return grid.length > 0 ? 1 : 0;
+  }
+  return fallback;
+}
+
+function hasTileData(map) {
+  if (!map) return false;
+  const tiles = map.tiles;
+  if (!tiles) return false;
+  if (isGridView(tiles)) {
+    return tiles.size > 0 && tiles.width > 0 && tiles.height > 0;
+  }
+  if (Array.isArray(tiles)) {
+    if (!tiles.length) return false;
+    if (Array.isArray(tiles[0])) {
+      return tiles[0].length > 0;
+    }
+    return true;
+  }
+  return false;
+}
+
+function readGridValue(grid, x, y, defaultValue = null) {
+  if (!grid) return defaultValue;
+  const col = Math.trunc(x);
+  const row = Math.trunc(y);
+  if (!Number.isFinite(col) || !Number.isFinite(row)) {
+    return defaultValue;
+  }
+  if (isGridView(grid)) {
+    const value = grid.get(col, row);
+    return value ?? defaultValue;
+  }
+  if (Array.isArray(grid)) {
+    const rowData = grid[row];
+    if (!rowData) return defaultValue;
+    if (Array.isArray(rowData)) {
+      return rowData[col] ?? defaultValue;
+    }
+    return rowData ?? defaultValue;
+  }
+  return defaultValue;
+}
+
+function getMapDimensions(map) {
+  if (!map) {
+    return { width: 0, height: 0 };
+  }
+  const width = Number.isFinite(map.width) && map.width > 0
+    ? Math.trunc(map.width)
+    : getGridWidth(map.tiles, 0);
+  const height = Number.isFinite(map.height) && map.height > 0
+    ? Math.trunc(map.height)
+    : getGridHeight(map.tiles, 0);
+  return { width, height };
+}
 export class MapRenderer {
   constructor(canvas, options) {
     this.canvas = canvas;
@@ -178,7 +274,7 @@ export class MapRenderer {
     ctx.save();
     ctx.setTransform(this.devicePixelRatio, 0, 0, this.devicePixelRatio, 0, 0);
     ctx.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
-    const hasTiles = Array.isArray(this.map?.tiles) && this.map.tiles.length > 0;
+    const hasTiles = hasTileData(this.map);
     if (!this.map || !hasTiles) {
       const shouldLog = this._shouldLogMissingMap || Boolean(this.map);
       if (shouldLog && !this._missingMapLogged) {
@@ -187,8 +283,9 @@ export class MapRenderer {
           : "The current map is missing tile data.";
         console.error(`[MapRenderer] Unable to render map: ${reason}`, {
           hasMap: Boolean(this.map),
-          tilesPresent: Array.isArray(this.map?.tiles),
-          tileCount: this.map?.tiles?.length ?? 0,
+          tilesPresent: hasTiles,
+          tileWidth: getGridWidth(this.map?.tiles, 0),
+          tileHeight: getGridHeight(this.map?.tiles, 0),
         });
         this._missingMapLogged = true;
       }
@@ -285,14 +382,13 @@ export class MapRenderer {
     ].join(":");
   }
   computeChunkRange(tileSize, margin) {
-    if (!this.map || !this.map.tiles?.length) {
+    if (!hasTileData(this.map)) {
       return [];
     }
     const chunkSize = this.chunkSize;
     const mapStartX = Number.isFinite(this.map.xStart) ? this.map.xStart : 0;
     const mapStartY = Number.isFinite(this.map.yStart) ? this.map.yStart : 0;
-    const mapWidth = Math.max(0, Math.trunc(this.map.width || 0));
-    const mapHeight = Math.max(0, Math.trunc(this.map.height || 0));
+    const { width: mapWidth, height: mapHeight } = getMapDimensions(this.map);
     const mapEndX = mapStartX + mapWidth;
     const mapEndY = mapStartY + mapHeight;
     if (mapWidth <= 0 || mapHeight <= 0) {
@@ -383,7 +479,7 @@ export class MapRenderer {
     return result;
   }
   createChunkCanvas(geometry, style) {
-    if (!this.map || !this.map.tiles?.length) {
+    if (!hasTileData(this.map)) {
       return null;
     }
     const tilePixelSize = style.tilePixelSize;
@@ -419,7 +515,6 @@ export class MapRenderer {
     ) {
       const worldY = geometry.worldY + localRow;
       const mapRow = worldY - mapStartY;
-      const typeRow = this.map.types?.[mapRow] || null;
       for (
         let localCol = geometry.startCol;
         localCol < geometry.startCol + geometry.tileCols;
@@ -430,7 +525,7 @@ export class MapRenderer {
         if (mapRow < 0 || mapCol < 0) {
           continue;
         }
-        const type = typeRow?.[mapCol] ?? null;
+        const type = readGridValue(this.map.types, mapCol, mapRow, null);
         const drawX =
           padding + (localCol - geometry.startCol) * tilePixelSize;
         const drawY =
@@ -504,7 +599,6 @@ export class MapRenderer {
     ) {
       const worldY = geometry.worldY + localRow;
       const mapRow = worldY - mapStartY;
-      const typeRow = this.map.types?.[mapRow] || null;
       for (
         let localCol = geometry.startCol;
         localCol < geometry.startCol + geometry.tileCols;
@@ -515,7 +609,7 @@ export class MapRenderer {
         if (mapRow < 0 || mapCol < 0) {
           continue;
         }
-        const type = typeRow?.[mapCol] ?? null;
+        const type = readGridValue(this.map.types, mapCol, mapRow, null);
         const screen = this.camera.worldToScreen(
           worldX,
           worldY,
@@ -555,8 +649,9 @@ export class MapRenderer {
     }
     const mapStartX = this.map?.xStart ?? 0;
     const mapStartY = this.map?.yStart ?? 0;
-    const mapEndX = mapStartX + (this.map?.width ?? 0);
-    const mapEndY = mapStartY + (this.map?.height ?? 0);
+    const { width: mapWidth, height: mapHeight } = getMapDimensions(this.map);
+    const mapEndX = mapStartX + mapWidth;
+    const mapEndY = mapStartY + mapHeight;
     for (const development of this.developments.values()) {
       if (!development) continue;
       const worldX = Number.isFinite(development.x)
@@ -587,19 +682,18 @@ export class MapRenderer {
     }
   }
   hitTest(x, y) {
-    if (!this.map || !this.map.tiles?.length) return null;
+    if (!hasTileData(this.map)) return null;
     const coords = this.camera.screenToTile(x, y, this.tileBaseSize);
     const worldX = Math.floor(coords.x);
     const worldY = Math.floor(coords.y);
     const col = worldX - this.map.xStart;
     const row = worldY - this.map.yStart;
-    if (row < 0 || col < 0 || row >= this.map.height || col >= this.map.width) {
+    const { width: mapWidth, height: mapHeight } = getMapDimensions(this.map);
+    if (row < 0 || col < 0 || row >= mapHeight || col >= mapWidth) {
       return null;
     }
-    const tileRow = this.map.tiles[row];
-    if (!tileRow) return null;
-    const symbol = tileRow[col] ?? "";
-    const type = this.map.types?.[row]?.[col] ?? null;
+    const symbol = readGridValue(this.map.tiles, col, row, "");
+    const type = readGridValue(this.map.types, col, row, null);
     const developmentKey = `${worldX}:${worldY}`;
     const development = this.developments.get(developmentKey) || null;
     return {

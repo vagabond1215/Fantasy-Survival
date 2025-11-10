@@ -285,8 +285,14 @@ const BUFFER_MARGIN = 12;
 const DEFAULT_TILE_BASE_SIZE = 16;
 
 function computeBufferPadding(dimensions, viewportWidth, viewportHeight) {
-  const cols = Math.max(0, dimensions?.cols ?? 0);
-  const rows = Math.max(0, dimensions?.rows ?? 0);
+  const cols = Math.max(
+    0,
+    dimensions?.width ?? dimensions?.cols ?? getGridBaseWidth(dimensions, 0)
+  );
+  const rows = Math.max(
+    0,
+    dimensions?.height ?? dimensions?.rows ?? getGridBaseHeight(dimensions, 0)
+  );
   const width = Math.max(0, viewportWidth || 0);
   const height = Math.max(0, viewportHeight || 0);
   return {
@@ -359,39 +365,347 @@ function toInteger(value, fallback = 0) {
   return Number.isFinite(value) ? Math.trunc(value) : fallback;
 }
 
-function getMatrixDimensions(matrix = []) {
-  const rows = Array.isArray(matrix) ? matrix.length : 0;
-  const cols = rows ? matrix[0]?.length || 0 : 0;
-  return { cols, rows };
+function resolveBufferDimensions(source) {
+  if (!source || typeof source !== 'object') {
+    return { width: 0, height: 0 };
+  }
+
+  const explicitWidth = toInteger(
+    source.width ?? source.cols ?? source.dimensions?.width ?? source.shape?.width,
+    0
+  );
+  const explicitHeight = toInteger(
+    source.height ?? source.rows ?? source.dimensions?.height ?? source.shape?.height,
+    0
+  );
+
+  if (explicitWidth && explicitHeight) {
+    return { width: explicitWidth, height: explicitHeight };
+  }
+
+  const tiles = source.tiles ?? source.tileMatrix ?? null;
+  if (tiles && typeof tiles === 'object') {
+    const width = toInteger(tiles.width ?? tiles.cols, 0);
+    const height = toInteger(tiles.height ?? tiles.rows, 0);
+    if (width && height) {
+      return { width, height };
+    }
+  }
+
+  if (Array.isArray(tiles)) {
+    const rows = tiles.length;
+    const cols = rows ? (Array.isArray(tiles[0]) ? tiles[0].length || 0 : tiles.length) : 0;
+    if (cols && rows) {
+      return { width: cols, height: rows };
+    }
+  }
+
+  if (Array.isArray(source.tiles)) {
+    const rows = source.tiles.length;
+    const cols = rows ? (Array.isArray(source.tiles[0]) ? source.tiles[0].length || 0 : source.tiles.length) : 0;
+    if (cols && rows) {
+      return { width: cols, height: rows };
+    }
+  }
+
+  if (Array.isArray(source.types)) {
+    const rows = source.types.length;
+    const cols = rows ? (Array.isArray(source.types[0]) ? source.types[0].length || 0 : source.types.length) : 0;
+    if (cols && rows) {
+      return { width: cols, height: rows };
+    }
+  }
+
+  const size = toInteger(source.size ?? source.length, 0);
+  if (size && explicitWidth) {
+    const derivedHeight = Math.max(1, Math.trunc(size / explicitWidth));
+    return { width: explicitWidth, height: derivedHeight };
+  }
+
+  return { width: 0, height: 0 };
 }
 
-function sliceMatrix(matrix = [], offsetX = 0, offsetY = 0, width = 0, height = 0) {
-  if (!Array.isArray(matrix) || !matrix.length || width <= 0 || height <= 0) {
-    return [];
+function isGridView(candidate) {
+  return (
+    candidate &&
+    typeof candidate === 'object' &&
+    Number.isFinite(candidate.width) &&
+    Number.isFinite(candidate.height) &&
+    typeof candidate.get === 'function' &&
+    typeof candidate.getIndex === 'function'
+  );
+}
+
+function createGridViewFromData(
+  data,
+  {
+    width,
+    height,
+    baseWidth = width,
+    baseHeight = height,
+    defaultValue = null,
+    offsetX = 0,
+    offsetY = 0
   }
-  const result = [];
-  for (let row = 0; row < height; row++) {
-    const source = matrix[offsetY + row];
-    if (!Array.isArray(source)) break;
-    result.push(source.slice(offsetX, offsetX + width));
+) {
+  const normalizedWidth = Math.max(0, Math.trunc(width || 0));
+  const normalizedHeight = Math.max(0, Math.trunc(height || 0));
+  const fullWidth = Math.max(normalizedWidth, Math.trunc(baseWidth || normalizedWidth || 0));
+  const fullHeight = Math.max(normalizedHeight, Math.trunc(baseHeight || normalizedHeight || 0));
+  const baseOffsetX = Math.max(0, Math.trunc(offsetX || 0));
+  const baseOffsetY = Math.max(0, Math.trunc(offsetY || 0));
+  const view = {
+    data,
+    width: normalizedWidth,
+    height: normalizedHeight,
+    baseWidth: fullWidth,
+    baseHeight: fullHeight,
+    offsetX: baseOffsetX,
+    offsetY: baseOffsetY,
+    size: normalizedWidth * normalizedHeight,
+    defaultValue,
+    get(x, y) {
+      const localX = Math.trunc(x);
+      const localY = Math.trunc(y);
+      if (
+        !Number.isFinite(localX) ||
+        !Number.isFinite(localY) ||
+        localX < 0 ||
+        localY < 0 ||
+        localX >= this.width ||
+        localY >= this.height
+      ) {
+        return defaultValue;
+      }
+      const worldX = this.offsetX + localX;
+      const worldY = this.offsetY + localY;
+      if (worldX < 0 || worldY < 0 || worldX >= this.baseWidth || worldY >= this.baseHeight) {
+        return defaultValue;
+      }
+      const index = worldY * this.baseWidth + worldX;
+      if (!data || index < 0 || index >= data.length) {
+        return defaultValue;
+      }
+      return data[index] ?? defaultValue;
+    },
+    getIndex(index) {
+      if (!Number.isFinite(index) || index < 0 || index >= this.size) {
+        return defaultValue;
+      }
+      const localX = index % this.width;
+      const localY = Math.trunc(index / this.width);
+      return this.get(localX, localY);
+    },
+    getByWorld(worldX, worldY) {
+      const normalizedX = Math.trunc(worldX);
+      const normalizedY = Math.trunc(worldY);
+      if (
+        !Number.isFinite(normalizedX) ||
+        !Number.isFinite(normalizedY) ||
+        normalizedX < 0 ||
+        normalizedY < 0 ||
+        normalizedX >= this.baseWidth ||
+        normalizedY >= this.baseHeight
+      ) {
+        return defaultValue;
+      }
+      const index = normalizedY * this.baseWidth + normalizedX;
+      if (!data || index < 0 || index >= data.length) {
+        return defaultValue;
+      }
+      return data[index] ?? defaultValue;
+    },
+    slice(sliceOffsetX, sliceOffsetY, sliceWidth, sliceHeight) {
+      const normalizedSliceWidth = Math.max(0, Math.trunc(sliceWidth || 0));
+      const normalizedSliceHeight = Math.max(0, Math.trunc(sliceHeight || 0));
+      const nextOffsetX = this.offsetX + Math.max(0, Math.trunc(sliceOffsetX || 0));
+      const nextOffsetY = this.offsetY + Math.max(0, Math.trunc(sliceOffsetY || 0));
+      const maxWidth = Math.max(0, this.baseWidth - nextOffsetX);
+      const maxHeight = Math.max(0, this.baseHeight - nextOffsetY);
+      const clampedWidth = Math.min(normalizedSliceWidth, maxWidth);
+      const clampedHeight = Math.min(normalizedSliceHeight, maxHeight);
+      return createGridViewFromData(data, {
+        width: clampedWidth,
+        height: clampedHeight,
+        baseWidth: this.baseWidth,
+        baseHeight: this.baseHeight,
+        defaultValue,
+        offsetX: nextOffsetX,
+        offsetY: nextOffsetY
+      });
+    }
+  };
+  return view;
+}
+
+function normalizeGridSource(source, width, height, defaultValue = null) {
+  if (!width || !height) {
+    return createGridViewFromData(new Array(0), {
+      width: 0,
+      height: 0,
+      baseWidth: 0,
+      baseHeight: 0,
+      defaultValue
+    });
   }
-  return result;
+
+  if (isGridView(source)) {
+    return source;
+  }
+
+  const size = Math.max(0, width * height);
+  if (Array.isArray(source)) {
+    if (source.length === size && !Array.isArray(source[0])) {
+      return createGridViewFromData(source, {
+        width,
+        height,
+        baseWidth: width,
+        baseHeight: height,
+        defaultValue
+      });
+    }
+    if (Array.isArray(source[0])) {
+      const flattened = new Array(size);
+      for (let row = 0; row < height; row += 1) {
+        const rowData = source[row] || [];
+        for (let col = 0; col < width; col += 1) {
+          flattened[row * width + col] = rowData[col] ?? defaultValue;
+        }
+      }
+      return createGridViewFromData(flattened, {
+        width,
+        height,
+        baseWidth: width,
+        baseHeight: height,
+        defaultValue
+      });
+    }
+    if (source.length >= size) {
+      return createGridViewFromData(source, {
+        width,
+        height,
+        baseWidth: width,
+        baseHeight: height,
+        defaultValue
+      });
+    }
+  }
+
+  if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView && ArrayBuffer.isView(source)) {
+    return createGridViewFromData(source, {
+      width,
+      height,
+      baseWidth: width,
+      baseHeight: height,
+      defaultValue
+    });
+  }
+
+  const fallback = new Array(size);
+  for (let index = 0; index < size; index += 1) {
+    fallback[index] = defaultValue;
+  }
+
+  return createGridViewFromData(fallback, {
+    width,
+    height,
+    baseWidth: width,
+    baseHeight: height,
+    defaultValue
+  });
+}
+
+function createSubGridView(view, offsetX, offsetY, width, height) {
+  if (!view || typeof view.slice !== 'function') {
+    return null;
+  }
+  return view.slice(offsetX, offsetY, width, height);
+}
+
+function getGridWidth(grid, fallback = 0) {
+  if (!grid) return fallback;
+  if (Number.isFinite(grid.width)) {
+    return Math.max(0, Math.trunc(grid.width));
+  }
+  return fallback;
+}
+
+function getGridHeight(grid, fallback = 0) {
+  if (!grid) return fallback;
+  if (Number.isFinite(grid.height)) {
+    return Math.max(0, Math.trunc(grid.height));
+  }
+  return fallback;
+}
+
+function getGridBaseWidth(grid, fallback = 0) {
+  if (!grid) return fallback;
+  if (Number.isFinite(grid.baseWidth)) {
+    return Math.max(0, Math.trunc(grid.baseWidth));
+  }
+  return getGridWidth(grid, fallback);
+}
+
+function getGridBaseHeight(grid, fallback = 0) {
+  if (!grid) return fallback;
+  if (Number.isFinite(grid.baseHeight)) {
+    return Math.max(0, Math.trunc(grid.baseHeight));
+  }
+  return getGridHeight(grid, fallback);
 }
 
 function extractBufferMap(mapLike) {
   if (!mapLike) return null;
-  const candidate = mapLike.buffer?.tiles?.length ? mapLike.buffer : mapLike;
-  if (!candidate?.tiles?.length) return null;
-  const { cols, rows } = getMatrixDimensions(candidate.tiles);
-  const normalizedTypes = candidate.types?.length ? candidate.types : null;
-  const normalizedElevations = candidate.elevations?.length ? candidate.elevations : null;
+  const candidate =
+    mapLike.buffer &&
+    (mapLike.buffer.tiles || mapLike.buffer.tileData || mapLike.buffer.layers)
+      ? mapLike.buffer
+      : mapLike;
+
+  if (!candidate || typeof candidate !== 'object') {
+    return null;
+  }
+
+  const { width: derivedWidth, height: derivedHeight } = resolveBufferDimensions(candidate);
+  const width = Math.max(0, toInteger(candidate.width, derivedWidth));
+  const height = Math.max(0, toInteger(candidate.height, derivedHeight));
+
+  if (!width || !height) {
+    return null;
+  }
+
+  const layers = candidate.layers ?? candidate.layerBuffers ?? null;
+  const elevationSource =
+    candidate.elevations ??
+    layers?.elevation ??
+    (candidate.layerBuffers ? candidate.layerBuffers.elevation : null);
+  const typesSource = candidate.types ?? null;
+  const tilesSource = candidate.tiles ?? candidate.tileMatrix ?? null;
+
+  const normalizedTiles = normalizeGridSource(tilesSource, width, height, '');
+  const normalizedTypes = typesSource
+    ? normalizeGridSource(typesSource, width, height, null)
+    : null;
+  const normalizedElevations = elevationSource
+    ? normalizeGridSource(elevationSource, width, height, 0)
+    : null;
+
+  const tileData = Array.isArray(candidate.tileData)
+    ? candidate.tileData
+    : candidate.tilesFlat && Array.isArray(candidate.tilesFlat)
+      ? candidate.tilesFlat
+      : null;
+
   return {
     ...candidate,
-    tiles: candidate.tiles,
+    tiles: normalizedTiles,
     types: normalizedTypes,
     elevations: normalizedElevations,
-    width: candidate.width ?? cols,
-    height: candidate.height ?? rows,
+    layers,
+    tileData,
+    width,
+    height,
+    size: width * height,
     xStart: toInteger(candidate.xStart, 0),
     yStart: toInteger(candidate.yStart, 0)
   };
@@ -401,10 +715,16 @@ function deriveViewportSize(buffer, fallbackWidth = 0, fallbackHeight = 0) {
   if (fallbackWidth && fallbackHeight) {
     return { width: fallbackWidth, height: fallbackHeight };
   }
-  const { cols, rows } = getMatrixDimensions(buffer?.tiles);
-  if (cols || rows) {
-    const target = Math.max(cols, rows);
-    return { width: target, height: target };
+  if (!buffer) {
+    return { width: DEFAULT_VIEWPORT_SIZE, height: DEFAULT_VIEWPORT_SIZE };
+  }
+  const { width, height } = resolveBufferDimensions(buffer);
+  if (width || height) {
+    const target = Math.max(width, height);
+    return {
+      width: target || DEFAULT_VIEWPORT_SIZE,
+      height: target || DEFAULT_VIEWPORT_SIZE
+    };
   }
   return { width: DEFAULT_VIEWPORT_SIZE, height: DEFAULT_VIEWPORT_SIZE };
 }
@@ -546,8 +866,12 @@ export function createMapView(container, {
   const getCurrentZoom = () => (state.camera ? state.camera.zoom : state.zoom);
 
   const getVisibleDimensions = () => {
-    const rows = state.map?.tiles?.length || 0;
-    const cols = rows ? state.map.tiles[0]?.length || 0 : 0;
+    const cols = Number.isFinite(state.map?.width)
+      ? Math.max(0, Math.trunc(state.map.width))
+      : getGridWidth(state.map?.tiles, 0);
+    const rows = Number.isFinite(state.map?.height)
+      ? Math.max(0, Math.trunc(state.map.height))
+      : getGridHeight(state.map?.tiles, 0);
     return { cols, rows };
   };
 
@@ -558,20 +882,33 @@ export function createMapView(container, {
   }
 
   function clampViewportWithinBuffer(buffer) {
-    if (!buffer?.tiles?.length) return null;
-    const dims = getMatrixDimensions(buffer.tiles);
-    if (!dims.cols || !dims.rows) return null;
+    if (!buffer) return null;
+    const totalWidth = Number.isFinite(buffer.width)
+      ? Math.max(0, Math.trunc(buffer.width))
+      : getGridBaseWidth(buffer.tiles, 0);
+    const totalHeight = Number.isFinite(buffer.height)
+      ? Math.max(0, Math.trunc(buffer.height))
+      : getGridBaseHeight(buffer.tiles, 0);
+    if (!totalWidth || !totalHeight) {
+      return null;
+    }
 
-    const width = Math.min(Math.max(1, state.viewport.width || DEFAULT_VIEWPORT_SIZE), dims.cols);
-    const height = Math.min(Math.max(1, state.viewport.height || DEFAULT_VIEWPORT_SIZE), dims.rows);
+    const width = Math.min(
+      Math.max(1, state.viewport.width || DEFAULT_VIEWPORT_SIZE),
+      totalWidth
+    );
+    const height = Math.min(
+      Math.max(1, state.viewport.height || DEFAULT_VIEWPORT_SIZE),
+      totalHeight
+    );
 
     state.viewport.width = width;
     state.viewport.height = height;
 
     const originX = buffer.xStart ?? 0;
     const originY = buffer.yStart ?? 0;
-    const maxOffsetX = Math.max(0, dims.cols - width);
-    const maxOffsetY = Math.max(0, dims.rows - height);
+    const maxOffsetX = Math.max(0, totalWidth - width);
+    const maxOffsetY = Math.max(0, totalHeight - height);
 
     let offsetX = toInteger(state.viewport.xStart, originX) - originX;
     let offsetY = toInteger(state.viewport.yStart, originY) - originY;
@@ -593,19 +930,21 @@ export function createMapView(container, {
   }
 
   function updateVisibleFromBuffer() {
-    if (!state.buffer?.tiles?.length) return false;
+    if (!state.buffer?.tiles) return false;
     const clamped = clampViewportWithinBuffer(state.buffer);
     if (!clamped) return false;
 
     const { offsetX, offsetY, width, height } = clamped;
-    const tiles = sliceMatrix(state.buffer.tiles, offsetX, offsetY, width, height);
-    if (!tiles.length) return false;
+    const tiles = createSubGridView(state.buffer.tiles, offsetX, offsetY, width, height);
+    if (!tiles || tiles.size !== width * height) {
+      return false;
+    }
 
-    const types = state.buffer.types?.length
-      ? sliceMatrix(state.buffer.types, offsetX, offsetY, width, height)
+    const types = state.buffer.types
+      ? createSubGridView(state.buffer.types, offsetX, offsetY, width, height)
       : null;
-    const elevations = state.buffer.elevations?.length
-      ? sliceMatrix(state.buffer.elevations, offsetX, offsetY, width, height)
+    const elevations = state.buffer.elevations
+      ? createSubGridView(state.buffer.elevations, offsetX, offsetY, width, height)
       : null;
 
     state.map = {
@@ -616,6 +955,8 @@ export function createMapView(container, {
       tiles,
       types,
       elevations,
+      layers: state.buffer.layers ?? state.map?.layers ?? null,
+      tileData: state.buffer.tileData ?? state.map?.tileData ?? null,
       xStart: state.viewport.xStart,
       yStart: state.viewport.yStart,
       width,
@@ -642,8 +983,13 @@ export function createMapView(container, {
       viewport: { ...state.viewport }
     };
 
-    if (state.buffer?.tiles?.length) {
-      const dims = getMatrixDimensions(state.buffer.tiles);
+    if (state.buffer?.tiles) {
+      const bufferWidth = Number.isFinite(state.buffer.width)
+        ? Math.max(0, Math.trunc(state.buffer.width))
+        : getGridBaseWidth(state.buffer.tiles, 0);
+      const bufferHeight = Number.isFinite(state.buffer.height)
+        ? Math.max(0, Math.trunc(state.buffer.height))
+        : getGridBaseHeight(state.buffer.tiles, 0);
       payload.buffer = {
         seed: state.buffer.seed,
         season: state.buffer.season,
@@ -653,8 +999,8 @@ export function createMapView(container, {
         elevations: state.buffer.elevations,
         xStart: state.buffer.xStart,
         yStart: state.buffer.yStart,
-        width: state.buffer.width ?? dims.cols,
-        height: state.buffer.height ?? dims.rows
+        width: bufferWidth,
+        height: bufferHeight
       };
     }
 
@@ -690,8 +1036,12 @@ export function createMapView(container, {
     }
 
     const desired = computeDesiredViewportSize();
-    const actualCols = state.map.tiles?.[0]?.length || state.map.width || desired.width;
-    const actualRows = state.map.tiles?.length || state.map.height || desired.height;
+    const actualCols = Number.isFinite(state.map?.width) && state.map.width > 0
+      ? Math.trunc(state.map.width)
+      : getGridWidth(state.map?.tiles, desired.width);
+    const actualRows = Number.isFinite(state.map?.height) && state.map.height > 0
+      ? Math.trunc(state.map.height)
+      : getGridHeight(state.map?.tiles, desired.height);
     const widthMatch = Math.abs(actualCols - desired.width) <= 1;
     const heightMatch = Math.abs(actualRows - desired.height) <= 1;
     state.zoomDisplayFactor = widthMatch && heightMatch ? 1 : zoom;
@@ -871,7 +1221,7 @@ export function createMapView(container, {
 
   function commitMapUpdate() {
     if (!state.map) return;
-    if (!state.hasInitializedBaseChunk && state.map.tiles?.length) {
+    if (!state.hasInitializedBaseChunk && state.map.tiles?.size) {
       state.hasInitializedBaseChunk = true;
     }
     state.context = {
@@ -887,8 +1237,18 @@ export function createMapView(container, {
       }
     }
 
-    const actualCols = state.map.tiles?.[0]?.length || state.viewport.width || state.map.width || 0;
-    const actualRows = state.map.tiles?.length || state.viewport.height || state.map.height || 0;
+    const actualCols = Number.isFinite(state.map?.width) && state.map.width > 0
+      ? Math.trunc(state.map.width)
+      : getGridWidth(
+          state.map?.tiles,
+          state.viewport.width || state.map?.width || 0
+        );
+    const actualRows = Number.isFinite(state.map?.height) && state.map.height > 0
+      ? Math.trunc(state.map.height)
+      : getGridHeight(
+          state.map?.tiles,
+          state.viewport.height || state.map?.height || 0
+        );
     if (!state.zoomBase.width || !state.zoomBase.height || Math.abs(state.zoom - 1) < 0.001) {
       state.zoomBase.width = Math.max(1, actualCols);
       state.zoomBase.height = Math.max(1, actualRows);
@@ -910,11 +1270,17 @@ export function createMapView(container, {
   }
 
   function needsBufferRefresh() {
-    if (!state.buffer?.tiles?.length) return true;
-    const dims = getMatrixDimensions(state.buffer.tiles);
-    const width = state.viewport.width || dims.cols;
-    const height = state.viewport.height || dims.rows;
-    if (dims.cols < width || dims.rows < height) return true;
+    if (!state.buffer?.tiles) return true;
+    const bufferWidth = Number.isFinite(state.buffer.width)
+      ? Math.max(0, Math.trunc(state.buffer.width))
+      : getGridBaseWidth(state.buffer.tiles, 0);
+    const bufferHeight = Number.isFinite(state.buffer.height)
+      ? Math.max(0, Math.trunc(state.buffer.height))
+      : getGridBaseHeight(state.buffer.tiles, 0);
+    if (!bufferWidth || !bufferHeight) return true;
+    const width = state.viewport.width || bufferWidth;
+    const height = state.viewport.height || bufferHeight;
+    if (bufferWidth < width || bufferHeight < height) return true;
 
     const originX = state.buffer.xStart ?? 0;
     const originY = state.buffer.yStart ?? 0;
@@ -930,8 +1296,8 @@ export function createMapView(container, {
     const thresholdX = effectiveMarginX > 0 ? Math.max(1, Math.floor(effectiveMarginX / 2)) : 0;
     const thresholdY = effectiveMarginY > 0 ? Math.max(1, Math.floor(effectiveMarginY / 2)) : 0;
 
-    const rightGap = dims.cols - (offsetX + width);
-    const bottomGap = dims.rows - (offsetY + height);
+    const rightGap = bufferWidth - (offsetX + width);
+    const bottomGap = bufferHeight - (offsetY + height);
 
     if (offsetX < thresholdX || offsetY < thresholdY) return true;
     if (rightGap < thresholdX || bottomGap < thresholdY) return true;
@@ -988,9 +1354,14 @@ export function createMapView(container, {
     const buffer = extractBufferMap(nextMap);
     if (!buffer) return;
 
-    const dims = getMatrixDimensions(buffer.tiles);
-    buffer.width = buffer.width ?? dims.cols;
-    buffer.height = buffer.height ?? dims.rows;
+    const normalizedWidth = Number.isFinite(buffer.width)
+      ? Math.max(0, Math.trunc(buffer.width))
+      : getGridBaseWidth(buffer.tiles, 0);
+    const normalizedHeight = Number.isFinite(buffer.height)
+      ? Math.max(0, Math.trunc(buffer.height))
+      : getGridBaseHeight(buffer.tiles, 0);
+    buffer.width = normalizedWidth;
+    buffer.height = normalizedHeight;
 
     state.buffer = buffer;
     if (Number.isFinite(targetX)) state.viewport.xStart = toInteger(targetX, buffer.xStart);
@@ -1008,9 +1379,13 @@ export function createMapView(container, {
       }
     }
 
-    const viewportWidth = Math.max(1, Math.min(state.viewport.width, buffer.width || dims.cols));
-    const viewportHeight = Math.max(1, Math.min(state.viewport.height, buffer.height || dims.rows));
-    state.bufferPadding = computeBufferPadding(dims, viewportWidth, viewportHeight);
+    const viewportWidth = Math.max(1, Math.min(state.viewport.width, buffer.width || normalizedWidth));
+    const viewportHeight = Math.max(1, Math.min(state.viewport.height, buffer.height || normalizedHeight));
+    state.bufferPadding = computeBufferPadding(
+      { width: buffer.width || normalizedWidth, height: buffer.height || normalizedHeight },
+      viewportWidth,
+      viewportHeight
+    );
     state.expectedBufferPadding = { ...state.bufferPadding };
 
     commitMapUpdate();
@@ -2962,15 +3337,19 @@ export function createMapView(container, {
 
   function syncMarkers() {
     if (!state.markerLayer) return;
-    if (!state.map?.tiles?.length) {
+    if (!state.map?.tiles || !state.map.tiles.size) {
       state.markerElements.forEach(element => {
         if (element) element.style.display = 'none';
       });
       return;
     }
 
-    const width = state.map.width || state.map.tiles?.[0]?.length || 0;
-    const height = state.map.height || state.map.tiles?.length || 0;
+    const width = Number.isFinite(state.map.width) && state.map.width > 0
+      ? Math.trunc(state.map.width)
+      : getGridWidth(state.map.tiles, 0);
+    const height = Number.isFinite(state.map.height) && state.map.height > 0
+      ? Math.trunc(state.map.height)
+      : getGridHeight(state.map.tiles, 0);
     if (!width || !height || !state.camera) {
       state.markerElements.forEach(element => {
         if (element) element.style.display = 'none';
@@ -3132,12 +3511,12 @@ export function createMapView(container, {
       ? state.viewport.width
       : Number.isFinite(state.map?.width) && state.map.width > 0
         ? state.map.width
-        : state.map?.tiles?.[0]?.length || 0;
+        : getGridWidth(state.map?.tiles, 0);
     const fallbackRows = Number.isFinite(state.viewport.height) && state.viewport.height > 0
       ? state.viewport.height
       : Number.isFinite(state.map?.height) && state.map.height > 0
         ? state.map.height
-        : state.map?.tiles?.length || 0;
+        : getGridHeight(state.map?.tiles, 0);
 
     const baselineCols = Math.max(
       1,
@@ -3279,10 +3658,14 @@ export function createMapView(container, {
     if (!state.camera) return;
     const width = Number.isFinite(state.viewport.width)
       ? state.viewport.width
-      : state.map?.width || state.map?.tiles?.[0]?.length || 0;
+      : Number.isFinite(state.map?.width) && state.map.width > 0
+        ? state.map.width
+        : getGridWidth(state.map?.tiles, 0);
     const height = Number.isFinite(state.viewport.height)
       ? state.viewport.height
-      : state.map?.height || state.map?.tiles?.length || 0;
+      : Number.isFinite(state.map?.height) && state.map.height > 0
+        ? state.map.height
+        : getGridHeight(state.map?.tiles, 0);
     if (!width || !height) return;
     const centerX = state.viewport.xStart + width / 2;
     const centerY = state.viewport.yStart + height / 2;
@@ -3295,10 +3678,14 @@ export function createMapView(container, {
     const forceFetch = options.forceFetch === true;
     const width = Number.isFinite(state.viewport.width)
       ? state.viewport.width
-      : state.map?.width || state.map?.tiles?.[0]?.length || 0;
+      : Number.isFinite(state.map?.width) && state.map.width > 0
+        ? state.map.width
+        : getGridWidth(state.map?.tiles, 0);
     const height = Number.isFinite(state.viewport.height)
       ? state.viewport.height
-      : state.map?.height || state.map?.tiles?.length || 0;
+      : Number.isFinite(state.map?.height) && state.map.height > 0
+        ? state.map.height
+        : getGridHeight(state.map?.tiles, 0);
     if (!width || !height) return;
     const centerTile = center || state.camera.centerTile;
     const nextXStart = Math.round(centerTile.x - width / 2);
@@ -3385,13 +3772,18 @@ export function createMapView(container, {
   function updateTileDataLayer() {
     const layer = state.dataLayer;
     if (!layer) return;
-    if (!state.map?.tiles?.length) {
+    const tileView = state.map?.tiles;
+    if (!tileView || !tileView.size) {
       layer.replaceChildren();
       return;
     }
 
-    const rows = state.map.tiles.length;
-    const cols = state.map.tiles[0]?.length || 0;
+    const cols = Number.isFinite(state.map?.width) && state.map.width > 0
+      ? Math.trunc(state.map.width)
+      : getGridWidth(tileView, 0);
+    const rows = Number.isFinite(state.map?.height) && state.map.height > 0
+      ? Math.trunc(state.map.height)
+      : getGridHeight(tileView, 0);
     if (!rows || !cols) {
       layer.replaceChildren();
       return;
@@ -3432,14 +3824,16 @@ export function createMapView(container, {
         tile.dataset.worldX = `${worldX}`;
         tile.dataset.worldY = `${worldY}`;
 
-        const type = state.map.types?.[rowIndex]?.[colIndex] ?? null;
+        const type = state.map.types?.get
+          ? state.map.types.get(colIndex, rowIndex)
+          : state.map.types?.[rowIndex]?.[colIndex] ?? null;
         if (type) {
           tile.dataset.terrain = type;
         } else {
           delete tile.dataset.terrain;
         }
 
-        const symbol = state.map.tiles[rowIndex]?.[colIndex] ?? '';
+        const symbol = tileView.get(colIndex, rowIndex) ?? '';
         const fillColor = resolveTerrainColor(type);
         const labelText = legendLabels[type] || symbol || type || '';
         if (symbolEl) {
@@ -3471,7 +3865,7 @@ export function createMapView(container, {
 
   function render() {
     if (!state.renderer) return;
-    if (!state.map?.tiles?.length) {
+    if (!state.map?.tiles || !state.map.tiles.size) {
       state.renderer.setMap(null);
       state.renderer.render();
       syncMarkers();
@@ -3489,10 +3883,10 @@ export function createMapView(container, {
   function getViewportStepLimits() {
     const width = Number.isFinite(state.viewport.width)
       ? state.viewport.width
-      : state.map?.tiles?.[0]?.length || 0;
+      : getGridWidth(state.map?.tiles, 0);
     const height = Number.isFinite(state.viewport.height)
       ? state.viewport.height
-      : state.map?.tiles?.length || 0;
+      : getGridHeight(state.map?.tiles, 0);
     return {
       maxX: Math.max(0, Math.trunc(width) - 1),
       maxY: Math.max(0, Math.trunc(height) - 1)
@@ -3500,8 +3894,8 @@ export function createMapView(container, {
   }
 
   function getPanStepSize() {
-    const cols = state.viewport.width || state.map?.tiles?.[0]?.length || 0;
-    const rows = state.viewport.height || state.map?.tiles?.length || 0;
+    const cols = state.viewport.width || getGridWidth(state.map?.tiles, 0);
+    const rows = state.viewport.height || getGridHeight(state.map?.tiles, 0);
     if (!cols || !rows) {
       return null;
     }
@@ -3634,8 +4028,12 @@ export function createMapView(container, {
     state.drag.lastY = clientY;
     state.drag.pendingX -= dx;
     state.drag.pendingY -= dy;
-    const cols = state.map?.tiles?.[0]?.length || state.viewport.width || 0;
-    const rows = state.map?.tiles?.length || state.viewport.height || 0;
+    const cols = Number.isFinite(state.map?.width) && state.map.width > 0
+      ? Math.trunc(state.map.width)
+      : state.viewport.width || getGridWidth(state.map?.tiles, 0);
+    const rows = Number.isFinite(state.map?.height) && state.map.height > 0
+      ? Math.trunc(state.map.height)
+      : state.viewport.height || getGridHeight(state.map?.tiles, 0);
     if (!cols || !rows) return;
     const rectSource = state.dataLayer || mapCanvas;
     const rect = rectSource.getBoundingClientRect();
@@ -3790,7 +4188,7 @@ export function createMapView(container, {
       }
 
       const buffer = extractBufferMap(map);
-      if (buffer?.tiles?.length) {
+      if (buffer?.tiles?.size) {
         state.hasInitializedBaseChunk = true;
       }
       state.buffer = buffer;
@@ -3886,7 +4284,7 @@ export function createMapView(container, {
       if (forceRefresh) {
         resolveTilePalette({ forceRefresh: true });
       }
-      if (state.useTerrainColors && state.map?.tiles?.length) {
+      if (state.useTerrainColors && state.map?.tiles?.size) {
         updateTileDataLayer();
         scheduleRender();
       }
