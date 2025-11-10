@@ -19,7 +19,7 @@ const FRACTAL_OCTAVES = 5;
 const FRACTAL_SCALE = 8192;
 
 const TemperatureBandLabels = ['frigid', 'cold', 'cool', 'mild', 'warm', 'hot'] as const;
-export const TemperatureBand = {
+export const TemperatureBandCode = {
   Frigid: 0,
   Cold: 1,
   Cool: 2,
@@ -27,27 +27,27 @@ export const TemperatureBand = {
   Warm: 4,
   Hot: 5,
 } as const;
-export type TemperatureBand = typeof TemperatureBand[keyof typeof TemperatureBand];
+export type TemperatureBandCode = typeof TemperatureBandCode[keyof typeof TemperatureBandCode];
 export type TemperatureBandLabel = (typeof TemperatureBandLabels)[number];
 
 const MoistureBandLabels = ['arid', 'semi-arid', 'moderate', 'humid', 'wet'] as const;
-export const MoistureBand = {
+export const MoistureBandCode = {
   Arid: 0,
   SemiArid: 1,
   Moderate: 2,
   Humid: 3,
   Wet: 4,
 } as const;
-export type MoistureBand = typeof MoistureBand[keyof typeof MoistureBand];
+export type MoistureBandCode = typeof MoistureBandCode[keyof typeof MoistureBandCode];
 export type MoistureBandLabel = (typeof MoistureBandLabels)[number];
 
 const RunoffLevelLabels = ['minimal', 'seasonal', 'perennial'] as const;
-export const RunoffLevel = {
+export const RunoffLevelCode = {
   Minimal: 0,
   Seasonal: 1,
   Perennial: 2,
 } as const;
-export type RunoffLevel = typeof RunoffLevel[keyof typeof RunoffLevel];
+export type RunoffLevelCode = typeof RunoffLevelCode[keyof typeof RunoffLevelCode];
 export type RunoffLevelLabel = (typeof RunoffLevelLabels)[number];
 
 const BiomeIds = [
@@ -310,30 +310,30 @@ function computeSlope(index: number, elevation: Float32Array, width: number, hei
   return clamp01(slope * 0.5);
 }
 
-function resolveTemperatureBand(value: number): TemperatureBand {
+function resolveTemperatureBand(value: number): TemperatureBandCode {
   const v = clamp01(value);
-  if (v < 0.18) return TemperatureBand.Frigid;
-  if (v < 0.32) return TemperatureBand.Cold;
-  if (v < 0.46) return TemperatureBand.Cool;
-  if (v < 0.63) return TemperatureBand.Mild;
-  if (v < 0.8) return TemperatureBand.Warm;
-  return TemperatureBand.Hot;
+  if (v < 0.18) return TemperatureBandCode.Frigid;
+  if (v < 0.32) return TemperatureBandCode.Cold;
+  if (v < 0.46) return TemperatureBandCode.Cool;
+  if (v < 0.63) return TemperatureBandCode.Mild;
+  if (v < 0.8) return TemperatureBandCode.Warm;
+  return TemperatureBandCode.Hot;
 }
 
-function resolveMoistureBand(value: number): MoistureBand {
+function resolveMoistureBand(value: number): MoistureBandCode {
   const v = clamp01(value);
-  if (v < 0.18) return MoistureBand.Arid;
-  if (v < 0.35) return MoistureBand.SemiArid;
-  if (v < 0.55) return MoistureBand.Moderate;
-  if (v < 0.75) return MoistureBand.Humid;
-  return MoistureBand.Wet;
+  if (v < 0.18) return MoistureBandCode.Arid;
+  if (v < 0.35) return MoistureBandCode.SemiArid;
+  if (v < 0.55) return MoistureBandCode.Moderate;
+  if (v < 0.75) return MoistureBandCode.Humid;
+  return MoistureBandCode.Wet;
 }
 
-function resolveRunoffLevel(value: number): RunoffLevel {
+function resolveRunoffLevel(value: number): RunoffLevelCode {
   const v = clamp01(value);
-  if (v < 0.22) return RunoffLevel.Minimal;
-  if (v < 0.55) return RunoffLevel.Seasonal;
-  return RunoffLevel.Perennial;
+  if (v < 0.22) return RunoffLevelCode.Minimal;
+  if (v < 0.55) return RunoffLevelCode.Seasonal;
+  return RunoffLevelCode.Perennial;
 }
 
 function frostRisk(temperature: number, runoff: number): number {
@@ -389,13 +389,13 @@ function stonePotential(
 }
 
 function foragePotential(
-  tempBand: TemperatureBand,
-  moistureBand: MoistureBand,
+  tempBand: TemperatureBandCode,
+  moistureBand: MoistureBandCode,
   vegetation: number,
   moisture: number,
 ): number {
-  const temperatureMod = tempBand === TemperatureBand.Frigid ? 0.3 : tempBand === TemperatureBand.Cold ? 0.5 : 1;
-  const moistureMod = moistureBand === MoistureBand.Arid ? 0.35 : moistureBand === MoistureBand.SemiArid ? 0.6 : 1;
+  const temperatureMod = tempBand === TemperatureBandCode.Frigid ? 0.3 : tempBand === TemperatureBandCode.Cold ? 0.5 : 1;
+  const moistureMod = moistureBand === MoistureBandCode.Arid ? 0.35 : moistureBand === MoistureBandCode.SemiArid ? 0.6 : 1;
   return clamp01(vegetation * 0.8 * temperatureMod * moistureMod + moisture * 0.2);
 }
 
@@ -449,8 +449,8 @@ function selectBiome(
   temperature: number,
   moisture: number,
   runoff: number,
-  temperatureBand: TemperatureBand,
-  moistureBand: MoistureBand,
+  temperatureBand: TemperatureBandCode,
+  moistureBand: MoistureBandCode,
 ): BiomeSelection {
   let best: BiomeSelection | null = null;
 
@@ -463,22 +463,22 @@ function selectBiome(
 
   consider(
     BiomeCode.MountainAlpine,
-    elevation >= 0.78 && (temperatureBand === TemperatureBand.Frigid || temperatureBand === TemperatureBand.Cold),
+    elevation >= 0.78 && (temperatureBand === TemperatureBandCode.Frigid || temperatureBand === TemperatureBandCode.Cold),
     elevation,
     0,
   );
 
   consider(
     BiomeCode.MountainCloudforest,
-    elevation >= 0.62 && moistureBand !== MoistureBand.Arid &&
-      (temperatureBand === TemperatureBand.Warm || temperatureBand === TemperatureBand.Hot),
+    elevation >= 0.62 && moistureBand !== MoistureBandCode.Arid &&
+      (temperatureBand === TemperatureBandCode.Warm || temperatureBand === TemperatureBandCode.Hot),
     (elevation + moisture) * 0.5,
     1,
   );
 
   consider(
     BiomeCode.WetlandFloodplain,
-    elevation <= 0.35 && runoff >= 0.6 && (moistureBand === MoistureBand.Humid || moistureBand === MoistureBand.Wet),
+    elevation <= 0.35 && runoff >= 0.6 && (moistureBand === MoistureBandCode.Humid || moistureBand === MoistureBandCode.Wet),
     (1 - elevation) * 0.6 + runoff * 0.4,
     2,
   );
@@ -486,67 +486,67 @@ function selectBiome(
   consider(
     BiomeCode.CoastalMangrove,
     elevation <= 0.18 &&
-      (temperatureBand === TemperatureBand.Warm || temperatureBand === TemperatureBand.Hot) &&
-      moistureBand === MoistureBand.Wet,
+      (temperatureBand === TemperatureBandCode.Warm || temperatureBand === TemperatureBandCode.Hot) &&
+      moistureBand === MoistureBandCode.Wet,
     (1 - elevation) * 0.5 + moisture * 0.5,
     3,
   );
 
   consider(
     BiomeCode.TemperateCoastalRainforest,
-    (temperatureBand === TemperatureBand.Cool || temperatureBand === TemperatureBand.Mild) && moistureBand === MoistureBand.Wet,
+    (temperatureBand === TemperatureBandCode.Cool || temperatureBand === TemperatureBandCode.Mild) && moistureBand === MoistureBandCode.Wet,
     moisture,
     4,
   );
 
   consider(
     BiomeCode.EquatorialRainforest,
-    temperatureBand === TemperatureBand.Hot && moistureBand === MoistureBand.Wet,
+    temperatureBand === TemperatureBandCode.Hot && moistureBand === MoistureBandCode.Wet,
     moisture,
     5,
   );
 
   consider(
     BiomeCode.TropicalMonsoonForest,
-    temperatureBand === TemperatureBand.Hot &&
-      (moistureBand === MoistureBand.Humid || moistureBand === MoistureBand.Wet),
+    temperatureBand === TemperatureBandCode.Hot &&
+      (moistureBand === MoistureBandCode.Humid || moistureBand === MoistureBandCode.Wet),
     moisture * 0.6 + runoff * 0.4,
     6,
   );
 
   consider(
     BiomeCode.TropicalSavanna,
-    (temperatureBand === TemperatureBand.Warm || temperatureBand === TemperatureBand.Hot) &&
-      (moistureBand === MoistureBand.Moderate || moistureBand === MoistureBand.SemiArid),
+    (temperatureBand === TemperatureBandCode.Warm || temperatureBand === TemperatureBandCode.Hot) &&
+      (moistureBand === MoistureBandCode.Moderate || moistureBand === MoistureBandCode.SemiArid),
     temperature,
     7,
   );
 
   consider(
     BiomeCode.MediterraneanScrub,
-    (temperatureBand === TemperatureBand.Mild || temperatureBand === TemperatureBand.Warm) &&
-      (moistureBand === MoistureBand.SemiArid || moistureBand === MoistureBand.Arid),
+    (temperatureBand === TemperatureBandCode.Mild || temperatureBand === TemperatureBandCode.Warm) &&
+      (moistureBand === MoistureBandCode.SemiArid || moistureBand === MoistureBandCode.Arid),
     1 - moisture,
     8,
   );
 
   consider(
     BiomeCode.TemperateMaritime,
-    (temperatureBand === TemperatureBand.Cool || temperatureBand === TemperatureBand.Mild) && moistureBand === MoistureBand.Humid,
+    (temperatureBand === TemperatureBandCode.Cool || temperatureBand === TemperatureBandCode.Mild) && moistureBand === MoistureBandCode.Humid,
     moisture,
     9,
   );
 
   consider(
     BiomeCode.TemperateBroadleaf,
-    temperatureBand === TemperatureBand.Mild && moistureBand === MoistureBand.Moderate,
+    temperatureBand === TemperatureBandCode.Mild && moistureBand === MoistureBandCode.Moderate,
     1 - Math.abs(0.5 - temperature),
     10,
   );
 
   consider(
     BiomeCode.BorealConifer,
-    (temperatureBand === TemperatureBand.Cold || temperatureBand === TemperatureBand.Frigid) && moistureBand !== MoistureBand.Arid,
+    (temperatureBand === TemperatureBandCode.Cold || temperatureBand === TemperatureBandCode.Frigid) && moistureBand !== MoistureBandCode.Arid,
     1 - temperature,
     11,
   );
