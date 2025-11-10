@@ -5,7 +5,7 @@ import {
   computeCenteredStart,
   DEFAULT_MAP_HEIGHT,
   DEFAULT_MAP_WIDTH,
-  generateColorMap,
+  generateWorldMap,
   GRID_DISTANCE_METERS
 } from './map.js';
 import { isOpenTerrain } from './terrainTypes.js';
@@ -65,19 +65,16 @@ export function generateLocation(
   const width = DEFAULT_MAP_WIDTH;
   const height = DEFAULT_MAP_HEIGHT;
   const { xStart, yStart } = computeCenteredStart(width, height);
-  const map = generateColorMap(
-    biome,
-    seed,
-    xStart,
-    yStart,
+  const { map } = generateWorldMap({
     width,
     height,
+    seed,
     season,
-    undefined,
-    undefined,
+    xStart,
+    yStart,
     worldSettings,
-    false
-  );
+    startingBiomeId: biome ?? null
+  });
   if (map?.worldSettings && typeof map.worldSettings === 'object') {
     if (!map.worldSettings.startingBiomeId) {
       map.worldSettings.startingBiomeId = biome;

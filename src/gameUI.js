@@ -15,7 +15,13 @@ import {
 import store from './state.js';
 import { showBackButton, mountMenuActions } from './menu.js';
 import { allLocations } from './location.js';
-import { generateColorMap, TERRAIN_SYMBOLS, GRID_DISTANCE_METERS } from './map.js';
+import {
+  generateWorldMap,
+  TERRAIN_SYMBOLS,
+  GRID_DISTANCE_METERS,
+  DEFAULT_MAP_WIDTH,
+  DEFAULT_MAP_HEIGHT
+} from './map.js';
 import { ensureSanityCheckToasts } from './notifications.js';
 import { getTileResource } from './terrainResources.js';
 import { getBiome } from './biomes.js';
@@ -3815,20 +3821,24 @@ function ensureSeasonalMap() {
   if (lastSeason && lastSeason === t.season) return;
   const map = loc.map;
   const worldSettings = loc.worldSettings || map.worldSettings;
-  const newMap = generateColorMap(
-    loc.biome,
-    map.seed,
-    map.xStart,
-    map.yStart,
-    map.tiles[0].length,
-    map.tiles.length,
-    t.season,
-    map.waterLevel,
-    map.viewport,
+  const width = map.tiles?.[0]?.length || DEFAULT_MAP_WIDTH;
+  const height = map.tiles?.length || DEFAULT_MAP_HEIGHT;
+  const { map: regenerated } = generateWorldMap({
+    width,
+    height,
+    seed: map.seed,
+    season: t.season,
+    xStart: map.xStart,
+    yStart: map.yStart,
+    viewport: map.viewport,
     worldSettings,
-    false
-  );
-  loc.map = { ...map, ...newMap };
+    startingBiomeId: loc.biome ?? null
+  });
+  loc.map = {
+    ...map,
+    ...regenerated,
+    waterLevel: map.waterLevel ?? regenerated.waterLevel ?? null
+  };
   if (!loc.worldSettings && loc.map?.worldSettings) {
     loc.worldSettings = loc.map.worldSettings;
   }
@@ -4385,20 +4395,24 @@ export function initGameUI() {
   if (loc?.map?.tiles) {
     if (loc.map.season !== store.time.season) {
       const worldSettings = loc.worldSettings || loc.map?.worldSettings;
-      const newMap = generateColorMap(
-        loc.biome,
-        loc.map.seed,
-        loc.map.xStart,
-        loc.map.yStart,
-        loc.map.tiles[0].length,
-        loc.map.tiles.length,
-        store.time.season,
-        loc.map.waterLevel,
-        loc.map.viewport,
+      const width = loc.map.tiles?.[0]?.length || DEFAULT_MAP_WIDTH;
+      const height = loc.map.tiles?.length || DEFAULT_MAP_HEIGHT;
+      const { map: regenerated } = generateWorldMap({
+        width,
+        height,
+        seed: loc.map.seed,
+        season: store.time.season,
+        xStart: loc.map.xStart,
+        yStart: loc.map.yStart,
+        viewport: loc.map.viewport,
         worldSettings,
-        false
-      );
-      loc.map = { ...loc.map, ...newMap };
+        startingBiomeId: loc.biome ?? null
+      });
+      loc.map = {
+        ...loc.map,
+        ...regenerated,
+        waterLevel: loc.map.waterLevel ?? regenerated.waterLevel ?? null
+      };
       if (!loc.worldSettings && loc.map?.worldSettings) {
         loc.worldSettings = loc.map.worldSettings;
       }
@@ -4441,19 +4455,22 @@ export function initGameUI() {
         const baseSeed = seed ?? loc.map?.seed ?? Date.now();
         const baseSeason = season ?? store.time.season;
         const activeWorld = loc.worldSettings || loc.map?.worldSettings;
-        return generateColorMap(
-          loc.biome,
-          baseSeed,
-          xStart,
-          yStart,
+        const { map: generated } = generateWorldMap({
           width,
           height,
-          baseSeason,
-          loc.map?.waterLevel,
+          seed: baseSeed,
+          season: baseSeason,
+          xStart,
+          yStart,
           viewport,
-          activeWorld,
-          Boolean(skipSanityChecks)
-        );
+          worldSettings: activeWorld,
+          startingBiomeId: loc.biome ?? null
+        });
+        return {
+          ...generated,
+          waterLevel: loc.map?.waterLevel ?? generated.waterLevel ?? null,
+          skipSanityChecks: Boolean(skipSanityChecks)
+        };
       },
       onMapUpdate: updated => {
         loc.map = { ...loc.map, ...updated };

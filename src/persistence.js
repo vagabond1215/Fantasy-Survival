@@ -1,6 +1,6 @@
 import store from './state.js';
 import { refreshStats } from './people.js';
-import { computeCenteredStart, DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, generateColorMap } from './map.js';
+import { computeCenteredStart, DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, generateWorldMap } from './map.js';
 import { refreshBuildingUnlocks } from './buildings.js';
 import { initializeTechnologyRegistry } from './technology.js';
 import { getStorageItem, removeStorageItem, setStorageItem } from './safeStorage.js';
@@ -194,19 +194,15 @@ export async function loadGame() {
       }
 
       if (!loc.map || !loc.map.tiles) {
-        loc.map = generateColorMap(
-          loc.biome,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          undefined,
-          store.time.season,
-          undefined,
-          undefined,
-          storedWorld,
-          false
-        );
+        const { map: generated } = generateWorldMap({
+          width: DEFAULT_MAP_WIDTH,
+          height: DEFAULT_MAP_HEIGHT,
+          seed: storedWorld?.seed,
+          season: store.time.season,
+          worldSettings: storedWorld,
+          startingBiomeId: loc.biome ?? null
+        });
+        loc.map = generated;
         if (loc.map?.worldSettings && !loc.worldSettings) {
           loc.worldSettings = loc.map.worldSettings;
         }
@@ -227,19 +223,22 @@ export async function loadGame() {
       if (!loc.map.types || needsRecentering) {
         // Regenerate map if terrain types are missing (legacy saves) or if the
         // map still uses the legacy origin placement.
-        loc.map = generateColorMap(
-          loc.biome,
-          loc.map.seed,
-          needsRecentering ? centeredX : loc.map.xStart,
-          needsRecentering ? centeredY : loc.map.yStart,
+        const { map: regenerated } = generateWorldMap({
           width,
           height,
-          loc.map.season ?? store.time.season,
-          loc.map.waterLevel,
-          loc.map.viewport,
-          storedWorld,
-          false
-        );
+          seed: loc.map.seed,
+          season: loc.map.season ?? store.time.season,
+          xStart: needsRecentering ? centeredX : loc.map.xStart,
+          yStart: needsRecentering ? centeredY : loc.map.yStart,
+          viewport: loc.map.viewport,
+          worldSettings: storedWorld,
+          startingBiomeId: loc.biome ?? null
+        });
+        loc.map = {
+          ...loc.map,
+          ...regenerated,
+          waterLevel: loc.map.waterLevel ?? regenerated.waterLevel ?? null
+        };
       }
 
       if (!loc.worldSettings && loc.map?.worldSettings) {

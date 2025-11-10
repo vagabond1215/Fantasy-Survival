@@ -34,6 +34,11 @@ import store, {
 import { BIOME_STARTER_OPTIONS } from '../world/biome/startingBiomes.js';
 import { generateWorld } from '../world/generate.ts';
 import { canonicalizeSeed } from '../world/seed.js';
+import {
+  adaptWorldToMapData,
+  computeDefaultSpawn,
+  fallbackCanonicalSeed
+} from '../world/mapAdapter.js';
 import { WheelSelect } from './components/WheelSelect.ts';
 
 const seasons = [
@@ -91,195 +96,6 @@ const FOREST_VEGETATION_THRESHOLD = 0.65;
 const STONE_ORE_THRESHOLD = 0.6;
 const ORE_RICH_THRESHOLD = 0.78;
 const HIGH_ELEVATION_THRESHOLD = 0.72;
-
-function fallbackCanonicalSeed(seedString = '') {
-  const normalized = (seedString ?? '').trim();
-  const lanes = new Array(8).fill(0);
-  let hash = 0x811c9dc5;
-  for (let index = 0; index < normalized.length; index += 1) {
-    const code = normalized.charCodeAt(index);
-    hash ^= code;
-    hash = Math.imul(hash, 0x01000193) >>> 0;
-    const laneIndex = index % lanes.length;
-    lanes[laneIndex] = Math.imul(lanes[laneIndex] ^ hash, 0x27d4eb2d) >>> 0;
-  }
-  if (!normalized.length) {
-    for (let i = 0; i < lanes.length; i += 1) {
-      lanes[i] = (hash + i * 0x9e3779b1) >>> 0;
-    }
-  } else {
-    for (let i = 0; i < lanes.length; i += 1) {
-      if (!lanes[i]) {
-        lanes[i] = (hash + i * 0x9e3779b1) >>> 0;
-      }
-    }
-  }
-  const hex = lanes.map(lane => lane.toString(16).padStart(8, '0')).join('');
-  return {
-    raw: seedString,
-    normalized,
-    hex,
-    lanes
-  };
-}
-
-function classifyWorldTile(tile) {
-  if (!tile) return 'open';
-  const elevation = Number.isFinite(tile.elevation) ? tile.elevation : 0;
-  const runoff = Number.isFinite(tile.runoff) ? tile.runoff : 0;
-  const moisture = Number.isFinite(tile.moisture) ? tile.moisture : 0;
-  const resources = tile.resources || {};
-  const ore = Number.isFinite(resources.ore) ? resources.ore : 0;
-  const wood = Number.isFinite(resources.wood) ? resources.wood : 0;
-  const vegetation = Number.isFinite(resources.vegetation) ? resources.vegetation : 0;
-
-  if (
-    elevation <= WATER_ELEVATION_THRESHOLD ||
-    (elevation <= WATER_ELEVATION_THRESHOLD + WATER_ELEVATION_BUFFER && runoff >= WATER_RUNOFF_THRESHOLD) ||
-    (moisture >= WATER_MOISTURE_THRESHOLD && elevation <= WATER_ELEVATION_THRESHOLD + WATER_ELEVATION_BUFFER)
-  ) {
-    return 'water';
-  }
-
-  if (ore >= ORE_RICH_THRESHOLD) {
-    return 'ore';
-  }
-
-  if (ore >= STONE_ORE_THRESHOLD || elevation >= HIGH_ELEVATION_THRESHOLD) {
-    return 'stone';
-  }
-
-  if (wood >= FOREST_WOOD_THRESHOLD || vegetation >= FOREST_VEGETATION_THRESHOLD) {
-    return 'forest';
-  }
-
-  return 'open';
-}
-
-function adaptWorldToMapView(world, options = {}) {
-  if (!world) {
-    return {
-      seed: options.seedString || '',
-      seedInfo: options.seedInfo || null,
-      season: options.season || null,
-      tiles: [],
-      types: [],
-      elevations: [],
-      xStart: Number.isFinite(options.xStart) ? Math.trunc(options.xStart) : 0,
-      yStart: Number.isFinite(options.yStart) ? Math.trunc(options.yStart) : 0,
-      width: 0,
-      height: 0,
-      viewport: options.viewport || null,
-      tileData: [],
-      tileMatrix: [],
-      layerBuffers: {
-        elevation: new Float32Array(0),
-        temperature: new Float32Array(0),
-        moisture: new Float32Array(0),
-        runoff: new Float32Array(0)
-      },
-      worldSettings: options.worldSettings || null,
-      buffer: null
-    };
-  }
-
-  const width = Math.max(1, Math.trunc(world.dimensions?.width ?? 0));
-  const height = Math.max(1, Math.trunc(world.dimensions?.height ?? 0));
-  const size = width * height;
-  const xStart = Number.isFinite(options.xStart) ? Math.trunc(options.xStart) : 0;
-  const yStart = Number.isFinite(options.yStart) ? Math.trunc(options.yStart) : 0;
-
-  const tiles = new Array(height);
-  const types = new Array(height);
-  const elevations = new Array(height);
-  const tileMatrix = new Array(height);
-
-  const elevationLayer = world.layers?.elevation instanceof Float32Array
-    ? world.layers.elevation
-    : new Float32Array(size);
-
-  for (let row = 0; row < height; row += 1) {
-    const tileRow = new Array(width);
-    const typeRow = new Array(width);
-    const elevationRow = new Array(width);
-    const tileDetailRow = new Array(width);
-    for (let col = 0; col < width; col += 1) {
-      const index = row * width + col;
-      const tile = world.tiles?.[index] || null;
-      const type = classifyWorldTile(tile);
-      typeRow[col] = type;
-      const symbol = TERRAIN_SYMBOLS[type] ?? TERRAIN_SYMBOLS.open ?? type ?? '?';
-      tileRow[col] = symbol;
-      elevationRow[col] = elevationLayer[index] ?? 0;
-      tileDetailRow[col] = tile;
-    }
-    tiles[row] = tileRow;
-    types[row] = typeRow;
-    elevations[row] = elevationRow;
-    tileMatrix[row] = tileDetailRow;
-  }
-
-  const viewport = options.viewport
-    ? {
-        xStart: Number.isFinite(options.viewport.xStart)
-          ? Math.trunc(options.viewport.xStart)
-          : xStart,
-        yStart: Number.isFinite(options.viewport.yStart)
-          ? Math.trunc(options.viewport.yStart)
-          : yStart,
-        width: Math.max(1, Math.trunc(options.viewport.width ?? width)),
-        height: Math.max(1, Math.trunc(options.viewport.height ?? height))
-      }
-    : {
-        xStart,
-        yStart,
-        width,
-        height
-      };
-
-  const map = {
-    seed: options.seedString ?? options.seedInfo?.raw ?? '',
-    seedInfo: options.seedInfo ?? null,
-    season: options.season ?? null,
-    tiles,
-    types,
-    elevations,
-    xStart,
-    yStart,
-    width,
-    height,
-    viewport,
-    tileData: world.tiles ?? [],
-    tileMatrix,
-    layerBuffers: world.layers ?? {
-      elevation: new Float32Array(size),
-      temperature: new Float32Array(size),
-      moisture: new Float32Array(size),
-      runoff: new Float32Array(size)
-    },
-    worldSettings: options.worldSettings || null,
-    buffer: null
-  };
-
-  map.buffer = {
-    seed: map.seed,
-    season: map.season,
-    tiles,
-    types,
-    elevations,
-    xStart,
-    yStart,
-    width,
-    height,
-    viewport,
-    tileData: map.tileData,
-    tileMatrix,
-    layers: map.layerBuffers,
-    worldSettings: map.worldSettings
-  };
-
-  return map;
-}
 
 function getNonRandomBiomes() {
   return biomes.filter(biome => biome.id !== RANDOM_BIOME_ID);
@@ -1496,60 +1312,6 @@ export function initSetupUI(onStart) {
     }
   }
 
-  function computeDefaultSpawn(map) {
-    if (!map?.tileMatrix?.length || !map?.types?.length) return null;
-    const width = Math.max(1, Math.trunc(map.width ?? map.tileMatrix[0]?.length ?? 0));
-    const height = Math.max(1, Math.trunc(map.height ?? map.tileMatrix.length ?? 0));
-    if (!width || !height) return null;
-    const xStart = Number.isFinite(map.xStart) ? Math.trunc(map.xStart) : 0;
-    const yStart = Number.isFinite(map.yStart) ? Math.trunc(map.yStart) : 0;
-    const centerX = xStart + Math.floor(width / 2);
-    const centerY = yStart + Math.floor(height / 2);
-
-    let best = null;
-
-    for (let row = 0; row < height; row += 1) {
-      const typeRow = map.types[row];
-      const detailRow = map.tileMatrix[row];
-      if (!typeRow || !detailRow) continue;
-      for (let col = 0; col < width; col += 1) {
-        const type = typeRow[col];
-        if (!type || isWaterTerrain(type)) continue;
-        const tile = detailRow[col];
-        if (!tile) continue;
-
-        const worldX = xStart + col;
-        const worldY = yStart + row;
-        const distance = Math.hypot(worldX - centerX, worldY - centerY);
-        const resources = tile.resources || {};
-        const fertility = Number.isFinite(resources.fertility) ? resources.fertility : 0;
-        const forage = Number.isFinite(resources.forage) ? resources.forage : 0;
-        const wood = Number.isFinite(resources.wood) ? resources.wood : 0;
-        const freshWater = Number.isFinite(resources.freshWater) ? resources.freshWater : 0;
-        const ore = Number.isFinite(resources.ore) ? resources.ore : 0;
-        const elevation = Number.isFinite(tile.elevation) ? tile.elevation : 0.5;
-        const resourceScore =
-          fertility * 0.25 +
-          freshWater * 0.2 +
-          forage * 0.2 +
-          wood * 0.2 +
-          ore * 0.1 +
-          (1 - Math.abs(elevation - 0.55)) * 0.05;
-        const score = resourceScore - distance * 0.02;
-
-        if (
-          !best ||
-          score > best.score ||
-          (Math.abs(score - best.score) < 1e-6 && distance < best.distance)
-        ) {
-          best = { x: worldX, y: worldY, score, distance };
-        }
-      }
-    }
-
-    return best ? { x: best.x, y: best.y } : null;
-  }
-
   function getTerrainAt(map, coords = {}) {
     if (!map?.types?.length) return null;
     const xStart = Number.isFinite(map.xStart) ? Math.trunc(map.xStart) : 0;
@@ -1704,7 +1466,7 @@ export function initSetupUI(onStart) {
       height
     };
 
-    mapData = adaptWorldToMapView(world, {
+    mapData = adaptWorldToMapData(world, {
       seedInfo: canonicalSeed,
       seedString: mapSeed,
       season: previewSeason,
@@ -2177,7 +1939,7 @@ export function initSetupUI(onStart) {
             height: normalizedHeight
           };
 
-      const adapted = adaptWorldToMapView(world, {
+      const adapted = adaptWorldToMapData(world, {
         seedInfo: canonicalSeed,
         seedString: requestedSeed,
         season: resolvedSeason,

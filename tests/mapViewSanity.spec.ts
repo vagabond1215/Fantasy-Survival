@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, afterEach } from 'vitest';
 import createMapView from '../src/mapView.js';
-import { generateColorMap } from '../src/map.js';
+import { generateWorldMap } from '../src/map.js';
 import * as notifications from '../src/notifications.js';
 import { AdjustmentSolver } from '../src/map/generation/adjustmentSolver.js';
 
@@ -23,35 +23,25 @@ describe('map view sanity safeguards', () => {
       bufferMargin: 0,
       fetchMap: params => {
         fetchCalls.push({ skipSanityChecks: Boolean(params.skipSanityChecks) });
-        return generateColorMap(
-          'temperate-maritime',
-          'sanity-follow-up',
-          params.xStart,
-          params.yStart,
-          params.width,
-          params.height,
-          params.season ?? 'Sunheight',
-          undefined,
-          params.viewport,
-          null,
-          params.skipSanityChecks
-        );
+        return generateWorldMap({
+          width: params.width,
+          height: params.height,
+          seed: 'sanity-follow-up',
+          season: params.season ?? 'Sunheight',
+          xStart: params.xStart,
+          yStart: params.yStart,
+          viewport: params.viewport,
+          worldSettings: null
+        }).map;
       }
     });
 
-    const initialMap = generateColorMap(
-      'temperate-maritime',
-      'sanity-follow-up',
-      null,
-      null,
-      32,
-      32,
-      'Sunheight',
-      undefined,
-      null,
-      null,
-      false
-    );
+    const initialMap = generateWorldMap({
+      width: 32,
+      height: 32,
+      seed: 'sanity-follow-up',
+      season: 'Sunheight'
+    }).map;
 
     mapView.setMap(initialMap, { focus: { x: 0, y: 0 } });
 
@@ -81,36 +71,26 @@ describe('map view sanity safeguards', () => {
       bufferMargin: 0,
       fetchMap: params => {
         fetchCalls.push(params);
-        return generateColorMap(
-          'temperate-maritime',
-          'buffer-sizing',
-          params.xStart,
-          params.yStart,
-          params.width,
-          params.height,
-          params.season ?? 'Sunheight',
-          undefined,
-          params.viewport,
-          null,
-          params.skipSanityChecks
-        );
+        return generateWorldMap({
+          width: params.width,
+          height: params.height,
+          seed: 'buffer-sizing',
+          season: params.season ?? 'Sunheight',
+          xStart: params.xStart,
+          yStart: params.yStart,
+          viewport: params.viewport,
+          worldSettings: null
+        }).map;
       }
     });
 
     const viewportSize = 48;
-    const initialMap = generateColorMap(
-      'temperate-maritime',
-      'buffer-sizing',
-      null,
-      null,
-      viewportSize,
-      viewportSize,
-      'Sunheight',
-      undefined,
-      null,
-      null,
-      false
-    );
+    const initialMap = generateWorldMap({
+      width: viewportSize,
+      height: viewportSize,
+      seed: 'buffer-sizing',
+      season: 'Sunheight'
+    }).map;
 
     mapView.setMap(initialMap, { focus: { x: 0, y: 0 } });
 
