@@ -8,13 +8,6 @@ import {
   difficultyScore,
   getDifficultyPreset
 } from '../difficulty.js';
-import {
-  computeCenteredStart,
-  DEFAULT_MAP_HEIGHT,
-  DEFAULT_MAP_WIDTH,
-  isWaterTerrain,
-  TERRAIN_SYMBOLS
-} from '../map.js';
 import { createMapView } from '../mapView.js';
 import { ensureSanityCheckToasts } from '../notifications.js';
 import {
@@ -34,11 +27,7 @@ import store, {
 import { BIOME_STARTER_OPTIONS } from '../world/biome/startingBiomes.js';
 import { generateWorld } from '../world/generate.ts';
 import { canonicalizeSeed } from '../world/seed.js';
-import {
-  adaptWorldToMapData,
-  computeDefaultSpawn,
-  fallbackCanonicalSeed
-} from '../world/mapAdapter.js';
+import { adaptWorldToMapData, fallbackCanonicalSeed } from '../world/mapAdapter.js';
 import { WheelSelect } from './components/WheelSelect.ts';
 
 const seasons = [
@@ -973,6 +962,7 @@ export function initSetupUI(onStart) {
   };
   setMapSeedValue(createSeed());
   let resolvedBiomeId = selectedBiome;
+  let worldArtifact = null;
   let mapData = null;
   let spawnCoords = null;
   let spawnPrompt = null;
@@ -1312,47 +1302,102 @@ export function initSetupUI(onStart) {
     }
   }
 
-  function getTerrainAt(map, coords = {}) {
-    if (!map?.types?.length) return null;
-    const xStart = Number.isFinite(map.xStart) ? Math.trunc(map.xStart) : 0;
-    const yStart = Number.isFinite(map.yStart) ? Math.trunc(map.yStart) : 0;
-    const col = Math.trunc(coords.x) - xStart;
-    const row = Math.trunc(coords.y) - yStart;
-    if (row < 0 || col < 0) return null;
-    const rowData = map.types[row];
-    if (!rowData || col >= rowData.length) return null;
-    return rowData[col];
+  function computeCenteredOrigin(width, height, focusX = 0, focusY = 0) {
+    const normalizedWidth = Math.max(1, Math.trunc(width ?? PREVIEW_MAP_SIZE));
+    const normalizedHeight = Math.max(1, Math.trunc(height ?? PREVIEW_MAP_SIZE));
+    const halfCols = Math.floor(normalizedWidth / 2);
+    const halfRows = Math.floor(normalizedHeight / 2);
+    const safeFocusX = Number.isFinite(focusX) ? Math.round(focusX) : 0;
+    const safeFocusY = Number.isFinite(focusY) ? Math.round(focusY) : 0;
+    return {
+      xStart: safeFocusX - halfCols,
+      yStart: safeFocusY - halfRows
+    };
   }
 
-  function findNearestNonWater(map, coords = {}) {
-    if (!map?.types?.length) return null;
-    const xStart = Number.isFinite(map.xStart) ? Math.trunc(map.xStart) : 0;
-    const yStart = Number.isFinite(map.yStart) ? Math.trunc(map.yStart) : 0;
-    const height = map.types.length;
-    if (!height) return null;
+  function getArtifactMeta() {
+    if (!worldArtifact || !mapData) return null;
+    const width = Math.max(
+      1,
+      Math.trunc(worldArtifact?.dimensions?.width ?? mapData.width ?? 0)
+    );
+    const height = Math.max(
+      1,
+      Math.trunc(worldArtifact?.dimensions?.height ?? mapData.height ?? 0)
+    );
+    if (!width || !height) return null;
+    const xStart = Number.isFinite(mapData.xStart) ? Math.trunc(mapData.xStart) : 0;
+    const yStart = Number.isFinite(mapData.yStart) ? Math.trunc(mapData.yStart) : 0;
+    return { width, height, size: width * height, xStart, yStart };
+  }
+
+  function getIndexForCoords(coords = {}) {
+    const meta = getArtifactMeta();
+    if (!meta) return null;
+    const col = Math.trunc(coords.x) - meta.xStart;
+    const row = Math.trunc(coords.y) - meta.yStart;
+    if (!Number.isFinite(col) || !Number.isFinite(row)) return null;
+    if (col < 0 || row < 0 || col >= meta.width || row >= meta.height) return null;
+    return row * meta.width + col;
+  }
+
+  function indexToWorldCoords(index) {
+    const meta = getArtifactMeta();
+    if (!meta || index == null || index < 0 || index >= meta.size) return null;
+    const col = index % meta.width;
+    const row = Math.trunc(index / meta.width);
+    return {
+      x: meta.xStart + col,
+      y: meta.yStart + row,
+      index
+    };
+  }
+
+  function isWaterIndex(index) {
+    if (!worldArtifact?.layers) return false;
+    const meta = getArtifactMeta();
+    if (!meta || index == null || index < 0 || index >= meta.size) return false;
+    const layers = worldArtifact.layers;
+    const elevation = Number.isFinite(layers.elevation?.[index]) ? layers.elevation[index] : 0;
+    const runoff = Number.isFinite(layers.runoff?.[index]) ? layers.runoff[index] : 0;
+    const moisture = Number.isFinite(layers.moisture?.[index]) ? layers.moisture[index] : 0;
+    const surfaceWater = Number.isFinite(layers.water?.[index]) ? layers.water[index] : 0;
+    if (surfaceWater >= 0.5) {
+      return true;
+    }
+    return (
+      elevation <= WATER_ELEVATION_THRESHOLD ||
+      (elevation <= WATER_ELEVATION_THRESHOLD + WATER_ELEVATION_BUFFER && runoff >= WATER_RUNOFF_THRESHOLD) ||
+      (moisture >= WATER_MOISTURE_THRESHOLD &&
+        elevation <= WATER_ELEVATION_THRESHOLD + WATER_ELEVATION_BUFFER)
+    );
+  }
+
+  function findNearestNonWater(coords = {}) {
+    const meta = getArtifactMeta();
+    if (!meta) return null;
     const targetX = Number.isFinite(coords?.x) ? Math.trunc(coords.x) : null;
     const targetY = Number.isFinite(coords?.y) ? Math.trunc(coords.y) : null;
     let best = null;
 
-    for (let row = 0; row < height; row += 1) {
-      const rowData = map.types[row];
-      if (!rowData) continue;
-      for (let col = 0; col < rowData.length; col += 1) {
-        const type = rowData[col];
-        if (isWaterTerrain(type)) continue;
-        const worldX = xStart + col;
-        const worldY = yStart + row;
+    for (let row = 0; row < meta.height; row += 1) {
+      const baseIndex = row * meta.width;
+      for (let col = 0; col < meta.width; col += 1) {
+        const index = baseIndex + col;
+        if (isWaterIndex(index)) continue;
+        const worldX = meta.xStart + col;
+        const worldY = meta.yStart + row;
         const dx = targetX !== null ? worldX - targetX : worldX;
         const dy = targetY !== null ? worldY - targetY : worldY;
         const distance = Math.hypot(dx, dy);
         if (
           !best ||
           distance < best.distance ||
-          (distance === best.distance &&
+          (Math.abs(distance - best.distance) < 1e-6 &&
             (Math.abs(worldY) < Math.abs(best.y) ||
               (Math.abs(worldY) === Math.abs(best.y) && Math.abs(worldX) < Math.abs(best.x))))
         ) {
-          best = { x: worldX, y: worldY, type, distance };
+          best = { x: worldX, y: worldY, index, distance };
         }
       }
     }
@@ -1360,33 +1405,73 @@ export function initSetupUI(onStart) {
     return best;
   }
 
+  function findSuggestedSpawnCoords() {
+    if (!worldArtifact?.spawnSuggestions || worldArtifact.spawnSuggestions.length === 0) {
+      return null;
+    }
+    for (let i = 0; i < worldArtifact.spawnSuggestions.length; i += 1) {
+      const suggestionIndex = worldArtifact.spawnSuggestions[i];
+      const coords = indexToWorldCoords(suggestionIndex);
+      if (!coords) continue;
+      if (isWaterIndex(suggestionIndex)) continue;
+      return { x: coords.x, y: coords.y };
+    }
+    return null;
+  }
+
   function sanitizeSpawnCoords(coords = {}) {
     const x = Number.isFinite(coords.x) ? Math.trunc(coords.x) : null;
     const y = Number.isFinite(coords.y) ? Math.trunc(coords.y) : null;
     if (x === null || y === null) return null;
-    if (!mapData?.types?.length) {
+    const meta = getArtifactMeta();
+    if (!meta) {
       return { x, y, terrain: null, relocated: false };
     }
-    const terrain = getTerrainAt(mapData, { x, y });
-    if (terrain && !isWaterTerrain(terrain)) {
-      return { x, y, terrain, relocated: false };
+    const index = getIndexForCoords({ x, y });
+    if (index !== null && !isWaterIndex(index)) {
+      return { x, y, terrain: null, relocated: false };
     }
-    const nearest = findNearestNonWater(mapData, { x, y });
-    if (!nearest) return null;
-    const fallbackTerrain = nearest.type || getTerrainAt(mapData, nearest);
-    return { x: nearest.x, y: nearest.y, terrain: fallbackTerrain || null, relocated: true };
+    const nearest = findNearestNonWater({ x, y });
+    if (!nearest) {
+      if (index === null) {
+        return { x, y, terrain: null, relocated: false };
+      }
+      return null;
+    }
+    const relocated = nearest.x !== x || nearest.y !== y;
+    return { x: nearest.x, y: nearest.y, terrain: null, relocated };
   }
 
   function setSpawnCoords(coords = {}, options = {}) {
-    if (!coords) return;
+    if (!coords) return false;
     const safe = sanitizeSpawnCoords(coords);
-    if (!safe) return;
+    if (!safe) return false;
     spawnCoords = { x: safe.x, y: safe.y };
     if (!options.silent) {
       hideSpawnPrompt();
     }
     updateSpawnMarker();
     updateSpawnInfo();
+    return true;
+  }
+
+  function applySpawnSuggestions(options = {}) {
+    const suggested = findSuggestedSpawnCoords();
+    if (mapData) {
+      mapData.spawnSuggestion = suggested ? { ...suggested } : null;
+    }
+    if (suggested) {
+      if (setSpawnCoords(suggested, options)) {
+        return true;
+      }
+    }
+    const fallback = findNearestNonWater({ x: 0, y: 0 });
+    if (fallback) {
+      if (setSpawnCoords({ x: fallback.x, y: fallback.y }, options)) {
+        return true;
+      }
+    }
+    return false;
   }
 
   function updateSpawnMarker() {
@@ -1433,7 +1518,7 @@ export function initSetupUI(onStart) {
     if (!selectedBiome || !mapPreview) return;
     const width = PREVIEW_MAP_SIZE;
     const height = PREVIEW_MAP_SIZE;
-    const { xStart, yStart } = computeCenteredStart(width, height);
+    const { xStart, yStart } = computeCenteredOrigin(width, height);
     const previewBiome = resolveBiomeId(selectedBiome, {
       mode: 'stable',
       seed: mapSeed
@@ -1453,11 +1538,18 @@ export function initSetupUI(onStart) {
       canonicalSeed = fallbackCanonicalSeed(mapSeed);
     }
 
-    const world = generateWorld({
-      width,
-      height,
-      seed: canonicalSeed
-    });
+    let artifact;
+    try {
+      artifact = await generateWorld({
+        width,
+        height,
+        seed: canonicalSeed
+      });
+    } catch (error) {
+      console.error('Failed to generate world artifact for preview.', error);
+      throw error;
+    }
+    worldArtifact = artifact;
 
     const viewport = {
       xStart,
@@ -1466,7 +1558,7 @@ export function initSetupUI(onStart) {
       height
     };
 
-    mapData = adaptWorldToMapData(world, {
+    mapData = adaptWorldToMapData(artifact, {
       seedInfo: canonicalSeed,
       seedString: mapSeed,
       season: previewSeason,
@@ -1476,10 +1568,8 @@ export function initSetupUI(onStart) {
       worldSettings: worldParameters
     });
 
-    const defaultSpawn = computeDefaultSpawn(mapData);
-    if (defaultSpawn) {
-      setSpawnCoords(defaultSpawn, { silent: true });
-    } else {
+    const appliedSuggestion = applySpawnSuggestions({ silent: true });
+    if (!appliedSuggestion) {
       spawnCoords = null;
       updateSpawnMarker();
       updateSpawnInfo();
@@ -1916,14 +2006,21 @@ export function initSetupUI(onStart) {
 
       const normalizedWidth = Math.max(1, Math.trunc(width ?? PREVIEW_MAP_SIZE));
       const normalizedHeight = Math.max(1, Math.trunc(height ?? PREVIEW_MAP_SIZE));
-      const defaultStart = computeCenteredStart(normalizedWidth, normalizedHeight);
+      const defaultStart = computeCenteredOrigin(normalizedWidth, normalizedHeight);
       const startX = Number.isFinite(xStart) ? Math.trunc(xStart) : defaultStart.xStart;
       const startY = Number.isFinite(yStart) ? Math.trunc(yStart) : defaultStart.yStart;
-      const world = generateWorld({
-        width: normalizedWidth,
-        height: normalizedHeight,
-        seed: canonicalSeed
-      });
+      let artifact;
+      try {
+        artifact = await generateWorld({
+          width: normalizedWidth,
+          height: normalizedHeight,
+          seed: canonicalSeed
+        });
+      } catch (error) {
+        console.error('Failed to generate world artifact for map fetch.', error);
+        throw error;
+      }
+      worldArtifact = artifact;
 
       const normalizedViewport = viewport
         ? {
@@ -1939,7 +2036,7 @@ export function initSetupUI(onStart) {
             height: normalizedHeight
           };
 
-      const adapted = adaptWorldToMapData(world, {
+      const adapted = adaptWorldToMapData(artifact, {
         seedInfo: canonicalSeed,
         seedString: requestedSeed,
         season: resolvedSeason,
@@ -1951,14 +2048,19 @@ export function initSetupUI(onStart) {
 
       mapData = adapted;
 
+      const suggestion = findSuggestedSpawnCoords();
+      if (mapData) {
+        mapData.spawnSuggestion = suggestion ? { ...suggestion } : null;
+      }
+
       const existingSpawn = spawnCoords ? sanitizeSpawnCoords(spawnCoords) : null;
       if (existingSpawn) {
         setSpawnCoords({ x: existingSpawn.x, y: existingSpawn.y }, { silent: true });
       } else {
-        const defaultSpawn = computeDefaultSpawn(adapted);
-        if (defaultSpawn) {
-          setSpawnCoords(defaultSpawn, { silent: true });
-        } else {
+        const applied = suggestion
+          ? setSpawnCoords(suggestion, { silent: true })
+          : applySpawnSuggestions({ silent: true });
+        if (!applied) {
           spawnCoords = null;
           updateSpawnMarker();
           updateSpawnInfo();
