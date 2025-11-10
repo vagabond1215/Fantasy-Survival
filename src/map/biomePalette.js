@@ -1,8 +1,11 @@
-import { biomeCodeToId } from '../world/generate.ts';
+import { BiomeCode, biomeCodeToId } from '../world/generate.ts';
 import { getBiome } from '../biomes.js';
+
+/** @typedef {import('../world/generate.ts').BiomeCode} BiomeCodeType */
 
 const DEFAULT_HEX_COLOR = '#64748b';
 const TABLE_SIZE = 256;
+const BIOME_CODE_COUNT = Object.keys(BiomeCode).length;
 
 let packedColorTable = null;
 let cssColorTable = null;
@@ -75,7 +78,9 @@ function ensureBiomeTables() {
   biomeIdTable = new Array(TABLE_SIZE);
 
   for (let code = 0; code < TABLE_SIZE; code += 1) {
-    const biomeId = biomeCodeToId(code);
+    const normalizedCode = code % BIOME_CODE_COUNT;
+    const biomeCode = /** @type {BiomeCodeType} */ (normalizedCode);
+    const biomeId = biomeCodeToId(biomeCode);
     const biome = getBiome(biomeId);
     const rgb = parseColorToRgb(biome?.color ?? DEFAULT_HEX_COLOR);
     packedColorTable[code] = packRgba(rgb.r, rgb.g, rgb.b, 255);
