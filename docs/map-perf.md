@@ -52,14 +52,15 @@ When tuning these values, keep in mind that:
 Following these steps keeps the renderer responsive while giving you concrete metrics to justify any
 cache or tile-size tweaks.
 
-## World generation profiling
+## Biome color buffers
 
-Set the `FS_DEBUG_MAP_PROFILING` environment variable to a truthy value (for example `1`) before
-running the app or the Vitest suite to record the timing for the most expensive world-generation
-steps. You can also toggle the feature at runtime in the browser console by setting
-`window.__FS_DEBUG_MAP_PROFILING__ = true` before generating a new map.
+The UI now controls how biome imagery is produced. Call
+`generateColorMap(worldArtifact, palette, imageData?)` with the `WorldArtifact` returned by
+`generateWorldMap` and a palette that maps biome codes to packed RGBA values. The helper fills the
+provided `ImageData` (or creates a new one if omitted) by walking the artifact’s `layers.biome`
+array, so you can swap palettes or reuse buffers without involving the world generator.
 
-When enabled, the generator logs a summary like `generateColorMap profiling` with per-step timings
-for `createElevationSampler`, `generateHydrology`, and `applyMangroveZones`. The generated map data
-also includes a `profiling` object so you can inspect the aggregated `total` duration and the raw
-`steps` timings directly from the returned value or in captured snapshots.
+Supplying a shared `Uint32Array` palette dramatically reduces the cost of rebuilding minimaps: the
+function caches packed colors per biome code while filling the image, minimizing per-pixel work.
+Pair this with chunk-aware rendering (`renderer.scheduleRender`) to keep the map responsive even
+when regenerating the world repeatedly.

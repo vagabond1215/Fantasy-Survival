@@ -1,6 +1,6 @@
 import { describe, expect, it, vi } from 'vitest';
 import { resolveWorldParameters } from '../src/difficulty.js';
-import { deriveElevationOptions, deriveLandmassModifiers } from '../src/map.js';
+import { deriveElevationOptions, deriveLandmassModifiers } from '../src/world/parameters.js';
 
 const mockBiome = {
   id: 'test-biome',

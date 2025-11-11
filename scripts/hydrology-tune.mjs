@@ -5,10 +5,9 @@ import { biomes, getBiome } from '../src/biomes.js';
 import {
   DEFAULT_MAP_HEIGHT,
   DEFAULT_MAP_WIDTH,
-  computeCenteredStart,
-  deriveElevationOptions,
-  deriveLandmassModifiers
+  computeCenteredStart
 } from '../src/map.js';
+import { deriveElevationOptions, deriveLandmassModifiers } from '../src/world/parameters.js';
 import { createElevationSampler } from '../src/map/generation/elevation.js';
 import { generateHydrology } from '../src/map/generation/hydrology.js';
 import {
