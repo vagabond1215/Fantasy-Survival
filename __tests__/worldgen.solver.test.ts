@@ -1,7 +1,7 @@
 import { describe, expect, it, vi } from 'vitest';
 import { buildWorld, habitatProfilesById } from '../src/worldgen';
 import { difficultyToTargets } from '../src/worldgen/habitatProfiles';
-import { findValidSpawn, validateStartingArea } from '../src/map.js';
+import { findValidSpawn, validateStartingArea } from '../src/world/spawn.js';
 import AdjustmentSolver from '../src/map/generation/adjustmentSolver.js';
 
 type TerrainType = 'lake' | 'water' | 'river' | 'open' | 'ore';
