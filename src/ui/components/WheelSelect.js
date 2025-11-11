@@ -1,34 +1,45 @@
 import './WheelSelect.css';
 
-export interface WheelSelectOption {
-  id: string;
-  label: string;
-  description?: string;
-  color?: string | null;
-}
+/**
+ * @typedef {Object} WheelSelectOption
+ * @property {string} id
+ * @property {string} label
+ * @property {string} [description]
+ * @property {string|null} [color]
+ */
 
-export interface WheelSelectConfig {
-  options: WheelSelectOption[];
-  value?: string | null;
-  ariaLabel?: string;
-  ariaLabelledBy?: string;
-  ariaDescribedBy?: string;
-  onChange?: (value: string, option: WheelSelectOption) => void;
-  onCommit?: (value: string, option: WheelSelectOption) => void;
-}
+/**
+ * @typedef {Object} WheelSelectConfig
+ * @property {WheelSelectOption[]} options
+ * @property {string|null} [value]
+ * @property {string} [ariaLabel]
+ * @property {string} [ariaLabelledBy]
+ * @property {string} [ariaDescribedBy]
+ * @property {(value: string, option: WheelSelectOption) => void} [onChange]
+ * @property {(value: string, option: WheelSelectOption) => void} [onCommit]
+ */
 
 const ITEM_SPACING = 62;
 const SNAP_DELAY_MS = 140;
 const ANIMATION_DURATION = 220;
 
-function clamp(value: number, min: number, max: number) {
+/**
+ * @param {number} value
+ * @param {number} min
+ * @param {number} max
+ */
+function clamp(value, min, max) {
   if (Number.isNaN(value)) return min;
   if (value < min) return min;
   if (value > max) return max;
   return value;
 }
 
-function normalizeHex(color?: string | null) {
+/**
+ * @param {string|null|undefined} color
+ * @returns {string|null}
+ */
+function normalizeHex(color) {
   if (!color) return null;
   const value = String(color).trim();
   if (!value) return null;
@@ -43,13 +54,15 @@ function normalizeHex(color?: string | null) {
   return null;
 }
 
-interface RGB {
-  r: number;
-  g: number;
-  b: number;
-}
+/**
+ * @typedef {{ r: number, g: number, b: number }} RGB
+ */
 
-function hexToRgb(hex: string): RGB | null {
+/**
+ * @param {string} hex
+ * @returns {RGB|null}
+ */
+function hexToRgb(hex) {
   const normalized = normalizeHex(hex);
   if (!normalized) return null;
   const value = normalized.slice(1);
@@ -62,14 +75,22 @@ function hexToRgb(hex: string): RGB | null {
   return { r, g, b };
 }
 
-function rgbToHex({ r, g, b }: RGB) {
-  const clampChannel = (channel: number) => Math.min(Math.max(Math.round(channel), 0), 255);
+/**
+ * @param {RGB} param0
+ */
+function rgbToHex({ r, g, b }) {
+  const clampChannel = channel => Math.min(Math.max(Math.round(channel), 0), 255);
   return `#${[clampChannel(r), clampChannel(g), clampChannel(b)]
     .map(channel => channel.toString(16).padStart(2, '0'))
     .join('')}`;
 }
 
-function mixHex(hexA: string, hexB: string, weight: number) {
+/**
+ * @param {string} hexA
+ * @param {string} hexB
+ * @param {number} weight
+ */
+function mixHex(hexA, hexB, weight) {
   const a = hexToRgb(hexA);
   const b = hexToRgb(hexB);
   if (!a || !b) {
@@ -83,18 +104,29 @@ function mixHex(hexA: string, hexB: string, weight: number) {
   });
 }
 
-function lighten(hex: string, amount = 0.18) {
+/**
+ * @param {string} hex
+ * @param {number} [amount]
+ */
+function lighten(hex, amount = 0.18) {
   return mixHex(hex, '#ffffff', amount);
 }
 
-function darken(hex: string, amount = 0.22) {
+/**
+ * @param {string} hex
+ * @param {number} [amount]
+ */
+function darken(hex, amount = 0.22) {
   return mixHex(hex, '#000000', amount);
 }
 
-function relativeLuminance(hex: string) {
+/**
+ * @param {string} hex
+ */
+function relativeLuminance(hex) {
   const rgb = hexToRgb(hex);
   if (!rgb) return 0;
-  const transform = (channel: number) => {
+  const transform = channel => {
     const value = channel / 255;
     if (value <= 0.03928) {
       return value / 12.92;
@@ -107,7 +139,11 @@ function relativeLuminance(hex: string) {
   return 0.2126 * r + 0.7152 * g + 0.0722 * b;
 }
 
-function contrastRatio(foreground: string, background: string) {
+/**
+ * @param {string} foreground
+ * @param {string} background
+ */
+function contrastRatio(foreground, background) {
   const fg = normalizeHex(foreground);
   const bg = normalizeHex(background);
   if (!fg || !bg) return 1;
@@ -116,7 +152,10 @@ function contrastRatio(foreground: string, background: string) {
   return (lighter + 0.05) / (darker + 0.05);
 }
 
-function pickTextColor(base: string) {
+/**
+ * @param {string} base
+ */
+function pickTextColor(base) {
   const normalized = normalizeHex(base) || '#546a94';
   const lightContrast = contrastRatio('#ffffff', normalized);
   const darkContrast = contrastRatio('#111827', normalized);
@@ -126,7 +165,10 @@ function pickTextColor(base: string) {
   return darkContrast >= 4.5 ? '#111827' : lightContrast >= darkContrast ? '#ffffff' : '#111827';
 }
 
-function createPalette(color?: string | null) {
+/**
+ * @param {string|null|undefined} color
+ */
+function createPalette(color) {
   const base = normalizeHex(color) || '#4c6ef5';
   return {
     base,
@@ -137,27 +179,30 @@ function createPalette(color?: string | null) {
 }
 
 export class WheelSelect {
-  private root: HTMLElement;
-  private options: WheelSelectOption[];
-  private items: HTMLElement[] = [];
-  private value: string = '';
-  private offset = 0;
-  private activeIndex = -1;
-  private dragging = false;
-  private dragPointerId: number | null = null;
-  private dragStartY = 0;
-  private dragStartOffset = 0;
-  private snapTimer: number | null = null;
-  private animationTimer: number | null = null;
-  private readonly onChange?: (value: string, option: WheelSelectOption) => void;
-  private readonly onCommit?: (value: string, option: WheelSelectOption) => void;
-  private readonly viewport: HTMLElement;
-  private readonly track: HTMLElement;
-  private readonly idPrefix: string;
-
-  constructor(root: HTMLElement, config: WheelSelectConfig) {
+  /**
+   * @param {HTMLElement} root
+   * @param {WheelSelectConfig} config
+   */
+  constructor(root, config) {
+    /** @type {HTMLElement} */
     this.root = root;
+    /** @type {WheelSelectOption[]} */
     this.options = [...config.options];
+    /** @type {HTMLElement[]} */
+    this.items = [];
+    /** @type {string} */
+    this.value = '';
+    this.offset = 0;
+    this.activeIndex = -1;
+    this.dragging = false;
+    /** @type {number|null} */
+    this.dragPointerId = null;
+    this.dragStartY = 0;
+    this.dragStartOffset = 0;
+    /** @type {number|null} */
+    this.snapTimer = null;
+    /** @type {number|null} */
+    this.animationTimer = null;
     this.onChange = config.onChange;
     this.onCommit = config.onCommit;
     this.idPrefix = `wheel-option-${Math.random().toString(36).slice(2, 10)}`;
@@ -201,7 +246,11 @@ export class WheelSelect {
     return this.value;
   }
 
-  setValue(value: string, options: { silent?: boolean; animate?: boolean; commit?: boolean } = {}) {
+  /**
+   * @param {string} value
+   * @param {{ silent?: boolean, animate?: boolean, commit?: boolean }} [options]
+   */
+  setValue(value, options = {}) {
     if (!this.options.length) {
       this.value = '';
       this.activeIndex = -1;
@@ -225,11 +274,11 @@ export class WheelSelect {
     this.items.length = 0;
   }
 
-  private get maxIndex() {
+  get maxIndex() {
     return Math.max(0, this.options.length - 1);
   }
 
-  private renderOptions() {
+  renderOptions() {
     this.track.innerHTML = '';
     this.items = this.options.map((option, index) => {
       const item = document.createElement('div');
@@ -239,6 +288,7 @@ export class WheelSelect {
       item.setAttribute('aria-selected', 'false');
       item.dataset.value = option.id;
       item.tabIndex = -1;
+
       const palette = createPalette(option.color);
       item.style.setProperty('--wheel-option-base', palette.base);
       item.style.setProperty('--wheel-option-light', palette.light);
@@ -279,7 +329,111 @@ export class WheelSelect {
     });
   }
 
-  private bindEvents() {
+  bindEvents() {
+    this.handlePointerDown = event => {
+      if (event.button !== 0 && event.pointerType !== 'touch') {
+        return;
+      }
+      this.root.focus({ preventScroll: true });
+      this.dragging = true;
+      this.dragPointerId = event.pointerId;
+      this.dragStartY = event.clientY;
+      this.dragStartOffset = this.offset;
+      this.stopSnap();
+      this.root.classList.add('wheel-select--dragging');
+      try {
+        this.root.setPointerCapture(event.pointerId);
+      } catch (error) {
+        // ignore capture errors on unsupported elements
+      }
+    };
+
+    this.handlePointerMove = event => {
+      if (!this.dragging || this.dragPointerId !== event.pointerId) {
+        return;
+      }
+      event.preventDefault();
+      const delta = event.clientY - this.dragStartY;
+      const nextOffset = this.dragStartOffset + delta / ITEM_SPACING;
+      this.offset = clamp(nextOffset, 0, this.maxIndex);
+      this.updateTransforms();
+      this.updateSelection(false);
+    };
+
+    this.handlePointerUp = event => {
+      if (!this.dragging || (this.dragPointerId !== null && event.pointerId !== this.dragPointerId)) {
+        return;
+      }
+      if (this.dragPointerId !== null) {
+        try {
+          this.root.releasePointerCapture(this.dragPointerId);
+        } catch (error) {
+          // ignore release errors
+        }
+      }
+      this.dragging = false;
+      this.dragPointerId = null;
+      this.root.classList.remove('wheel-select--dragging');
+      this.snapToNearest(true);
+    };
+
+    this.handlePointerLeave = event => {
+      if (!this.dragging || (this.dragPointerId !== null && event.pointerId !== this.dragPointerId)) {
+        return;
+      }
+      this.snapToNearest(true);
+    };
+
+    this.handleWheel = event => {
+      if (!this.options.length) return;
+      event.preventDefault();
+      const delta = event.deltaY;
+      const nextOffset = this.offset + delta / (ITEM_SPACING * 2.4);
+      this.offset = clamp(nextOffset, 0, this.maxIndex);
+      this.updateTransforms();
+      this.updateSelection(false);
+      this.scheduleSnap();
+    };
+
+    this.handleKeyDown = event => {
+      if (!this.options.length) return;
+      let handled = false;
+      if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
+        this.goToIndex(this.activeIndex - 1, { animate: true, commit: true });
+        handled = true;
+      } else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
+        this.goToIndex(this.activeIndex + 1, { animate: true, commit: true });
+        handled = true;
+      } else if (event.key === 'Home') {
+        this.goToIndex(0, { animate: true, commit: true });
+        handled = true;
+      } else if (event.key === 'End') {
+        this.goToIndex(this.maxIndex, { animate: true, commit: true });
+        handled = true;
+      } else if (event.key === 'PageUp') {
+        this.goToIndex(this.activeIndex - 3, { animate: true, commit: true });
+        handled = true;
+      } else if (event.key === 'PageDown') {
+        this.goToIndex(this.activeIndex + 3, { animate: true, commit: true });
+        handled = true;
+      } else if (event.key === 'Enter' || event.key === ' ') {
+        this.updateSelection(true, { commit: true });
+        handled = true;
+      }
+      if (handled) {
+        event.preventDefault();
+      }
+    };
+
+    this.handleBlur = () => {
+      if (this.dragging) {
+        this.dragging = false;
+        this.dragPointerId = null;
+        this.root.classList.remove('wheel-select--dragging');
+        this.snapToNearest();
+      }
+    };
+
     this.root.addEventListener('pointerdown', this.handlePointerDown);
     this.root.addEventListener('pointermove', this.handlePointerMove);
     this.root.addEventListener('pointerup', this.handlePointerUp);
@@ -290,123 +444,22 @@ export class WheelSelect {
     this.root.addEventListener('blur', this.handleBlur, true);
   }
 
-  private detachEvents() {
+  detachEvents() {
     this.root.removeEventListener('pointerdown', this.handlePointerDown);
     this.root.removeEventListener('pointermove', this.handlePointerMove);
     this.root.removeEventListener('pointerup', this.handlePointerUp);
     this.root.removeEventListener('pointercancel', this.handlePointerUp);
     this.root.removeEventListener('pointerleave', this.handlePointerLeave);
-    this.root.removeEventListener('wheel', this.handleWheel as EventListener);
+    this.root.removeEventListener('wheel', this.handleWheel);
     this.root.removeEventListener('keydown', this.handleKeyDown);
     this.root.removeEventListener('blur', this.handleBlur, true);
   }
 
-  private handlePointerDown = (event: PointerEvent) => {
-    if (event.button !== 0 && event.pointerType !== 'touch') {
-      return;
-    }
-    this.root.focus({ preventScroll: true });
-    this.dragging = true;
-    this.dragPointerId = event.pointerId;
-    this.dragStartY = event.clientY;
-    this.dragStartOffset = this.offset;
-    this.stopSnap();
-    this.root.classList.add('wheel-select--dragging');
-    try {
-      this.root.setPointerCapture(event.pointerId);
-    } catch (error) {
-      // ignore capture errors on unsupported elements
-    }
-  };
-
-  private handlePointerMove = (event: PointerEvent) => {
-    if (!this.dragging || this.dragPointerId !== event.pointerId) {
-      return;
-    }
-    event.preventDefault();
-    const delta = event.clientY - this.dragStartY;
-    const nextOffset = this.dragStartOffset + delta / ITEM_SPACING;
-    this.offset = clamp(nextOffset, 0, this.maxIndex);
-    this.updateTransforms();
-    this.updateSelection(false);
-  };
-
-  private handlePointerUp = (event: PointerEvent) => {
-    if (!this.dragging || (this.dragPointerId !== null && event.pointerId !== this.dragPointerId)) {
-      return;
-    }
-    if (this.dragPointerId !== null) {
-      try {
-        this.root.releasePointerCapture(this.dragPointerId);
-      } catch (error) {
-        // ignore release errors
-      }
-    }
-    this.dragging = false;
-    this.dragPointerId = null;
-    this.root.classList.remove('wheel-select--dragging');
-    this.snapToNearest(true);
-  };
-
-  private handlePointerLeave = (event: PointerEvent) => {
-    if (!this.dragging || (this.dragPointerId !== null && event.pointerId !== this.dragPointerId)) {
-      return;
-    }
-    this.snapToNearest(true);
-  };
-
-  private handleWheel = (event: WheelEvent) => {
-    if (!this.options.length) return;
-    event.preventDefault();
-    const delta = event.deltaY;
-    const nextOffset = this.offset + delta / (ITEM_SPACING * 2.4);
-    this.offset = clamp(nextOffset, 0, this.maxIndex);
-    this.updateTransforms();
-    this.updateSelection(false);
-    this.scheduleSnap();
-  };
-
-  private handleKeyDown = (event: KeyboardEvent) => {
-    if (!this.options.length) return;
-    let handled = false;
-    if (event.key === 'ArrowUp' || event.key === 'ArrowLeft') {
-      this.goToIndex(this.activeIndex - 1, { animate: true, commit: true });
-      handled = true;
-    } else if (event.key === 'ArrowDown' || event.key === 'ArrowRight') {
-      this.goToIndex(this.activeIndex + 1, { animate: true, commit: true });
-      handled = true;
-    } else if (event.key === 'Home') {
-      this.goToIndex(0, { animate: true, commit: true });
-      handled = true;
-    } else if (event.key === 'End') {
-      this.goToIndex(this.maxIndex, { animate: true, commit: true });
-      handled = true;
-    } else if (event.key === 'PageUp') {
-      this.goToIndex(this.activeIndex - 3, { animate: true, commit: true });
-      handled = true;
-    } else if (event.key === 'PageDown') {
-      this.goToIndex(this.activeIndex + 3, { animate: true, commit: true });
-      handled = true;
-    } else if (event.key === 'Enter' || event.key === ' ') {
-      this.updateSelection(true, { commit: true });
-      handled = true;
-    }
-
-    if (handled) {
-      event.preventDefault();
-    }
-  };
-
-  private handleBlur = () => {
-    if (this.dragging) {
-      this.dragging = false;
-      this.dragPointerId = null;
-      this.root.classList.remove('wheel-select--dragging');
-      this.snapToNearest();
-    }
-  };
-
-  private goToIndex(index: number, options: { animate?: boolean; commit?: boolean } = {}) {
+  /**
+   * @param {number} index
+   * @param {{ animate?: boolean, commit?: boolean }} [options]
+   */
+  goToIndex(index, options = {}) {
     if (!this.options.length) return;
     const clampedIndex = clamp(index, 0, this.maxIndex);
     this.offset = clampedIndex;
@@ -414,7 +467,10 @@ export class WheelSelect {
     this.updateSelection(true, { commit: options.commit });
   }
 
-  private updateTransforms(animate = false) {
+  /**
+   * @param {boolean} [animate]
+   */
+  updateTransforms(animate = false) {
     if (!this.items.length) return;
     if (animate) {
       this.root.classList.add('wheel-select--animating');
@@ -443,16 +499,22 @@ export class WheelSelect {
     });
   }
 
-  private updateSelection(force = false, options: { silent?: boolean; commit?: boolean } = {}) {
+  /**
+   * @param {boolean} [force]
+   * @param {{ silent?: boolean, commit?: boolean }} [options]
+   */
+  updateSelection(force = false, options = {}) {
     if (!this.options.length) {
       this.value = '';
       this.activeIndex = -1;
       this.root.removeAttribute('aria-activedescendant');
       return;
     }
+
     const nearestIndex = clamp(Math.round(this.offset), 0, this.maxIndex);
     const option = this.options[nearestIndex];
     if (!option) return;
+
     const changed = this.value !== option.id || force;
     this.activeIndex = nearestIndex;
     this.value = option.id;
@@ -465,15 +527,15 @@ export class WheelSelect {
       }
     });
 
-    if (changed && !options.silent && option) {
+    if (changed && !options.silent) {
       this.onChange?.(option.id, option);
     }
-    if (options.commit && option && !options.silent) {
+    if (options.commit && !options.silent) {
       this.onCommit?.(option.id, option);
     }
   }
 
-  private scheduleSnap() {
+  scheduleSnap() {
     this.stopSnap();
     this.snapTimer = window.setTimeout(() => {
       this.snapTimer = null;
@@ -481,14 +543,17 @@ export class WheelSelect {
     }, SNAP_DELAY_MS);
   }
 
-  private stopSnap() {
+  stopSnap() {
     if (this.snapTimer) {
       window.clearTimeout(this.snapTimer);
       this.snapTimer = null;
     }
   }
 
-  private snapToNearest(commit = false) {
+  /**
+   * @param {boolean} [commit]
+   */
+  snapToNearest(commit = false) {
     if (!this.options.length) return;
     const targetIndex = clamp(Math.round(this.offset), 0, this.maxIndex);
     this.offset = targetIndex;
