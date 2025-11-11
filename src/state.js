@@ -43,12 +43,47 @@ function normalizeTechnologyStateRecord(id, value) {
   };
 }
 
+/**
+ * @param {any} input
+ * @returns {any[]}
+ */
 function normalizeEntryCollection(input) {
   if (!input) return [];
   if (input instanceof Map) return [...input.entries()];
   if (Array.isArray(input)) return input;
   if (typeof input === 'object') return Object.entries(input);
   return [];
+}
+
+/**
+ * @param {any} input
+ * @returns {Array<[any, any]>}
+ */
+function normalizeMapEntries(input) {
+  if (!input) return [];
+  if (input instanceof Map) return [...input.entries()];
+  if (typeof input === 'object' && !Array.isArray(input)) {
+    return Object.entries(input);
+  }
+  if (!Array.isArray(input)) {
+    return [];
+  }
+  /** @type {Array<[any, any]>} */
+  const result = [];
+  for (const entry of input) {
+    if (Array.isArray(entry) && entry.length >= 2) {
+      result.push(/** @type {[any, any]} */ ([entry[0], entry[1]]));
+      continue;
+    }
+    if (entry && typeof entry === 'object') {
+      const keys = Object.keys(entry);
+      if (keys.length === 1) {
+        const key = keys[0];
+        result.push(/** @type {[any, any]} */ ([key, entry[key]]));
+      }
+    }
+  }
+  return result;
 }
 
 function serializeViewport(viewport) {
@@ -295,40 +330,40 @@ class DataStore {
 
   // Load store from serialized data.
   deserialize(data) {
-    this.buildings = new Map(normalizeEntryCollection(data.buildings));
-    this.people = new Map(normalizeEntryCollection(data.people));
-    this.inventory = new Map(normalizeEntryCollection(data.inventory));
-    this.craftTargets = new Map(normalizeEntryCollection(data.craftTargets));
+    this.buildings = new Map(normalizeMapEntries(data.buildings));
+    this.people = new Map(normalizeMapEntries(data.people));
+    this.inventory = new Map(normalizeMapEntries(data.inventory));
+    this.craftTargets = new Map(normalizeMapEntries(data.craftTargets));
     const rawLocations = normalizeEntryCollection(data.locations);
-    const locationEntries = rawLocations
-      .map(entry => {
-        if (Array.isArray(entry) && entry.length >= 2) {
-          const [rawId, value] = entry;
-          if (rawId === undefined || rawId === null) {
-            return null;
-          }
-          const id = String(rawId);
-          const deserialized = deserializeLocationState(value);
-          if (deserialized && (deserialized.id === undefined || deserialized.id === null)) {
-            deserialized.id = id;
-          }
-          return [id, deserialized];
+    /** @type {Array<[string, any]>} */
+    const locationEntries = [];
+    for (const entry of rawLocations) {
+      if (Array.isArray(entry) && entry.length >= 2) {
+        const [rawId, value] = entry;
+        if (rawId === undefined || rawId === null) {
+          continue;
         }
-        if (entry && typeof entry === 'object') {
-          const deserialized = deserializeLocationState(entry);
-          const derivedId = deserialized?.id ?? entry.id;
-          if (derivedId === undefined || derivedId === null) {
-            return null;
-          }
-          const id = String(derivedId);
-          if (deserialized && (deserialized.id === undefined || deserialized.id === null)) {
-            deserialized.id = id;
-          }
-          return [id, deserialized];
+        const id = String(rawId);
+        const deserialized = deserializeLocationState(value);
+        if (deserialized && (deserialized.id === undefined || deserialized.id === null)) {
+          deserialized.id = id;
         }
-        return null;
-      })
-      .filter(Boolean);
+        locationEntries.push([id, deserialized]);
+        continue;
+      }
+      if (entry && typeof entry === 'object') {
+        const deserialized = deserializeLocationState(entry);
+        const derivedId = deserialized?.id ?? entry.id;
+        if (derivedId === undefined || derivedId === null) {
+          continue;
+        }
+        const id = String(derivedId);
+        if (deserialized && (deserialized.id === undefined || deserialized.id === null)) {
+          deserialized.id = id;
+        }
+        locationEntries.push([id, deserialized]);
+      }
+    }
     this.locations = new Map(locationEntries);
     const rawTechnologies = Array.isArray(data.technologies)
       ? data.technologies
@@ -349,7 +384,7 @@ class DataStore {
       })
       .filter(Boolean);
     this.technologies = new Map(technologyEntries);
-    this.proficiencies = new Map(normalizeEntryCollection(data.proficiencies));
+    this.proficiencies = new Map(normalizeMapEntries(data.proficiencies));
     const savedPlayer = data.player || {};
     this.player = {
       locationId: savedPlayer.locationId ?? null,
@@ -375,7 +410,7 @@ class DataStore {
     this.unlockedBuildings = new Set(data.unlockedBuildings || []);
     this.research = new Set(data.research || []);
     this.buildingSeq = data.buildingSeq || 0;
-    this.gatherNodes = new Map(normalizeEntryCollection(data.gatherNodes));
+    this.gatherNodes = new Map(normalizeMapEntries(data.gatherNodes));
     this.jobSettings = data.jobSettings || {};
     this.jobDaily = data.jobDaily || {};
     this.worldSettings = normalizeWorldSettings(data.worldSettings);

@@ -57,7 +57,15 @@ function serializeLayer(layer) {
     return layer.map(toPlainNumber);
   }
   if (ArrayBuffer.isView(layer)) {
-    return Array.from(layer, toPlainNumber);
+    if ('length' in layer && typeof layer.length === 'number') {
+      const view = /** @type {{ length: number; [index: number]: number }} */ (/** @type {unknown} */ (layer));
+      const result = new Array(view.length);
+      for (let i = 0; i < view.length; i += 1) {
+        result[i] = toPlainNumber(view[i]);
+      }
+      return result;
+    }
+    return [];
   }
   return [];
 }
@@ -89,7 +97,15 @@ function toNumberArray(source, size = 0) {
     return new Array(size).fill(0);
   }
   if (ArrayBuffer.isView(source)) {
-    return Array.from(source, toPlainNumber);
+    if ('length' in source && typeof source.length === 'number') {
+      const view = /** @type {{ length: number; [index: number]: number }} */ (/** @type {unknown} */ (source));
+      const result = new Array(view.length);
+      for (let i = 0; i < view.length; i += 1) {
+        result[i] = toPlainNumber(view[i]);
+      }
+      return result;
+    }
+    return [];
   }
   if (Array.isArray(source)) {
     if (source.length >= size) {
