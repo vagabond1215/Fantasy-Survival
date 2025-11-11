@@ -5,6 +5,17 @@ import {
   resolveLandmassPreset,
 } from '../map/landmassPresets/index.js';
 
+/**
+ * @typedef {Readonly<{
+ *   maskStrength: number;
+ *   maskBias: number;
+ *   worldScaleFactor: number;
+ *   waterCoverageTarget: number;
+ *   minOceanFraction: number;
+ *   openLandBias: number;
+ * }>} LandmassPreset
+ */
+
 function clamp(value, min, max) {
   if (!Number.isFinite(value)) return min;
   if (value < min) return min;
@@ -51,15 +62,17 @@ export function deriveLandmassModifiers(world, { skipResolve = false } = {}) {
     );
   }
 
-  const preset = resolveLandmassPreset(landmassType) || {};
+  const preset = /** @type {LandmassPreset | undefined} */ (
+    resolveLandmassPreset(landmassType)
+  );
   const islandsBias = sliderBias(resolved, 'mapIslands', 50);
 
-  const maskStrengthBase = preset.maskStrength ?? 0.55;
-  const maskBiasBase = preset.maskBias ?? 0;
-  const worldScaleFactorBase = preset.worldScaleFactor ?? 1.2;
-  const waterCoverageTargetBase = preset.waterCoverageTarget ?? 0.32;
-  const minOceanFractionBase = preset.minOceanFraction ?? 0.02;
-  const openLandBiasBase = preset.openLandBias ?? 0;
+  const maskStrengthBase = preset?.maskStrength ?? 0.55;
+  const maskBiasBase = preset?.maskBias ?? 0;
+  const worldScaleFactorBase = preset?.worldScaleFactor ?? 1.2;
+  const waterCoverageTargetBase = preset?.waterCoverageTarget ?? 0.32;
+  const minOceanFractionBase = preset?.minOceanFraction ?? 0.02;
+  const openLandBiasBase = preset?.openLandBias ?? 0;
 
   const maskStrength = clamp(maskStrengthBase + islandsBias * 0.22, 0.28, 0.92);
   const maskBias = clamp(maskBiasBase + islandsBias * -0.12, -0.3, 0.3);
