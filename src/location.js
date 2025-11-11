@@ -65,7 +65,7 @@ export function generateLocation(
   const width = DEFAULT_MAP_WIDTH;
   const height = DEFAULT_MAP_HEIGHT;
   const { xStart, yStart } = computeCenteredStart(width, height);
-  const { map } = generateWorldMap({
+  const { world, map } = generateWorldMap({
     width,
     height,
     seed,
@@ -88,6 +88,7 @@ export function generateLocation(
     features,
     pointsOfInterest,
     map,
+    world,
     siteCapacities,
     worldSettings: map.worldSettings
   };
