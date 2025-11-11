@@ -1,5 +1,5 @@
 import { TERRAIN_SYMBOLS } from '../map/terrainSymbols.js';
-import { generateWorld } from './generate.ts';
+import { generateWorld } from './generate.js';
 import { deriveGenerationTuning } from './parameters.js';
 
 const WATER_ELEVATION_THRESHOLD = 0.32;

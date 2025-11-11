@@ -1,7 +1,7 @@
-import { BiomeCode, biomeCodeToId } from '../world/generate.ts';
+import { BiomeCode, biomeCodeToId } from '../world/generate.js';
 import { getBiome } from '../biomes.js';
 
-/** @typedef {import('../world/generate.ts').BiomeCode} BiomeCodeType */
+/** @typedef {import('../world/generate.js').BiomeCode} BiomeCodeType */
 
 const DEFAULT_HEX_COLOR = '#64748b';
 const TABLE_SIZE = 256;
