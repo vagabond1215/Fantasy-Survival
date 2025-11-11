@@ -4447,10 +4447,17 @@ export function createMapView(container, {
       } else if (nextColors && typeof nextColors === 'object') {
         state.terrainColorOverrides = normalizeTerrainColorOverrides(nextColors);
       }
+      const hasMapTiles = Array.isArray(state.map?.tiles) && state.map.tiles.length > 0;
       if (forceRefresh) {
         resolveTilePalette({ forceRefresh: true });
+        if (isDebugModeEnabled()) {
+          console.assert(
+            hasMapTiles,
+            'setTerrainColors: forceRefresh requested without available tile data'
+          );
+        }
       }
-      if (state.useTerrainColors && state.map?.tiles?.size) {
+      if (state.useTerrainColors && (hasMapTiles || forceRefresh)) {
         updateTileDataLayer();
         scheduleRender();
       }
