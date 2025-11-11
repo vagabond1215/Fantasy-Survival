@@ -29,7 +29,7 @@ import { generateWorld } from '../world/generate.ts';
 import { deriveGenerationTuning } from '../world/parameters.js';
 import { canonicalizeSeed } from '../world/seed.js';
 import { adaptWorldToMapData, fallbackCanonicalSeed } from '../world/mapAdapter.js';
-import { WheelSelect } from './components/WheelSelect.ts';
+import { WheelSelect } from './components/WheelSelect.js';
 
 const seasons = [
   { id: 'Thawbound', label: 'Spring', icon: '🌱' },
