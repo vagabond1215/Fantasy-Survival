@@ -25,7 +25,7 @@ import store, {
   updateWorldConfig
 } from '../state.js';
 import { BIOME_STARTER_OPTIONS } from '../world/biome/startingBiomes.js';
-import { generateWorld } from '../world/generate.ts';
+import { generateWorld } from '../world/generate.js';
 import { deriveGenerationTuning } from '../world/parameters.js';
 import { canonicalizeSeed } from '../world/seed.js';
 import { adaptWorldToMapData, fallbackCanonicalSeed } from '../world/mapAdapter.js';

@@ -1,6 +1,6 @@
 // @ts-nocheck
 
-/** @typedef {import('./world/generate.ts').WorldArtifact} WorldArtifact */
+/** @typedef {import('./world/generate.js').WorldArtifact} WorldArtifact */
 
 export const GRID_DISTANCE_METERS = 100;
 
