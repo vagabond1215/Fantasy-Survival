@@ -5,6 +5,16 @@ import {
   resolveLandmassPreset,
 } from '../map/landmassPresets/index.js';
 
+const MAX_GENERATION_BIAS = 0.45;
+
+/**
+ * @typedef {Readonly<{
+ *   skipResolve?: boolean;
+ *   width?: number;
+ *   height?: number;
+ * }>} GenerationTuningOptions
+ */
+
 /**
  * @typedef {Readonly<{
  *   maskStrength: number;
@@ -36,6 +46,73 @@ function sliderValue(world, key, fallback = 50) {
 
 function sliderBias(world, key, fallback = 50) {
   return (sliderValue(world, key, fallback) - 50) / 50;
+}
+
+function clampBias(value) {
+  if (!Number.isFinite(value)) return 0;
+  if (value < -MAX_GENERATION_BIAS) return -MAX_GENERATION_BIAS;
+  if (value > MAX_GENERATION_BIAS) return MAX_GENERATION_BIAS;
+  return Math.fround(value);
+}
+
+/**
+ * @param {unknown} world
+ * @param {GenerationTuningOptions} [options]
+ */
+export function deriveGenerationTuning(world, { skipResolve = false, width, height } = {}) {
+  const resolved = skipResolve ? world || {} : resolveWorldParameters(world || {});
+  if (!resolved || typeof resolved !== 'object') {
+    return {
+      elevationBias: 0,
+      temperatureBias: 0,
+      moistureBias: 0,
+    };
+  }
+
+  const mountainsBias = sliderBias(resolved, 'mountains', 50);
+  const elevationMaxBias = sliderBias(resolved, 'mapElevationMax', 50);
+  const elevationVarianceBias = sliderBias(resolved, 'mapElevationVariance', 50);
+  const elevationBias = clampBias(
+    mountainsBias * 0.28 + elevationMaxBias * 0.4 + elevationVarianceBias * 0.18,
+  );
+
+  const temperatureSliderBias = sliderBias(resolved, 'temperature', 50);
+  const rainfallBias = sliderBias(resolved, 'rainfall', 50);
+  const waterTableBias = sliderBias(resolved, 'waterTable', 50);
+  const temperatureBias = clampBias(
+    temperatureSliderBias * 0.45 + mountainsBias * -0.12 + rainfallBias * -0.08,
+  );
+
+  const marshBias = sliderBias(resolved, 'marshSwamp', 28);
+  const bogBias = sliderBias(resolved, 'bogFen', 24);
+  const moistureBias = clampBias(
+    rainfallBias * 0.42 + waterTableBias * 0.32 + marshBias * 0.12 + bogBias * 0.1,
+  );
+
+  const islandBias = sliderBias(resolved, 'mapIslands', 50);
+  const normalizedWidth = Number.isFinite(width) ? Math.max(1, Math.trunc(width)) : null;
+  const normalizedHeight = Number.isFinite(height) ? Math.max(1, Math.trunc(height)) : null;
+  const area =
+    normalizedWidth && normalizedHeight ? normalizedWidth * normalizedHeight : null;
+  const baselineSuggestions = area
+    ? Math.max(16, Math.min(256, Math.floor(area / 64)))
+    : null;
+  const spawnSuggestionCount = baselineSuggestions
+    ? Math.round(
+        baselineSuggestions +
+          mountainsBias * -0.35 * baselineSuggestions +
+          islandBias * -0.28 * baselineSuggestions +
+          waterTableBias * 0.22 * baselineSuggestions +
+          rainfallBias * 0.18 * baselineSuggestions,
+      )
+    : null;
+
+  return {
+    elevationBias,
+    temperatureBias,
+    moistureBias,
+    ...(spawnSuggestionCount != null ? { spawnSuggestionCount } : {}),
+  };
 }
 
 export function deriveLandmassModifiers(world, { skipResolve = false } = {}) {

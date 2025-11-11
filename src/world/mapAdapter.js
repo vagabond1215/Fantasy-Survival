@@ -1,5 +1,6 @@
 import { TERRAIN_SYMBOLS } from '../map/terrainSymbols.js';
 import { generateWorld } from './generate.ts';
+import { deriveGenerationTuning } from './parameters.js';
 
 const WATER_ELEVATION_THRESHOLD = 0.32;
 const WATER_ELEVATION_BUFFER = 0.08;
@@ -334,7 +335,8 @@ export function generateWorldMap(options = {}) {
         ? seedInfo.raw
         : String(options.seed ?? '');
 
-  const world = generateWorld({ width, height, seed: seedInfo });
+  const params = deriveGenerationTuning(options.worldSettings, { width, height });
+  const world = generateWorld({ width, height, seed: seedInfo, params });
 
   const worldSettings = enrichWorldSettings(options.worldSettings, seedInfo, options.startingBiomeId ?? null);
 

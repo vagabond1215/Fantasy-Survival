@@ -26,6 +26,7 @@ import store, {
 } from '../state.js';
 import { BIOME_STARTER_OPTIONS } from '../world/biome/startingBiomes.js';
 import { generateWorld } from '../world/generate.ts';
+import { deriveGenerationTuning } from '../world/parameters.js';
 import { canonicalizeSeed } from '../world/seed.js';
 import { adaptWorldToMapData, fallbackCanonicalSeed } from '../world/mapAdapter.js';
 import { WheelSelect } from './components/WheelSelect.ts';
@@ -1539,11 +1540,13 @@ export function initSetupUI(onStart) {
     }
 
     let artifact;
+    const params = deriveGenerationTuning(worldParameters, { width, height });
     try {
       artifact = await generateWorld({
         width,
         height,
-        seed: canonicalSeed
+        seed: canonicalSeed,
+        params
       });
     } catch (error) {
       console.error('Failed to generate world artifact for preview.', error);
@@ -2009,12 +2012,17 @@ export function initSetupUI(onStart) {
       const defaultStart = computeCenteredOrigin(normalizedWidth, normalizedHeight);
       const startX = Number.isFinite(xStart) ? Math.trunc(xStart) : defaultStart.xStart;
       const startY = Number.isFinite(yStart) ? Math.trunc(yStart) : defaultStart.yStart;
+      const params = deriveGenerationTuning(worldParameters, {
+        width: normalizedWidth,
+        height: normalizedHeight
+      });
       let artifact;
       try {
         artifact = await generateWorld({
           width: normalizedWidth,
           height: normalizedHeight,
-          seed: canonicalSeed
+          seed: canonicalSeed,
+          params
         });
       } catch (error) {
         console.error('Failed to generate world artifact for map fetch.', error);

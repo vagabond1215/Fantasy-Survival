@@ -1,6 +1,7 @@
 import { describe, expect, it } from 'vitest';
 
 import { generateWorld } from '../src/world/generate';
+import { deriveGenerationTuning } from '../src/world/parameters.js';
 import type { CanonicalSeed } from '../src/world/seed.js';
 
 describe('world.generate', () => {
@@ -23,6 +24,9 @@ describe('world.generate', () => {
   const width = 24;
   const height = 16;
   const size = width * height;
+
+  const mean = (values: Float32Array) =>
+    values.reduce((acc, value) => acc + value, 0) / values.length;
 
   it('produces deterministic layers, tiles, and spawn suggestions', async () => {
     const [first, second] = await Promise.all([
@@ -142,5 +146,73 @@ describe('world.generate', () => {
       expect(tile.climate.moisture).toMatch(/arid|semi-arid|moderate|humid|wet/);
       expect(tile.climate.runoff).toMatch(/minimal|seasonal|perennial/);
     }
+  });
+
+  it('responds to climate slider tuning', async () => {
+    const warmParams = deriveGenerationTuning(
+      {
+        temperature: 85,
+        rainfall: 45,
+        waterTable: 45,
+        mountains: 45,
+        mapElevationMax: 52,
+        mapElevationVariance: 48,
+      },
+      { width, height },
+    );
+    const coldParams = deriveGenerationTuning(
+      {
+        temperature: 15,
+        rainfall: 45,
+        waterTable: 45,
+        mountains: 55,
+        mapElevationMax: 48,
+        mapElevationVariance: 52,
+      },
+      { width, height },
+    );
+
+    const [warmWorld, coldWorld] = await Promise.all([
+      generateWorld({ width, height, seed, params: warmParams }),
+      generateWorld({ width, height, seed, params: coldParams }),
+    ]);
+
+    const warmAvgTemp = mean(warmWorld.layers.temperature);
+    const coldAvgTemp = mean(coldWorld.layers.temperature);
+    expect(warmAvgTemp).toBeGreaterThan(coldAvgTemp + 0.03);
+
+    const wetParams = deriveGenerationTuning(
+      {
+        temperature: 50,
+        rainfall: 80,
+        waterTable: 78,
+        marshSwamp: 64,
+        bogFen: 60,
+        mapElevationMax: 50,
+        mapElevationVariance: 52,
+      },
+      { width, height },
+    );
+    const dryParams = deriveGenerationTuning(
+      {
+        temperature: 52,
+        rainfall: 20,
+        waterTable: 24,
+        marshSwamp: 12,
+        bogFen: 10,
+        mapElevationMax: 48,
+        mapElevationVariance: 46,
+      },
+      { width, height },
+    );
+
+    const [wetWorld, dryWorld] = await Promise.all([
+      generateWorld({ width, height, seed, params: wetParams }),
+      generateWorld({ width, height, seed, params: dryParams }),
+    ]);
+
+    const wetAvgMoisture = mean(wetWorld.layers.moisture);
+    const dryAvgMoisture = mean(dryWorld.layers.moisture);
+    expect(wetAvgMoisture).toBeGreaterThan(dryAvgMoisture + 0.04);
   });
 });
