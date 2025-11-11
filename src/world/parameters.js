@@ -9,6 +9,14 @@ const MAX_GENERATION_BIAS = 0.45;
 
 /**
  * @typedef {Readonly<{
+ *   skipResolve?: boolean;
+ *   width?: number;
+ *   height?: number;
+ * }>} GenerationTuningOptions
+ */
+
+/**
+ * @typedef {Readonly<{
  *   maskStrength: number;
  *   maskBias: number;
  *   worldScaleFactor: number;
@@ -47,6 +55,10 @@ function clampBias(value) {
   return Math.fround(value);
 }
 
+/**
+ * @param {unknown} world
+ * @param {GenerationTuningOptions} [options]
+ */
 export function deriveGenerationTuning(world, { skipResolve = false, width, height } = {}) {
   const resolved = skipResolve ? world || {} : resolveWorldParameters(world || {});
   if (!resolved || typeof resolved !== 'object') {
