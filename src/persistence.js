@@ -1,6 +1,12 @@
 import store from './state.js';
 import { refreshStats } from './people.js';
-import { computeCenteredStart, DEFAULT_MAP_HEIGHT, DEFAULT_MAP_WIDTH, generateWorldMap } from './map.js';
+import {
+  computeCenteredStart,
+  DEFAULT_MAP_HEIGHT,
+  DEFAULT_MAP_WIDTH,
+  generateWorldMap,
+  adaptWorldToMapData
+} from './map.js';
 import { refreshBuildingUnlocks } from './buildings.js';
 import { initializeTechnologyRegistry } from './technology.js';
 import { getStorageItem, removeStorageItem, setStorageItem } from './safeStorage.js';
@@ -187,68 +193,117 @@ export async function loadGame() {
     }
     store.deserialize(migrated);
     initializeTechnologyRegistry();
+    let locationUpdated = false;
     for (const loc of store.locations.values()) {
-      let storedWorld = loc.worldSettings;
-      if (!storedWorld && loc.map?.worldSettings) {
-        storedWorld = loc.map.worldSettings;
-      }
+      const mapState = loc.map && typeof loc.map === 'object' ? loc.map : {};
+      const storedWorldSettings =
+        loc.worldSettings || mapState.worldSettings || store.worldSettings || null;
 
-      if (!loc.map || !loc.map.tiles) {
-        const { map: generated } = generateWorldMap({
-          width: DEFAULT_MAP_WIDTH,
-          height: DEFAULT_MAP_HEIGHT,
-          seed: storedWorld?.seed,
-          season: store.time.season,
-          worldSettings: storedWorld,
-          startingBiomeId: loc.biome ?? null
-        });
-        loc.map = generated;
-        if (loc.map?.worldSettings && !loc.worldSettings) {
-          loc.worldSettings = loc.map.worldSettings;
-        }
-        continue;
-      }
-
-      if (!loc.map.seed) loc.map.seed = Date.now();
-
-      const width = loc.map.tiles?.[0]?.length || DEFAULT_MAP_WIDTH;
-      const height = loc.map.tiles?.length || DEFAULT_MAP_HEIGHT;
+      const worldDimensions = loc.world?.dimensions || {};
+      const width = Math.max(
+        1,
+        Math.trunc(
+          worldDimensions.width ?? mapState.width ?? mapState.tiles?.[0]?.length ?? DEFAULT_MAP_WIDTH
+        )
+      );
+      const height = Math.max(
+        1,
+        Math.trunc(
+          worldDimensions.height ?? mapState.height ?? mapState.tiles?.length ?? DEFAULT_MAP_HEIGHT
+        )
+      );
       const { xStart: centeredX, yStart: centeredY } = computeCenteredStart(width, height);
 
-      if (!Number.isFinite(loc.map.xStart)) loc.map.xStart = centeredX;
-      if (!Number.isFinite(loc.map.yStart)) loc.map.yStart = centeredY;
+      const seedSource =
+        (mapState.seed !== undefined ? mapState.seed : undefined) ??
+        (storedWorldSettings && storedWorldSettings.seed !== undefined ? storedWorldSettings.seed : undefined) ??
+        (loc.world?.seed?.raw ?? null);
+      const seedString =
+        typeof seedSource === 'string' ? seedSource : seedSource != null ? String(seedSource) : '';
 
-      const needsRecentering = loc.map.xStart === 0 && loc.map.yStart === 0;
+      let canonicalSeed = mapState.seedInfo;
+      if (!canonicalSeed || !Array.isArray(canonicalSeed.lanes) || canonicalSeed.lanes.length < 8) {
+        canonicalSeed = await canonicalizeSeed(seedString);
+        mapState.seedInfo = canonicalSeed;
+        locationUpdated = true;
+      }
 
-      if (!loc.map.types || needsRecentering) {
-        // Regenerate map if terrain types are missing (legacy saves) or if the
-        // map still uses the legacy origin placement.
-        const { map: regenerated } = generateWorldMap({
+      let worldArtifact = loc.world;
+      if (!worldArtifact && mapState.world) {
+        worldArtifact = mapState.world;
+        loc.world = worldArtifact;
+      }
+
+      const normalizedXStart = Number.isFinite(mapState.xStart) ? Math.trunc(mapState.xStart) : centeredX;
+      const normalizedYStart = Number.isFinite(mapState.yStart) ? Math.trunc(mapState.yStart) : centeredY;
+      const viewport = mapState.viewport || null;
+      const mapSeason = mapState.season ?? store.time.season;
+
+      if (!worldArtifact) {
+        const { world, map: regenerated } = generateWorldMap({
           width,
           height,
-          seed: loc.map.seed,
-          season: loc.map.season ?? store.time.season,
-          xStart: needsRecentering ? centeredX : loc.map.xStart,
-          yStart: needsRecentering ? centeredY : loc.map.yStart,
-          viewport: loc.map.viewport,
-          worldSettings: storedWorld,
+          seed: canonicalSeed,
+          season: mapSeason,
+          xStart: normalizedXStart,
+          yStart: normalizedYStart,
+          viewport,
+          worldSettings: storedWorldSettings,
           startingBiomeId: loc.biome ?? null
         });
+        worldArtifact = world;
+        loc.world = worldArtifact;
         loc.map = {
-          ...loc.map,
           ...regenerated,
-          waterLevel: loc.map.waterLevel ?? regenerated.waterLevel ?? null
+          waterLevel: mapState?.waterLevel ?? regenerated.waterLevel ?? null
         };
+        locationUpdated = true;
+      } else if (!mapState.tiles || !mapState.types) {
+        const adapted = adaptWorldToMapData(worldArtifact, {
+          seedInfo: canonicalSeed,
+          seedString,
+          season: mapSeason,
+          xStart: normalizedXStart,
+          yStart: normalizedYStart,
+          viewport,
+          worldSettings: storedWorldSettings
+        });
+        loc.map = {
+          ...mapState,
+          ...adapted,
+          waterLevel: mapState?.waterLevel ?? adapted.waterLevel ?? null
+        };
+        locationUpdated = true;
+      } else {
+        loc.map.world = worldArtifact;
+        if (!loc.map.seedInfo && canonicalSeed) {
+          loc.map.seedInfo = canonicalSeed;
+          locationUpdated = true;
+        }
+      }
+
+      if (!loc.map.seed) {
+        loc.map.seed = seedString || String(Date.now());
+        locationUpdated = true;
       }
 
       if (!loc.worldSettings && loc.map?.worldSettings) {
         loc.worldSettings = loc.map.worldSettings;
+        locationUpdated = true;
       }
 
-      if (!store.worldSettings && storedWorld) {
-        store.worldSettings = storedWorld;
+      if (!store.worldSettings && storedWorldSettings) {
+        store.worldSettings = storedWorldSettings;
       }
     }
+    if (locationUpdated) {
+      try {
+        saveGame();
+      } catch (persistError) {
+        console.warn('Failed to persist regenerated world data', persistError);
+      }
+    }
+
     refreshStats();
     refreshBuildingUnlocks();
     return true;

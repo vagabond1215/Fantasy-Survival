@@ -17,6 +17,8 @@ import { showBackButton, mountMenuActions } from './menu.js';
 import { allLocations } from './location.js';
 import {
   generateWorldMap,
+  adaptWorldToMapData,
+  computeCenteredStart,
   TERRAIN_SYMBOLS,
   GRID_DISTANCE_METERS,
   DEFAULT_MAP_WIDTH,
@@ -3821,24 +3823,52 @@ function ensureSeasonalMap() {
   if (lastSeason && lastSeason === t.season) return;
   const map = loc.map;
   const worldSettings = loc.worldSettings || map.worldSettings;
-  const width = map.tiles?.[0]?.length || DEFAULT_MAP_WIDTH;
-  const height = map.tiles?.length || DEFAULT_MAP_HEIGHT;
-  const { map: regenerated } = generateWorldMap({
-    width,
-    height,
-    seed: map.seed,
-    season: t.season,
-    xStart: map.xStart,
-    yStart: map.yStart,
-    viewport: map.viewport,
-    worldSettings,
-    startingBiomeId: loc.biome ?? null
-  });
-  loc.map = {
-    ...map,
-    ...regenerated,
-    waterLevel: map.waterLevel ?? regenerated.waterLevel ?? null
-  };
+  const worldArtifact = loc.world || map.world || null;
+  if (worldArtifact) {
+    const dimensions = worldArtifact.dimensions || {};
+    const width = Math.max(1, Math.trunc(dimensions.width ?? map.width ?? DEFAULT_MAP_WIDTH));
+    const height = Math.max(1, Math.trunc(dimensions.height ?? map.height ?? DEFAULT_MAP_HEIGHT));
+    const { xStart: centeredX, yStart: centeredY } = computeCenteredStart(width, height);
+    const seedInfo = map.seedInfo || worldArtifact.seed || null;
+    const seedString = map.seed ?? seedInfo?.raw ?? '';
+    const viewport = map.viewport || null;
+    const adapted = adaptWorldToMapData(worldArtifact, {
+      seedInfo,
+      seedString,
+      season: t.season,
+      xStart: Number.isFinite(map.xStart) ? Math.trunc(map.xStart) : centeredX,
+      yStart: Number.isFinite(map.yStart) ? Math.trunc(map.yStart) : centeredY,
+      viewport,
+      worldSettings
+    });
+    loc.map = {
+      ...map,
+      ...adapted,
+      waterLevel: map.waterLevel ?? adapted.waterLevel ?? null,
+      world: worldArtifact
+    };
+  } else {
+    const width = map.tiles?.[0]?.length || DEFAULT_MAP_WIDTH;
+    const height = map.tiles?.length || DEFAULT_MAP_HEIGHT;
+    const { world, map: regenerated } = generateWorldMap({
+      width,
+      height,
+      seed: map.seed,
+      season: t.season,
+      xStart: map.xStart,
+      yStart: map.yStart,
+      viewport: map.viewport,
+      worldSettings,
+      startingBiomeId: loc.biome ?? null
+    });
+    loc.world = world;
+    loc.map = {
+      ...map,
+      ...regenerated,
+      world,
+      waterLevel: map.waterLevel ?? regenerated.waterLevel ?? null
+    };
+  }
   if (!loc.worldSettings && loc.map?.worldSettings) {
     loc.worldSettings = loc.map.worldSettings;
   }
@@ -4395,27 +4425,58 @@ export function initGameUI() {
   if (loc?.map?.tiles) {
     if (loc.map.season !== store.time.season) {
       const worldSettings = loc.worldSettings || loc.map?.worldSettings;
-      const width = loc.map.tiles?.[0]?.length || DEFAULT_MAP_WIDTH;
-      const height = loc.map.tiles?.length || DEFAULT_MAP_HEIGHT;
-      const { map: regenerated } = generateWorldMap({
-        width,
-        height,
-        seed: loc.map.seed,
-        season: store.time.season,
-        xStart: loc.map.xStart,
-        yStart: loc.map.yStart,
-        viewport: loc.map.viewport,
-        worldSettings,
-        startingBiomeId: loc.biome ?? null
-      });
-      loc.map = {
-        ...loc.map,
-        ...regenerated,
-        waterLevel: loc.map.waterLevel ?? regenerated.waterLevel ?? null
-      };
+      const worldArtifact = loc.world || loc.map?.world || null;
+      if (worldArtifact) {
+        const dimensions = worldArtifact.dimensions || {};
+        const width = Math.max(1, Math.trunc(dimensions.width ?? loc.map.width ?? DEFAULT_MAP_WIDTH));
+        const height = Math.max(1, Math.trunc(dimensions.height ?? loc.map.height ?? DEFAULT_MAP_HEIGHT));
+        const { xStart: centeredX, yStart: centeredY } = computeCenteredStart(width, height);
+        const seedInfo = loc.map.seedInfo || worldArtifact.seed || null;
+        const seedString = loc.map.seed ?? seedInfo?.raw ?? '';
+        const viewport = loc.map.viewport || null;
+        const adapted = adaptWorldToMapData(worldArtifact, {
+          seedInfo,
+          seedString,
+          season: store.time.season,
+          xStart: Number.isFinite(loc.map.xStart) ? Math.trunc(loc.map.xStart) : centeredX,
+          yStart: Number.isFinite(loc.map.yStart) ? Math.trunc(loc.map.yStart) : centeredY,
+          viewport,
+          worldSettings
+        });
+        loc.map = {
+          ...loc.map,
+          ...adapted,
+          world: worldArtifact,
+          waterLevel: loc.map.waterLevel ?? adapted.waterLevel ?? null
+        };
+      } else {
+        const width = loc.map.tiles?.[0]?.length || DEFAULT_MAP_WIDTH;
+        const height = loc.map.tiles?.length || DEFAULT_MAP_HEIGHT;
+        const { world, map: regenerated } = generateWorldMap({
+          width,
+          height,
+          seed: loc.map.seed,
+          season: store.time.season,
+          xStart: loc.map.xStart,
+          yStart: loc.map.yStart,
+          viewport: loc.map.viewport,
+          worldSettings,
+          startingBiomeId: loc.biome ?? null
+        });
+        loc.world = world;
+        loc.map = {
+          ...loc.map,
+          ...regenerated,
+          world,
+          waterLevel: loc.map.waterLevel ?? regenerated.waterLevel ?? null
+        };
+      }
       if (!loc.worldSettings && loc.map?.worldSettings) {
         loc.worldSettings = loc.map.worldSettings;
       }
+    }
+    if (loc.world && loc.map && loc.map.world !== loc.world) {
+      loc.map.world = loc.world;
     }
     const mapSection = document.createElement('section');
     mapSection.id = 'map-section';

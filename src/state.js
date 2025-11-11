@@ -1,3 +1,11 @@
+import { adaptWorldToMapData, computeCenteredStart } from './map.js';
+import {
+  serializeWorldArtifact,
+  deserializeWorldArtifact,
+  serializeCanonicalSeed,
+  deserializeCanonicalSeed
+} from './world/artifactSerialization.js';
+
 const DEFAULT_PLAYER_JOB = 'survey';
 
 function coerceTechnologyTimestamp(value) {
@@ -35,12 +43,192 @@ function normalizeTechnologyStateRecord(id, value) {
   };
 }
 
+/**
+ * @param {any} input
+ * @returns {any[]}
+ */
 function normalizeEntryCollection(input) {
   if (!input) return [];
   if (input instanceof Map) return [...input.entries()];
   if (Array.isArray(input)) return input;
   if (typeof input === 'object') return Object.entries(input);
   return [];
+}
+
+/**
+ * @param {any} input
+ * @returns {Array<[any, any]>}
+ */
+function normalizeMapEntries(input) {
+  if (!input) return [];
+  if (input instanceof Map) return [...input.entries()];
+  if (typeof input === 'object' && !Array.isArray(input)) {
+    return Object.entries(input);
+  }
+  if (!Array.isArray(input)) {
+    return [];
+  }
+  /** @type {Array<[any, any]>} */
+  const result = [];
+  for (const entry of input) {
+    if (Array.isArray(entry) && entry.length >= 2) {
+      result.push(/** @type {[any, any]} */ ([entry[0], entry[1]]));
+      continue;
+    }
+    if (entry && typeof entry === 'object') {
+      const keys = Object.keys(entry);
+      if (keys.length === 1) {
+        const key = keys[0];
+        result.push(/** @type {[any, any]} */ ([key, entry[key]]));
+      }
+    }
+  }
+  return result;
+}
+
+function serializeViewport(viewport) {
+  if (!viewport || typeof viewport !== 'object') {
+    return null;
+  }
+  const xStart = Number.isFinite(viewport.xStart) ? Math.trunc(viewport.xStart) : null;
+  const yStart = Number.isFinite(viewport.yStart) ? Math.trunc(viewport.yStart) : null;
+  const width = Number.isFinite(viewport.width) ? Math.max(1, Math.trunc(viewport.width)) : null;
+  const height = Number.isFinite(viewport.height) ? Math.max(1, Math.trunc(viewport.height)) : null;
+  return {
+    xStart,
+    yStart,
+    width,
+    height
+  };
+}
+
+function serializeMapState(map) {
+  if (!map || typeof map !== 'object') {
+    return null;
+  }
+  const serialized = {
+    seed: map.seed ?? null,
+    seedInfo: serializeCanonicalSeed(map.seedInfo) ?? null,
+    season: map.season ?? null,
+    xStart: Number.isFinite(map.xStart) ? Math.trunc(map.xStart) : null,
+    yStart: Number.isFinite(map.yStart) ? Math.trunc(map.yStart) : null,
+    width: Number.isFinite(map.width)
+      ? Math.max(1, Math.trunc(map.width))
+      : Array.isArray(map.tiles?.[0])
+        ? map.tiles[0].length
+        : null,
+    height: Number.isFinite(map.height)
+      ? Math.max(1, Math.trunc(map.height))
+      : Array.isArray(map.tiles)
+        ? map.tiles.length
+        : null,
+    viewport: serializeViewport(map.viewport),
+    worldSettings: map.worldSettings ? normalizeWorldSettings(map.worldSettings) : null,
+    waterLevel: map.waterLevel ?? null
+  };
+  return serialized;
+}
+
+function deserializeViewport(viewport, defaults) {
+  const base = viewport && typeof viewport === 'object' ? viewport : {};
+  const fallback = defaults || { xStart: 0, yStart: 0, width: 1, height: 1 };
+  const width = Number.isFinite(base.width) ? Math.max(1, Math.trunc(base.width)) : fallback.width;
+  const height = Number.isFinite(base.height) ? Math.max(1, Math.trunc(base.height)) : fallback.height;
+  const xStart = Number.isFinite(base.xStart) ? Math.trunc(base.xStart) : fallback.xStart;
+  const yStart = Number.isFinite(base.yStart) ? Math.trunc(base.yStart) : fallback.yStart;
+  return { xStart, yStart, width, height };
+}
+
+function rebuildMapFromWorld(world, mapState = null) {
+  if (!world) {
+    return mapState && typeof mapState === 'object' ? { ...mapState } : null;
+  }
+
+  const dimensions = world.dimensions || {};
+  const widthSource =
+    dimensions.width ?? (mapState && Number.isFinite(mapState.width) ? mapState.width : 0);
+  const heightSource =
+    dimensions.height ?? (mapState && Number.isFinite(mapState.height) ? mapState.height : 0);
+  const worldWidth = Math.max(1, Math.trunc(widthSource || 0));
+  const worldHeight = Math.max(1, Math.trunc(heightSource || 0));
+  const defaults = computeCenteredStart(worldWidth, worldHeight);
+  const xStart = mapState && Number.isFinite(mapState.xStart) ? Math.trunc(mapState.xStart) : defaults.xStart;
+  const yStart = mapState && Number.isFinite(mapState.yStart) ? Math.trunc(mapState.yStart) : defaults.yStart;
+  const viewport = deserializeViewport(mapState?.viewport, {
+    xStart,
+    yStart,
+    width: worldWidth,
+    height: worldHeight
+  });
+  const seedInfo = mapState?.seedInfo
+    ? deserializeCanonicalSeed(mapState.seedInfo)
+    : world.seed
+      ? deserializeCanonicalSeed(world.seed)
+      : null;
+  const seedString = typeof mapState?.seed === 'string'
+    ? mapState.seed
+    : seedInfo?.raw ?? (typeof world.seed?.raw === 'string' ? world.seed.raw : '');
+  const worldSettings = mapState?.worldSettings ? normalizeWorldSettings(mapState.worldSettings) : null;
+
+  const map = adaptWorldToMapData(world, {
+    seedInfo,
+    seedString,
+    season: mapState?.season ?? null,
+    xStart,
+    yStart,
+    viewport,
+    worldSettings
+  });
+
+  map.waterLevel = mapState?.waterLevel ?? map.waterLevel ?? null;
+  if (seedInfo) {
+    map.seedInfo = seedInfo;
+  }
+  if (seedString !== undefined) {
+    map.seed = seedString;
+  }
+  map.world = world;
+  return map;
+}
+
+function serializeLocationState(location) {
+  if (!location || typeof location !== 'object') {
+    return location;
+  }
+  const serialized = { ...location };
+  if (serialized.world) {
+    serialized.world = serializeWorldArtifact(serialized.world);
+  }
+  if (serialized.map) {
+    serialized.map = serializeMapState(serialized.map);
+  }
+  if (serialized.worldSettings) {
+    serialized.worldSettings = normalizeWorldSettings(serialized.worldSettings);
+  }
+  return serialized;
+}
+
+function deserializeLocationState(rawLocation) {
+  if (!rawLocation || typeof rawLocation !== 'object') {
+    return rawLocation;
+  }
+  const base = { ...rawLocation };
+  const storedMap = base.map && typeof base.map === 'object' ? { ...base.map } : null;
+  const storedWorld = base.world ?? storedMap?.world ?? null;
+  const world = deserializeWorldArtifact(storedWorld);
+  base.world = world;
+  if (world) {
+    base.map = rebuildMapFromWorld(world, storedMap);
+  } else if (storedMap) {
+    base.map = { ...storedMap };
+  } else {
+    base.map = null;
+  }
+  if (base.map && base.world && !base.map.world) {
+    base.map.world = base.world;
+  }
+  base.worldSettings = normalizeWorldSettings(base.worldSettings ?? base.map?.worldSettings ?? null);
+  return base;
 }
 
 class DataStore {
@@ -112,7 +300,7 @@ class DataStore {
       people: [...this.people.entries()],
       inventory: [...this.inventory.entries()],
       craftTargets: [...this.craftTargets.entries()],
-      locations: [...this.locations.entries()],
+      locations: [...this.locations.entries()].map(([id, value]) => [id, serializeLocationState(value)]),
       technologies,
       proficiencies: [...this.proficiencies.entries()],
       player: { ...this.player },
@@ -142,11 +330,41 @@ class DataStore {
 
   // Load store from serialized data.
   deserialize(data) {
-    this.buildings = new Map(normalizeEntryCollection(data.buildings));
-    this.people = new Map(normalizeEntryCollection(data.people));
-    this.inventory = new Map(normalizeEntryCollection(data.inventory));
-    this.craftTargets = new Map(normalizeEntryCollection(data.craftTargets));
-    this.locations = new Map(normalizeEntryCollection(data.locations));
+    this.buildings = new Map(normalizeMapEntries(data.buildings));
+    this.people = new Map(normalizeMapEntries(data.people));
+    this.inventory = new Map(normalizeMapEntries(data.inventory));
+    this.craftTargets = new Map(normalizeMapEntries(data.craftTargets));
+    const rawLocations = normalizeEntryCollection(data.locations);
+    /** @type {Array<[string, any]>} */
+    const locationEntries = [];
+    for (const entry of rawLocations) {
+      if (Array.isArray(entry) && entry.length >= 2) {
+        const [rawId, value] = entry;
+        if (rawId === undefined || rawId === null) {
+          continue;
+        }
+        const id = String(rawId);
+        const deserialized = deserializeLocationState(value);
+        if (deserialized && (deserialized.id === undefined || deserialized.id === null)) {
+          deserialized.id = id;
+        }
+        locationEntries.push([id, deserialized]);
+        continue;
+      }
+      if (entry && typeof entry === 'object') {
+        const deserialized = deserializeLocationState(entry);
+        const derivedId = deserialized?.id ?? entry.id;
+        if (derivedId === undefined || derivedId === null) {
+          continue;
+        }
+        const id = String(derivedId);
+        if (deserialized && (deserialized.id === undefined || deserialized.id === null)) {
+          deserialized.id = id;
+        }
+        locationEntries.push([id, deserialized]);
+      }
+    }
+    this.locations = new Map(locationEntries);
     const rawTechnologies = Array.isArray(data.technologies)
       ? data.technologies
       : data.technologies && typeof data.technologies === 'object'
@@ -166,7 +384,7 @@ class DataStore {
       })
       .filter(Boolean);
     this.technologies = new Map(technologyEntries);
-    this.proficiencies = new Map(normalizeEntryCollection(data.proficiencies));
+    this.proficiencies = new Map(normalizeMapEntries(data.proficiencies));
     const savedPlayer = data.player || {};
     this.player = {
       locationId: savedPlayer.locationId ?? null,
@@ -192,7 +410,7 @@ class DataStore {
     this.unlockedBuildings = new Set(data.unlockedBuildings || []);
     this.research = new Set(data.research || []);
     this.buildingSeq = data.buildingSeq || 0;
-    this.gatherNodes = new Map(normalizeEntryCollection(data.gatherNodes));
+    this.gatherNodes = new Map(normalizeMapEntries(data.gatherNodes));
     this.jobSettings = data.jobSettings || {};
     this.jobDaily = data.jobDaily || {};
     this.worldSettings = normalizeWorldSettings(data.worldSettings);
