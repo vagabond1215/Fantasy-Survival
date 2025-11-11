@@ -3,8 +3,11 @@
 Initial scaffold for a fantasy survival text-based builder. The project is
 structured into modular core functions that share a central data store to avoid
 duplicate or inconsistent data. Source files live under the shared `src/`
-directory and are mirrored into `docs/src/` for the GitHub Pages bundle. Run
-`npm run sync-docs` whenever `src/` changes so the mirror stays in lockstep.
+directory. Run `npm run sync-docs` whenever `src/` changes so the documentation
+site stays in lockstep: the script invokes Vite to build a fresh production
+bundle, then copies `index.html`, the optional `biomes.html`, the generated
+`assets/` folder, and the mirrored `styles/` directory into `docs/`. Commit the
+regenerated `docs/` output to satisfy `scripts/check-docs-sync.cjs`.
 The in-game “New Settlement” experience now guides players through a multi-step
 Game Creation flow. A progress header surfaces each step—selecting the seed and
 biome, defining starting settlers, and tuning challenge settings—so players can
@@ -60,9 +63,9 @@ console.log(result.parameters.oreDensity, result.metrics['advanced.elevationScal
 Pass a `profileId` to lock a specific habitat template or supply
 `overrides`/custom `objectives` to steer the solver toward bespoke targets. The
 API is deterministic when called with the same `seed`, making it safe for
-tests and reproducible scenarios. When tweaking solver behaviour, update the
-mirrored files under `docs/src/worldgen/` by running `npm run sync-docs` so the
-documentation build stays synchronised.
+tests and reproducible scenarios. When tweaking solver behaviour, regenerate
+the published site with `npm run sync-docs` so the `docs/` bundle stays
+synchronised.
 
 ### Travel distance and time
 
@@ -151,8 +154,8 @@ To keep every recipe ingredient attainable, new gathering and crafting loops fil
 
 All new recipes live in `src/crafting.js` and obey the same unlock rules as the
 equipment tiers they support. After modifying any `src/` file, run `npm run
-sync-docs` to regenerate the `docs/` mirror so GitHub Pages publishes the
-updated bundle. This ensures higher-tier equipment and armor can be produced
+sync-docs` to regenerate the `docs/` bundle so GitHub Pages publishes the
+updated build. This ensures higher-tier equipment and armor can be produced
 without requiring placeholder resources or manual inventory edits.
 
 ### Population generation and assignments
@@ -183,9 +186,11 @@ npm test
 ```
 
 This repository is intended to be hosted on GitHub Pages.
-Use `npm run sync-docs` (powered by `scripts/sync-docs.js`) to copy the shared
-`src/` tree into `docs/src/` after code or data changes. New files should be
-added under `src/` so they are automatically mirrored—check existing modules for
+Use `npm run sync-docs` (powered by `scripts/sync-docs.js`) to run the Vite
+build and refresh `docs/index.html`, `docs/assets/`, any generated
+`docs/biomes.html`, and the mirrored `docs/styles/` directory after code or data
+changes. New files should be added under `src/` so they are automatically
+captured by the build—check existing modules for
 reusable helpers before creating new ones to comply with the project’s “reuse
 before creating” policy.
 
