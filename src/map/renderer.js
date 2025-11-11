@@ -3,6 +3,7 @@ import {
   acquireSharedCanvas,
   releaseSharedCanvas,
 } from "../storage/chunkCache.js";
+import { getBiomePackedColor } from "./biomePalette.js";
 
 const DEFAULT_TILE_SIZE = 16;
 const DEFAULT_CORNER_RADIUS_FACTOR = 0.24;
@@ -202,6 +203,7 @@ export class MapRenderer {
     this.cacheSignature = 1;
     this._missingMapLogged = false;
     this._shouldLogMissingMap = false;
+    this.world = null;
   }
   setTileBaseSize(size) {
     if (!Number.isFinite(size) || size <= 0) return;
@@ -246,6 +248,16 @@ export class MapRenderer {
       this.invalidateTileCache();
     }
     this.map = map;
+    if (map?.world) {
+      this.setWorld(map.world);
+    }
+  }
+  setWorld(world) {
+    if (this.world === world) {
+      return;
+    }
+    this.world = world || null;
+    this.invalidateTileCache();
   }
   setDevelopments(entries) {
     this.developments = entries;
@@ -275,7 +287,8 @@ export class MapRenderer {
     ctx.setTransform(this.devicePixelRatio, 0, 0, this.devicePixelRatio, 0, 0);
     ctx.clearRect(0, 0, this.viewportWidth, this.viewportHeight);
     const hasTiles = hasTileData(this.map);
-    if (!this.map || !hasTiles) {
+    const hasWorldLayers = Boolean(this.world?.layers?.biome?.length);
+    if (!this.map || (!hasTiles && !hasWorldLayers)) {
       const shouldLog = this._shouldLogMissingMap || Boolean(this.map);
       if (shouldLog && !this._missingMapLogged) {
         const reason = !this.map
@@ -286,6 +299,7 @@ export class MapRenderer {
           tilesPresent: hasTiles,
           tileWidth: getGridWidth(this.map?.tiles, 0),
           tileHeight: getGridHeight(this.map?.tiles, 0),
+          worldLayers: hasWorldLayers,
         });
         this._missingMapLogged = true;
       }
@@ -302,11 +316,13 @@ export class MapRenderer {
       : Math.max(2, this.tileBaseSize * (this.scale || 1));
     const accentColor = readCssVariable("--accent", "#f7c948");
     const strokeColor = accentColor || "#f7c948";
-    const gapAlpha = 0.35;
+    const usingWorld = hasWorldLayers;
+    const gapAlpha = usingWorld ? 0.25 : 0.35;
     const strokeWidth = Math.max(1, Math.round(tileSize * 0.09));
     const cornerRadius = Math.max(1.5, tileSize * DEFAULT_CORNER_RADIUS_FACTOR);
     const tilePixelSize = Math.max(1, Math.ceil(tileSize));
-    const chunkPadding = Math.max(2, Math.ceil(strokeWidth * 0.75));
+    const chunkPadding = usingWorld ? 0 : Math.max(2, Math.ceil(strokeWidth * 0.75));
+    const gridColor = readCssVariable("--map-grid-line", "rgba(15, 23, 42, 0.32)") || "rgba(15, 23, 42, 0.32)";
 
     const style = {
       tileSize,
@@ -316,6 +332,8 @@ export class MapRenderer {
       strokeWidth,
       cornerRadius,
       padding: chunkPadding,
+      gridColor,
+      usingWorld,
     };
 
     const computedChunks = new Map();
@@ -508,6 +526,9 @@ export class MapRenderer {
       | OffscreenCanvasRenderingContext2D
     } */ (ctx);
     renderingCtx.clearRect(0, 0, canvas.width, canvas.height);
+    if (style.usingWorld && this.renderBiomeChunkToContext(renderingCtx, geometry, style, padding, padding)) {
+      return canvas;
+    }
     for (
       let localRow = geometry.startRow;
       localRow < geometry.startRow + geometry.tileRows;
@@ -585,6 +606,113 @@ export class MapRenderer {
     ctx.stroke();
     ctx.restore();
   }
+  renderBiomeChunkToContext(ctx, geometry, style, offsetX = 0, offsetY = 0) {
+    if (!this.world?.layers?.biome?.length) {
+      return false;
+    }
+    const dimensions = this.world?.dimensions || {};
+    const worldWidth = Math.max(0, Math.trunc(dimensions.width || 0));
+    const worldHeight = Math.max(0, Math.trunc(dimensions.height || 0));
+    if (!worldWidth || !worldHeight) {
+      return false;
+    }
+    const rawSize = Number.isFinite(style.tilePixelSize)
+      ? style.tilePixelSize
+      : this.tileBaseSize;
+    const tilePixelSize = Math.max(1, Math.round(rawSize));
+    const widthPx = geometry.tileCols * tilePixelSize;
+    const heightPx = geometry.tileRows * tilePixelSize;
+    if (widthPx <= 0 || heightPx <= 0) {
+      return false;
+    }
+    let imageData;
+    try {
+      imageData = ctx.createImageData(widthPx, heightPx);
+    } catch (_error) {
+      try {
+        imageData = new ImageData(widthPx, heightPx);
+      } catch (_fallback) {
+        return false;
+      }
+    }
+    const pixelBuffer = new Uint32Array(imageData.data.buffer);
+    const stride = widthPx;
+    const biomeLayer = this.world.layers.biome;
+    for (
+      let localRow = geometry.startRow;
+      localRow < geometry.startRow + geometry.tileRows;
+      localRow += 1
+    ) {
+      const worldY = geometry.worldY + localRow;
+      if (worldY < 0 || worldY >= worldHeight) {
+        continue;
+      }
+      const destRow = localRow - geometry.startRow;
+      const destRowOffset = destRow * tilePixelSize * stride;
+      const baseRowIndex = worldY * worldWidth;
+      for (
+        let localCol = geometry.startCol;
+        localCol < geometry.startCol + geometry.tileCols;
+        localCol += 1
+      ) {
+        const worldX = geometry.worldX + localCol;
+        if (worldX < 0 || worldX >= worldWidth) {
+          continue;
+        }
+        const destCol = localCol - geometry.startCol;
+        const worldIndex = baseRowIndex + worldX;
+        const biomeCode = biomeLayer[worldIndex] ?? 0;
+        const packedColor = getBiomePackedColor(biomeCode);
+        for (let py = 0; py < tilePixelSize; py += 1) {
+          let destIndex = destRowOffset + py * stride + destCol * tilePixelSize;
+          for (let px = 0; px < tilePixelSize; px += 1) {
+            pixelBuffer[destIndex++] = packedColor;
+          }
+        }
+      }
+    }
+    ctx.putImageData(imageData, offsetX, offsetY);
+    this.drawChunkGridLines(ctx, geometry, style, offsetX, offsetY);
+    return true;
+  }
+  drawChunkGridLines(ctx, geometry, style, offsetX = 0, offsetY = 0) {
+    if (!style.usingWorld) {
+      return;
+    }
+    const gridColor = style.gridColor || "rgba(15, 23, 42, 0.32)";
+    if (!gridColor) {
+      return;
+    }
+    const rawSize = Number.isFinite(style.tilePixelSize)
+      ? style.tilePixelSize
+      : this.tileBaseSize;
+    const tilePixelSize = Math.max(1, Math.round(rawSize));
+    const widthPx = geometry.tileCols * tilePixelSize;
+    const heightPx = geometry.tileRows * tilePixelSize;
+    if (widthPx <= 0 || heightPx <= 0) {
+      return;
+    }
+    ctx.save();
+    ctx.translate(offsetX, offsetY);
+    ctx.strokeStyle = gridColor;
+    ctx.globalAlpha = style.gapAlpha;
+    ctx.lineWidth = Math.max(1, Math.round(tilePixelSize * 0.08));
+    for (let col = 1; col < geometry.tileCols; col += 1) {
+      const x = col * tilePixelSize + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(x, 0);
+      ctx.lineTo(x, heightPx);
+      ctx.stroke();
+    }
+    for (let row = 1; row < geometry.tileRows; row += 1) {
+      const y = row * tilePixelSize + 0.5;
+      ctx.beginPath();
+      ctx.moveTo(0, y);
+      ctx.lineTo(widthPx, y);
+      ctx.stroke();
+    }
+    ctx.restore();
+  }
   drawChunkDirect(ctx, geometry, style) {
     const mapStartX = Number.isFinite(this.map?.xStart)
       ? this.map.xStart
@@ -592,6 +720,20 @@ export class MapRenderer {
     const mapStartY = Number.isFinite(this.map?.yStart)
       ? this.map.yStart
       : 0;
+    if (style.usingWorld) {
+      const worldStartX = geometry.worldX + geometry.startCol;
+      const worldStartY = geometry.worldY + geometry.startRow;
+      const screen = this.camera.worldToScreen(
+        worldStartX,
+        worldStartY,
+        this.tileBaseSize,
+      );
+      const drawX = Math.round(screen.x) - style.padding;
+      const drawY = Math.round(screen.y) - style.padding;
+      if (this.renderBiomeChunkToContext(ctx, geometry, style, drawX + style.padding, drawY + style.padding)) {
+        return;
+      }
+    }
     for (
       let localRow = geometry.startRow;
       localRow < geometry.startRow + geometry.tileRows;
@@ -696,6 +838,27 @@ export class MapRenderer {
     const type = readGridValue(this.map.types, col, row, null);
     const developmentKey = `${worldX}:${worldY}`;
     const development = this.developments.get(developmentKey) || null;
+    let index = null;
+    let biomeCode = null;
+    if (this.world?.layers?.biome?.length) {
+      const dimensions = this.world?.dimensions || {};
+      const worldWidth = Math.max(0, Math.trunc(dimensions.width || 0));
+      const worldHeight = Math.max(0, Math.trunc(dimensions.height || 0));
+      if (
+        worldWidth &&
+        worldHeight &&
+        worldX >= 0 &&
+        worldY >= 0 &&
+        worldX < worldWidth &&
+        worldY < worldHeight
+      ) {
+        const candidateIndex = worldY * worldWidth + worldX;
+        if (candidateIndex >= 0 && candidateIndex < this.world.layers.biome.length) {
+          index = candidateIndex;
+          biomeCode = this.world.layers.biome[candidateIndex] ?? null;
+        }
+      }
+    }
     return {
       x: worldX,
       y: worldY,
@@ -704,6 +867,8 @@ export class MapRenderer {
       symbol: symbol ?? "",
       type: type ?? null,
       development,
+      index,
+      biomeCode,
     };
   }
   configureCanvasSize(width, height) {

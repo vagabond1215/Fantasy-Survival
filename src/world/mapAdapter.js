@@ -157,6 +157,7 @@ export function adaptWorldToMapData(world, options = {}) {
       worldSettings: options.worldSettings || null,
       buffer: null,
       spawnSuggestion: null,
+      world: null,
     };
   }
 
@@ -227,6 +228,7 @@ export function adaptWorldToMapData(world, options = {}) {
     worldSettings: options.worldSettings || null,
     buffer: null,
     spawnSuggestion: null,
+    world,
   };
 
   map.buffer = {
@@ -244,6 +246,7 @@ export function adaptWorldToMapData(world, options = {}) {
     tileMatrix,
     layers: map.layerBuffers,
     worldSettings: map.worldSettings,
+    world,
   };
 
   map.spawnSuggestion = computeDefaultSpawn(map);
