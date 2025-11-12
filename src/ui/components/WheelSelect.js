@@ -1,4 +1,29 @@
-import './WheelSelect.css';
+const WHEEL_SELECT_STYLESHEET_ID = 'wheel-select-stylesheet';
+
+/**
+ * Ensures the WheelSelect component styles are loaded when running without a bundler.
+ * When served through native ES modules, the browser cannot import CSS files directly,
+ * so we dynamically inject a stylesheet link instead of relying on a build step.
+ */
+function ensureWheelSelectStylesheet() {
+  if (typeof document === 'undefined') {
+    return;
+  }
+  if (document.getElementById(WHEEL_SELECT_STYLESHEET_ID)) {
+    return;
+  }
+
+  const link = document.createElement('link');
+  link.id = WHEEL_SELECT_STYLESHEET_ID;
+  link.rel = 'stylesheet';
+  try {
+    link.href = new URL('./WheelSelect.css', import.meta.url).href;
+  } catch (error) {
+    // Fallback for environments that cannot resolve the relative URL via import.meta.
+    link.href = './src/ui/components/WheelSelect.css';
+  }
+  document.head.appendChild(link);
+}
 
 /**
  * @typedef {Object} WheelSelectOption
@@ -18,6 +43,8 @@ import './WheelSelect.css';
  * @property {(value: string, option: WheelSelectOption) => void} [onChange]
  * @property {(value: string, option: WheelSelectOption) => void} [onCommit]
  */
+
+ensureWheelSelectStylesheet();
 
 const ITEM_SPACING = 62;
 const SNAP_DELAY_MS = 140;
