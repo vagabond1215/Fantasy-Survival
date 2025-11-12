@@ -730,6 +730,9 @@ export function initSetupUI(onStart) {
   const spawnInfo = setupRoot.querySelector('#spawn-info');
   const startBtn = contentRoot.querySelector('#start-btn');
 
+  let previewStatus = 'loading';
+  let mapPreviewStatusOverlay = null;
+
   if (
     !biomeWheelRoot ||
     !biomeDetails ||
@@ -745,6 +748,14 @@ export function initSetupUI(onStart) {
   ) {
     throw new Error('Missing setup UI elements.');
   }
+
+  mapPreviewStatusOverlay = document.createElement('div');
+  mapPreviewStatusOverlay.className = 'map-preview__status';
+  mapPreviewStatusOverlay.setAttribute('role', 'status');
+  mapPreviewStatusOverlay.setAttribute('aria-live', 'polite');
+  mapPreviewStatusOverlay.dataset.status = previewStatus;
+  mapPreview.appendChild(mapPreviewStatusOverlay);
+  syncPreviewStatusDisplay();
 
   let syncLandingAppearance = () => {};
 
@@ -1503,8 +1514,49 @@ export function initSetupUI(onStart) {
     spawnInfo.hidden = true;
   }
 
+  function syncPreviewStatusDisplay() {
+    if (!mapPreview) return;
+    const normalizedStatus = previewStatus === 'error'
+      ? 'error'
+      : previewStatus === 'loading'
+        ? 'loading'
+        : 'ready';
+    previewStatus = normalizedStatus;
+    mapPreview.dataset.previewStatus = normalizedStatus;
+    if (normalizedStatus === 'loading') {
+      mapPreview.setAttribute('aria-busy', 'true');
+    } else {
+      mapPreview.removeAttribute('aria-busy');
+    }
+    if (!mapPreviewStatusOverlay) {
+      return;
+    }
+    mapPreviewStatusOverlay.dataset.status = normalizedStatus;
+    let message = '';
+    if (normalizedStatus === 'loading') {
+      message = 'Generating preview…';
+    } else if (normalizedStatus === 'error') {
+      message = 'Failed to generate map preview. Please try again.';
+    }
+    mapPreviewStatusOverlay.textContent = message;
+    mapPreviewStatusOverlay.setAttribute('aria-hidden', message ? 'false' : 'true');
+  }
+
+  function setPreviewStatus(nextStatus) {
+    const normalized = nextStatus === 'error'
+      ? 'error'
+      : nextStatus === 'loading'
+        ? 'loading'
+        : 'ready';
+    previewStatus = normalized;
+    syncPreviewStatusDisplay();
+  }
+
   function renderMapPreview() {
-    if (!mapData || !mapView) return;
+    if (!mapData || !mapView) {
+      syncPreviewStatusDisplay();
+      return;
+    }
     hideSpawnPrompt();
     mapView.setMap(mapData, {
       biomeId: resolvedBiomeId || selectedBiome,
@@ -1513,6 +1565,7 @@ export function initSetupUI(onStart) {
     });
     updateSpawnMarker();
     updateSpawnInfo();
+    syncPreviewStatusDisplay();
   }
 
   async function generatePreview() {
@@ -2299,11 +2352,16 @@ export function initSetupUI(onStart) {
     if (worldPreviewTimer) {
       clearTimeout(worldPreviewTimer);
     }
-    worldPreviewTimer = setTimeout(() => {
+    setPreviewStatus('loading');
+    worldPreviewTimer = setTimeout(async () => {
       worldPreviewTimer = null;
-      generatePreview().catch(error => {
+      try {
+        await generatePreview();
+        setPreviewStatus('ready');
+      } catch (error) {
         console.error('Failed to generate world preview', error);
-      });
+        setPreviewStatus('error');
+      }
     }, worldConfigDebounceDelay);
   }
 
