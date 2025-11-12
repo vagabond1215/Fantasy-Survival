@@ -288,7 +288,7 @@ body.landing-active .setup-appbar {
   width: min(960px, 100%);
   display: flex;
   align-items: center;
-  justify-content: space-between;
+  justify-content: flex-start;
   gap: 12px;
   padding: clamp(12px, 3vw, 18px) clamp(16px, 4vw, 26px);
   border-radius: 28px;
@@ -302,6 +302,13 @@ body.landing-active .setup-appbar {
   box-shadow: var(--shadow);
   backdrop-filter: blur(calc(var(--blur) * 0.5));
   color: var(--text);
+}
+
+body.landing-active .setup-appbar__actions {
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  margin-left: auto;
 }
 
 body.landing-active .setup-appbar__title {
@@ -992,7 +999,8 @@ body.landing-active .badge--warn {
   color: color-mix(in srgb, var(--color-accent-light) 85%, white 8%);
 }
 
-body.landing-active .season-row {
+body.landing-active .season-row,
+body.landing-active .maptype-row {
   display: flex;
   flex-wrap: wrap;
   align-items: center;
@@ -1026,7 +1034,6 @@ body.landing-active .season-switch__button {
   user-select: none;
   box-shadow: 0 10px 28px color-mix(in srgb, var(--glass-highlight) 28%, transparent);
   transition:
-    transform 0.08s ease,
     border 0.18s ease,
     box-shadow 0.18s ease,
     background 0.18s ease,
@@ -1071,199 +1078,24 @@ body.landing-active .season-switch__button--icon {
   border-radius: 16px;
 }
 
-body.landing-active .grid {
-  display: grid;
-  gap: 12px;
-  grid-template-columns: repeat(12, 1fr);
-}
-
-body.landing-active .col-12 {
-  grid-column: span 12;
-}
-
-body.landing-active .col-6 {
-  grid-column: span 6;
-}
-
-body.landing-active .col-3 {
-  grid-column: span 3;
-}
-
-@media (max-width: 1200px) {
-  body.landing-active .col-3 {
-    grid-column: span 4;
-  }
-}
-
-@media (max-width: 880px) {
-  body.landing-active .col-3 {
-    grid-column: span 6;
-  }
-}
-
-@media (max-width: 640px) {
-  body.landing-active .col-6,
-  body.landing-active .col-3 {
-    grid-column: span 12;
-  }
-}
-
-body.landing-active .tile {
-  display: grid;
-  grid-template-columns: 26px 1fr;
-  align-items: center;
-  gap: 10px;
-  padding: 12px;
-  border-radius: 14px;
-  cursor: pointer;
-  background: var(--tile-base-bg, color-mix(in srgb, var(--glass-primary) 80%, transparent));
-  border: 1px solid color-mix(in srgb, var(--glass-highlight) 45%, transparent);
-  color: var(--text, var(--text-strong));
-  transition: border-color 0.18s ease, box-shadow 0.18s ease, background 0.18s ease;
-  backdrop-filter: blur(calc(var(--blur) * 0.35));
-}
-
-body[data-theme-appearance='dark'].landing-active .tile {
-  background: var(--tile-base-bg, color-mix(in srgb, var(--glass-primary-strong) 78%, transparent));
-  border-color: color-mix(in srgb, var(--glass-highlight) 48%, transparent);
-  color: var(--text, var(--text-strong));
-  box-shadow: 0 2px 6px color-mix(in srgb, #000 35%, transparent);
-}
-
-body.landing-active .tile:hover {
-  background: var(--tile-hover-bg, color-mix(in srgb, var(--glass-secondary) 78%, transparent));
-  border-color: color-mix(in srgb, var(--glass-highlight) 60%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--glass-highlight) 55%, transparent);
-}
-
-body[data-theme-appearance='dark'].landing-active .tile:hover {
-  background: var(--tile-hover-bg, color-mix(in srgb, var(--glass-secondary-strong) 78%, transparent));
-  border-color: color-mix(in srgb, var(--glass-highlight) 62%, transparent);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--glass-highlight) 58%, transparent);
-}
-
-body.landing-active .tile.is-active {
-  background: var(--tile-active-bg, var(--accent));
-  border-color: var(--accent);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--accent) 50%, transparent);
-  color: var(--tile-active-text, var(--accent-contrast, var(--text, var(--text-strong))));
-}
-
-body.landing-active .tile.is-active .tile__name {
-  color: var(--tile-active-text, var(--accent-contrast, var(--text, var(--text-strong))));
-}
-
-body.landing-active .tile__name {
-  font-weight: 700;
-  color: color-mix(in srgb, var(--text, var(--text-strong)) 88%, white 6%);
-}
-
-body.landing-active .tile__accent {
-  display: block;
-  width: 22px;
-  height: 22px;
-  border-radius: 50%;
-  background: color-mix(in srgb, var(--biome-color, var(--accent)) 82%, white 18%);
-  box-shadow: 0 1px 2px color-mix(in srgb, #0f172a 20%, transparent);
-  border: 1px solid color-mix(in srgb, var(--biome-color, var(--glass-highlight)) 28%, transparent);
-}
-
-body[data-theme-appearance='dark'].landing-active .tile__accent {
-  background: color-mix(in srgb, var(--biome-color, var(--accent)) 70%, #0b1120 30%);
-  box-shadow: 0 1px 2px color-mix(in srgb, #000 40%, transparent);
-  border-color: color-mix(in srgb, var(--biome-color, var(--glass-highlight)) 35%, transparent);
-}
-
-body.landing-active .tile.is-active .tile__accent {
-  background: color-mix(in srgb, var(--biome-color, var(--tile-active-bg, var(--accent))) 68%, white 32%);
-  box-shadow: 0 0 0 2px color-mix(in srgb, var(--tile-active-text, var(--accent-contrast)) 35%, transparent);
-  border-color: color-mix(in srgb, var(--tile-active-text, var(--accent-contrast)) 35%, transparent);
-}
-
-body.landing-active .seed-row {
+body.landing-active .wheel-select-host {
+  width: 100%;
   display: flex;
-  gap: 10px;
-  flex-wrap: wrap;
+  justify-content: center;
 }
 
-body.landing-active .input {
-  flex: 1 1 260px;
-  padding: 10px 12px;
-  border-radius: 14px;
-  background: color-mix(in srgb, var(--surface, var(--color-background-light)) 65%, transparent);
-  color: var(--text, var(--text-strong));
-  border: 1px solid color-mix(in srgb, var(--color-neutral-dark) 55%, transparent);
-  backdrop-filter: blur(calc(var(--blur) * 0.35));
-  transition: border 0.18s ease, box-shadow 0.18s ease;
+body.landing-active .wheel-select-host .wheel-select {
+  width: min(100%, 420px);
 }
 
-body.landing-active .input:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-  border-color: var(--outline-strong);
-  box-shadow: 0 0 0 3px color-mix(in srgb, var(--outline-strong) 35%, transparent);
+body.landing-active .maptype-row {
+  flex-direction: column;
+  align-items: stretch;
+  gap: 18px;
 }
 
-body.landing-active .btn {
-  padding: 10px 16px;
-  border-radius: 14px;
-  font-weight: 700;
-  cursor: pointer;
-  border: 1px solid color-mix(in srgb, var(--color-primary-dark) 45%, transparent);
-  color: var(--text-strong);
-  background:
-    linear-gradient(
-      160deg,
-      color-mix(in srgb, var(--color-primary-dark) 65%, transparent),
-      color-mix(in srgb, var(--surface, var(--color-background-light)) 55%, transparent)
-    );
-  transition: filter 0.18s ease, transform 0.1s ease;
-  backdrop-filter: blur(calc(var(--blur) * 0.3));
-}
-
-body.landing-active .btn:hover {
-  filter: brightness(1.05);
-  transform: translateY(-1px);
-}
-
-body.landing-active .btn:focus-visible {
-  outline: 2px solid var(--accent);
-  outline-offset: 2px;
-}
-
-body.landing-active .btn--ghost {
-  background: color-mix(in srgb, var(--surface, var(--color-background-light)) 35%, transparent);
-  border-color: color-mix(in srgb, var(--color-neutral-dark) 40%, transparent);
-}
-
-body.landing-active .btn--primary {
-  background: linear-gradient(160deg, color-mix(in srgb, var(--color-primary) 75%, transparent), color-mix(in srgb, var(--color-primary-light) 65%, transparent));
-  border-color: color-mix(in srgb, var(--color-primary-light) 55%, transparent);
-  color: var(--text-strong);
-}
-
-body.landing-active .btn--ok {
-  background: linear-gradient(160deg, color-mix(in srgb, var(--color-secondary) 70%, transparent), color-mix(in srgb, var(--color-secondary-light) 60%, transparent));
-  border-color: color-mix(in srgb, var(--color-secondary-light) 45%, transparent);
-  color: color-mix(in srgb, var(--color-secondary-light) 20%, #0f1d19 80%);
-}
-
-body.landing-active .cta-row {
-  display: flex;
-  gap: 12px;
-  align-items: center;
-  justify-content: flex-end;
-  flex-wrap: wrap;
-}
-
-body.landing-active .map-section {
-  gap: 16px;
-}
-
-body.landing-active .map-tip {
-  font-size: 12px;
-  color: var(--text-muted);
-  margin: 0;
+body.landing-active .maptype-row .section__title {
+  align-self: center;
 }
 
 body.landing-active #biome-details {
@@ -1281,6 +1113,51 @@ body.landing-active .map-preview {
     inset 0 0 0 1px rgba(255, 255, 255, 0.08),
     0 24px 40px rgba(4, 10, 24, 0.5);
   backdrop-filter: blur(calc(var(--blur) * 0.45));
+}
+
+body.landing-active .map-preview__status {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 24px;
+  font-size: 1rem;
+  line-height: 1.5;
+  font-weight: 600;
+  color: var(--text-strong, #fff);
+  background: color-mix(in srgb, var(--glass-blue-strong) 88%, rgba(12, 18, 32, 0.78));
+  z-index: 3;
+  transition: opacity 140ms ease;
+}
+
+body.landing-active .map-preview__status[data-status='loading'] {
+  font-weight: 500;
+  letter-spacing: 0.01em;
+}
+
+body.landing-active .map-preview__status[data-status='error'] {
+  background: color-mix(in srgb, #5f1425 72%, rgba(12, 18, 32, 0.82));
+}
+
+body.landing-active .map-preview[data-preview-status='ready'] .map-preview__status {
+  display: none;
+}
+
+body.landing-active .map-preview[data-preview-status='loading'] .map-layout,
+body.landing-active .map-preview[data-preview-status='error'] .map-layout {
+  opacity: 0.32;
+  filter: grayscale(0.15) blur(0.5px);
+  pointer-events: none;
+  transition: opacity 140ms ease, filter 140ms ease;
+}
+
+body.landing-active .map-preview[data-preview-status='ready'] .map-layout {
+  opacity: 1;
+  filter: none;
+  pointer-events: auto;
+  transition: opacity 140ms ease, filter 140ms ease;
 }
 
 body.landing-active .map-preview canvas {
