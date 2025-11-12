@@ -1,5 +1,3 @@
-import './WheelSelect.css';
-
 /**
  * @typedef {Object} WheelSelectOption
  * @property {string} id
@@ -22,6 +20,20 @@ import './WheelSelect.css';
 const ITEM_SPACING = 62;
 const SNAP_DELAY_MS = 140;
 const ANIMATION_DURATION = 220;
+
+const WHEEL_SELECT_STYLE_ID = 'wheel-select-stylesheet';
+
+function ensureWheelSelectStyles() {
+  if (typeof document === 'undefined') return;
+  if (document.getElementById(WHEEL_SELECT_STYLE_ID)) {
+    return;
+  }
+  const link = document.createElement('link');
+  link.id = WHEEL_SELECT_STYLE_ID;
+  link.rel = 'stylesheet';
+  link.href = new URL('./WheelSelect.css', import.meta.url).toString();
+  document.head.append(link);
+}
 
 /**
  * @param {number} value
@@ -184,6 +196,8 @@ export class WheelSelect {
    * @param {WheelSelectConfig} config
    */
   constructor(root, config) {
+    ensureWheelSelectStyles();
+
     /** @type {HTMLElement} */
     this.root = root;
     /** @type {WheelSelectOption[]} */
