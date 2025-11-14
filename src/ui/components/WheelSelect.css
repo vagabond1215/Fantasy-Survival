@@ -125,20 +125,20 @@
 .wheel-select::after {
   content: '';
   position: absolute;
-  inset-inline: clamp(6px, 2vw, 12px);
-  height: clamp(38px, 9vh, 52px);
+  inset-block: clamp(6px, 2vw, 12px);
+  width: clamp(44px, 10vw, 64px);
   border-radius: clamp(16px, 3vw, 22px);
   pointer-events: none;
   z-index: 1;
-  background: linear-gradient(180deg, color-mix(in srgb, var(--wheel-surface) 90%, transparent), transparent);
+  background: linear-gradient(90deg, color-mix(in srgb, var(--wheel-surface) 90%, transparent), transparent);
 }
 
 .wheel-select::before {
-  inset-block-start: clamp(6px, 1.6vw, 12px);
+  inset-inline-start: clamp(6px, 1.6vw, 12px);
 }
 
 .wheel-select::after {
-  inset-block-end: clamp(6px, 1.6vw, 12px);
+  inset-inline-end: clamp(6px, 1.6vw, 12px);
   transform: rotate(180deg);
 }
 
