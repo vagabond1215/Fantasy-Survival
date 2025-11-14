@@ -224,7 +224,7 @@ export class WheelSelect {
     this.dragging = false;
     /** @type {number|null} */
     this.dragPointerId = null;
-    this.dragStartY = 0;
+    this.dragStartX = 0;
     this.dragStartOffset = 0;
     /** @type {number|null} */
     this.snapTimer = null;
@@ -238,7 +238,7 @@ export class WheelSelect {
     this.root.tabIndex = 0;
     this.root.setAttribute('role', 'listbox');
     this.root.setAttribute('aria-live', 'polite');
-    this.root.setAttribute('aria-orientation', 'vertical');
+      this.root.setAttribute('aria-orientation', 'horizontal');
     if (config.ariaLabel) {
       this.root.setAttribute('aria-label', config.ariaLabel);
     }
@@ -364,7 +364,7 @@ export class WheelSelect {
       this.root.focus({ preventScroll: true });
       this.dragging = true;
       this.dragPointerId = event.pointerId;
-      this.dragStartY = event.clientY;
+      this.dragStartX = event.clientX;
       this.dragStartOffset = this.offset;
       this.stopSnap();
       this.root.classList.add('wheel-select--dragging');
@@ -380,7 +380,7 @@ export class WheelSelect {
         return;
       }
       event.preventDefault();
-      const delta = event.clientY - this.dragStartY;
+      const delta = event.clientX - this.dragStartX;
       const nextOffset = this.dragStartOffset + delta / ITEM_SPACING;
       this.offset = clamp(nextOffset, 0, this.maxIndex);
       this.updateTransforms();
@@ -414,7 +414,9 @@ export class WheelSelect {
     this.handleWheel = event => {
       if (!this.options.length) return;
       event.preventDefault();
-      const delta = event.deltaY;
+      const dominantDelta =
+        Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
+      const delta = dominantDelta;
       const nextOffset = this.offset + delta / (ITEM_SPACING * 2.4);
       this.offset = clamp(nextOffset, 0, this.maxIndex);
       this.updateTransforms();
@@ -516,11 +518,11 @@ export class WheelSelect {
     this.items.forEach((item, index) => {
       const distance = index - this.offset;
       const translate = distance * ITEM_SPACING;
-      const rotate = distance * -18;
+      const rotate = distance * 18;
       const scale = 1 - Math.min(Math.abs(distance) * 0.08, 0.35);
       const opacity = 1 - Math.min(Math.abs(distance) * 0.26, 0.68);
       const depth = maxIndex - Math.abs(Math.round(distance));
-      item.style.transform = `translate3d(0, ${translate}px, 0) rotateX(${rotate}deg) scale(${scale})`;
+      item.style.transform = `translate3d(${translate}px, 0, 0) rotateY(${rotate}deg) scale(${scale})`;
       item.style.opacity = String(clamp(opacity, 0.08, 1));
       item.style.zIndex = String(depth + 1);
     });
