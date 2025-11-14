@@ -46,7 +46,7 @@ function ensureWheelSelectStylesheet() {
 
 ensureWheelSelectStylesheet();
 
-const ITEM_SPACING = 88;
+const ITEM_SPACING = 118;
 const SNAP_DELAY_MS = 140;
 const ANIMATION_DURATION = 220;
 
