@@ -1,3 +1,13 @@
+.wheel-select-host {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+}
+
+.wheel-select-host .wheel-select {
+  width: min(100%, 460px);
+}
+
 .wheel-select {
   --wheel-option-height: clamp(138px, 30vh, 188px);
   --wheel-height: calc(var(--wheel-option-height) + clamp(28px, 6vh, 64px));
