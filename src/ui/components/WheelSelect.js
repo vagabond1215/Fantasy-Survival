@@ -46,7 +46,10 @@ function ensureWheelSelectStylesheet() {
 
 ensureWheelSelectStylesheet();
 
-const ITEM_SPACING = 118;
+// Horizontal spacing between cards. Keep this in sync with the sizing rules in
+// WheelSelect.css to prevent neighboring cards from overlapping when the active
+// card scales up.
+const ITEM_SPACING = 260;
 const SNAP_DELAY_MS = 140;
 const ANIMATION_DURATION = 220;
 
