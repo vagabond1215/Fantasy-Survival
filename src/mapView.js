@@ -47,6 +47,93 @@ const DEBUG_QUERY_VALUE = '1';
 
 const SPAWN_SUGGESTION_LIMIT = 5;
 
+const BUFFER_CACHE_FLAG = Symbol('map-buffer-normalized');
+
+function markNormalizedBuffer(buffer) {
+  if (!buffer || buffer[BUFFER_CACHE_FLAG]) {
+    return buffer;
+  }
+  Object.defineProperty(buffer, BUFFER_CACHE_FLAG, {
+    value: true,
+    enumerable: false,
+    configurable: false,
+    writable: false
+  });
+  return buffer;
+}
+
+function cloneNormalizedBuffer(buffer) {
+  if (!buffer) return null;
+  const clone = {
+    ...buffer,
+    tiles: buffer.tiles,
+    types: buffer.types,
+    elevations: buffer.elevations,
+    layers: buffer.layers,
+    tileData: buffer.tileData
+  };
+  return markNormalizedBuffer(clone);
+}
+
+function stableSerialize(value, seen = new Set()) {
+  if (value === null) return 'null';
+  const type = typeof value;
+  if (type === 'undefined') return 'undefined';
+  if (type === 'number') {
+    if (Number.isNaN(value)) return 'number:NaN';
+    if (!Number.isFinite(value)) {
+      return `number:${value > 0 ? 'Infinity' : '-Infinity'}`;
+    }
+    return `number:${value}`;
+  }
+  if (type === 'bigint' || type === 'boolean') {
+    return `${type}:${String(value)}`;
+  }
+  if (type === 'string') {
+    return `string:${value}`;
+  }
+  if (Array.isArray(value)) {
+    if (seen.has(value)) {
+      return 'array:[Circular]';
+    }
+    seen.add(value);
+    const serialized = value.map(entry => stableSerialize(entry, seen));
+    seen.delete(value);
+    return `array:[${serialized.join(',')}]`;
+  }
+  if (type === 'object') {
+    if (seen.has(value)) {
+      return 'object:{Circular}';
+    }
+    seen.add(value);
+    const keys = Object.keys(value).sort();
+    const parts = keys.map(key => `${key}:${stableSerialize(value[key], seen)}`);
+    seen.delete(value);
+    return `object:{${parts.join(',')}}`;
+  }
+  return `${type}:${String(value)}`;
+}
+
+function buildBufferCacheKey(params = {}) {
+  const width = Number.isFinite(params.width) ? Math.max(0, Math.trunc(params.width)) : 0;
+  const height = Number.isFinite(params.height) ? Math.max(0, Math.trunc(params.height)) : 0;
+  if (!width || !height) {
+    return null;
+  }
+  const seedPart = params.seed ?? 'seed:default';
+  const seasonPart = params.season ?? 'season:default';
+  const waterLevelPart = Number.isFinite(params.waterLevel)
+    ? `water:${Math.trunc(params.waterLevel)}`
+    : 'water:na';
+  const worldSettingsPart = params.worldSettings
+    ? stableSerialize(params.worldSettings)
+    : 'world:none';
+  const originX = Math.trunc(params.xStart ?? 0);
+  const originY = Math.trunc(params.yStart ?? 0);
+  const extentPart = `${originX}:${originY}:${width}x${height}`;
+  return [seedPart, seasonPart, waterLevelPart, worldSettingsPart, extentPart].join('|');
+}
+
 function isDebugModeEnabled() {
   if (typeof window === 'undefined' || typeof URLSearchParams === 'undefined') {
     return false;
@@ -693,6 +780,9 @@ function getGridBaseHeight(grid, fallback = 0) {
 
 function extractBufferMap(mapLike) {
   if (!mapLike) return null;
+  if (mapLike[BUFFER_CACHE_FLAG]) {
+    return cloneNormalizedBuffer(mapLike);
+  }
   const candidate =
     mapLike.buffer &&
     (mapLike.buffer.tiles || mapLike.buffer.tileData || mapLike.buffer.layers)
@@ -733,7 +823,7 @@ function extractBufferMap(mapLike) {
       ? candidate.tilesFlat
       : null;
 
-  return {
+  const normalized = {
     ...candidate,
     tiles: normalizedTiles,
     types: normalizedTypes,
@@ -747,6 +837,7 @@ function extractBufferMap(mapLike) {
     yStart: toInteger(candidate.yStart, 0),
     world: candidate.world || null
   };
+  return markNormalizedBuffer(normalized);
 }
 
 function deriveViewportSize(buffer, fallbackWidth = 0, fallbackHeight = 0) {
@@ -1425,10 +1516,37 @@ export function createMapView(container, {
     const originY = targetY - marginY;
     const seed = options.overrideSeed ?? state.map?.seed ?? state.buffer?.seed ?? state.context?.seed;
     const season = options.overrideSeason ?? state.map?.season ?? state.buffer?.season ?? state.context?.season;
+    const waterLevel =
+      options.overrideWaterLevel ?? state.map?.waterLevel ?? state.buffer?.waterLevel ?? state.context?.waterLevel;
+    const worldSettings =
+      options.worldSettings ??
+      state.context?.worldSettings ??
+      state.map?.worldSettings ??
+      state.buffer?.worldSettings ??
+      null;
     const skipSanityChecks =
       options.skipSanityChecks ?? (state.hasInitializedBaseChunk === true);
 
     state.expectedBufferPadding = { x: marginX, y: marginY };
+
+    const cacheKey = buildBufferCacheKey({
+      seed,
+      season,
+      waterLevel,
+      worldSettings,
+      xStart: originX,
+      yStart: originY,
+      width,
+      height
+    });
+
+    if (cacheKey) {
+      const cached = chunkDataCache.get(cacheKey);
+      if (cached) {
+        applyBuffer(cached, { targetX, targetY });
+        return;
+      }
+    }
 
     const params = {
       map: state.map,
@@ -1450,15 +1568,19 @@ export function createMapView(container, {
 
     const result = state.fetchMap(params);
     if (result && typeof result.then === 'function') {
-      result.then(buffer => applyBuffer(buffer, { targetX, targetY }));
+      result.then(buffer => applyBuffer(buffer, { targetX, targetY, cacheKey }));
     } else {
-      applyBuffer(result, { targetX, targetY });
+      applyBuffer(result, { targetX, targetY, cacheKey });
     }
   }
 
-  function applyBuffer(nextMap, { targetX, targetY } = {}) {
+  function applyBuffer(nextMap, { targetX, targetY, cacheKey } = {}) {
     const buffer = extractBufferMap(nextMap);
     if (!buffer) return;
+
+    if (cacheKey) {
+      chunkDataCache.set(cacheKey, cloneNormalizedBuffer(buffer));
+    }
 
     const normalizedWidth = Number.isFinite(buffer.width)
       ? Math.max(0, Math.trunc(buffer.width))
