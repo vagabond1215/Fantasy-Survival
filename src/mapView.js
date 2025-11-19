@@ -75,7 +75,9 @@ function cloneNormalizedBuffer(buffer) {
   return markNormalizedBuffer(clone);
 }
 
-function stableSerialize(value, seen = new Set()) {
+const stableSerializeCache = typeof WeakMap !== 'undefined' ? new WeakMap() : null;
+
+function stableSerialize(value, seen = new Set(), memo = stableSerializeCache) {
   if (value === null) return 'null';
   const type = typeof value;
   if (type === 'undefined') return 'undefined';
@@ -93,23 +95,29 @@ function stableSerialize(value, seen = new Set()) {
     return `string:${value}`;
   }
   if (Array.isArray(value)) {
+    if (memo?.has(value)) return memo.get(value);
     if (seen.has(value)) {
       return 'array:[Circular]';
     }
     seen.add(value);
-    const serialized = value.map(entry => stableSerialize(entry, seen));
+    const serialized = value.map(entry => stableSerialize(entry, seen, memo));
     seen.delete(value);
-    return `array:[${serialized.join(',')}]`;
+    const result = `array:[${serialized.join(',')}]`;
+    memo?.set(value, result);
+    return result;
   }
   if (type === 'object') {
+    if (memo?.has(value)) return memo.get(value);
     if (seen.has(value)) {
       return 'object:{Circular}';
     }
     seen.add(value);
     const keys = Object.keys(value).sort();
-    const parts = keys.map(key => `${key}:${stableSerialize(value[key], seen)}`);
+    const parts = keys.map(key => `${key}:${stableSerialize(value[key], seen, memo)}`);
     seen.delete(value);
-    return `object:{${parts.join(',')}}`;
+    const result = `object:{${parts.join(',')}}`;
+    memo?.set(value, result);
+    return result;
   }
   return `${type}:${String(value)}`;
 }
