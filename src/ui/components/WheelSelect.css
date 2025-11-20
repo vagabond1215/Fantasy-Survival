@@ -75,14 +75,14 @@
   flex-direction: row;
   align-items: center;
   justify-content: center;
-  gap: clamp(18px, 4vw, 28px);
+  gap: clamp(8px, 1.6vw, 14px);
 }
 
 .wheel-select__item {
   position: relative;
-  width: clamp(220px, 72vw, 260px);
-  max-width: 260px;
-  flex: 0 0 clamp(220px, 72vw, 260px);
+  width: clamp(198px, 70vw, 208px);
+  max-width: 208px;
+  flex: 0 0 clamp(198px, 70vw, 208px);
   padding: 16px clamp(14px, 4vw, 20px);
   box-sizing: border-box;
   min-height: var(--wheel-slot-height);
