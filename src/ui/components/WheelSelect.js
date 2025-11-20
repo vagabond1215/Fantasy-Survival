@@ -523,11 +523,16 @@ export class WheelSelect {
       const translate = distance * ITEM_SPACING;
       const rotate = distance * 18;
       const scale = 1 - Math.min(Math.abs(distance) * 0.08, 0.35);
-      const opacity = 1 - Math.min(Math.abs(distance) * 0.26, 0.68);
+      const absDistance = Math.abs(distance);
+      const fadeStart = 1.1;
+      const fadeEnd = 2.2;
+      const fadeProgress = Math.max(0, Math.min((absDistance - fadeStart) / (fadeEnd - fadeStart), 1));
+      const opacity = 1 - fadeProgress * 0.92;
       const depth = maxIndex - Math.abs(Math.round(distance));
       item.style.transform = `translate3d(${translate}px, 0, 0) rotateY(${rotate}deg) scale(${scale})`;
       item.style.opacity = String(clamp(opacity, 0.08, 1));
       item.style.zIndex = String(depth + 1);
+      item.style.pointerEvents = absDistance <= 1.05 ? 'auto' : 'none';
     });
   }
 
