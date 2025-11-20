@@ -146,6 +146,17 @@ function handleKeyDown(event) {
   }
 }
 
+function ensureMenuRail(hostElement) {
+  if (!hostElement) return null;
+  let rail = hostElement.querySelector('.menu-rail');
+  if (!rail) {
+    rail = document.createElement('div');
+    rail.className = 'menu-rail';
+    hostElement.appendChild(rail);
+  }
+  return rail;
+}
+
 function ensureActionBar() {
   if (actionBar) {
     return actionBar;
@@ -502,6 +513,11 @@ export function initTopMenu(
     onBestiary
   );
   bar.innerHTML = '';
+  const rail = ensureMenuRail(bar);
+  if (rail) {
+    rail.innerHTML = '';
+    mountMenuActions(rail);
+  }
   bar.style.display = 'none';
   applyZoom();
 }
@@ -522,10 +538,15 @@ export function initBottomMenu(onRest) {
     zIndex: '1000'
   });
 
+  const rail = ensureMenuRail(bar);
+  if (rail) {
+    rail.innerHTML = '';
+  }
+
   if (typeof onRest === 'function') {
     const restBtn = document.createElement('button');
     restBtn.textContent = 'Rest';
     restBtn.addEventListener('click', onRest);
-    bar.appendChild(restBtn);
+    (rail || bar).appendChild(restBtn);
   }
 }

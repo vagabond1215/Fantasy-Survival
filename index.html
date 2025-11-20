@@ -11,6 +11,8 @@
       --color-background-light: #1b2542;
       --color-background-dark: #070b16;
 
+      --content-max-width: 1024px;
+
       --color-neutral: #bac4db;
       --color-neutral-light: #e8efff;
       --color-neutral-dark: #828ba1;
@@ -80,6 +82,8 @@
     #bottom-menu {
       background: var(--menu-bg);
       z-index: 1000;
+      display: flex;
+      justify-content: center;
     }
     #top-menu {
       border-bottom: 1px solid var(--map-border);
@@ -87,9 +91,27 @@
     #bottom-menu {
       border-top: 1px solid var(--map-border);
     }
+    .menu-rail {
+      width: 100%;
+      max-width: var(--content-max-width);
+      margin: 0 auto;
+      padding: 0 16px;
+      box-sizing: border-box;
+      display: flex;
+      align-items: center;
+      gap: 12px;
+    }
+    #top-menu .menu-rail {
+      justify-content: flex-end;
+      padding-block: 10px;
+    }
+    #bottom-menu .menu-rail {
+      justify-content: center;
+      padding-block: 6px;
+    }
     #content {
       width: 100%;
-      max-width: 1024px;
+      max-width: var(--content-max-width);
       margin: 0 auto;
       padding: 7px 16px clamp(72px, 12vh, 128px);
       display: flex;
@@ -103,6 +125,8 @@
     }
     #time-banner {
       width: min(100%, var(--map-layout-width, 100%));
+      max-width: var(--content-max-width);
+      margin: 0 auto;
       background: color-mix(in srgb, var(--menu-bg) 82%, transparent);
       border: 1px solid var(--map-border-strong);
       border-radius: 12px;
@@ -113,7 +137,6 @@
       gap: 12px;
       align-items: center;
       justify-content: space-between;
-      margin: 0;
     }
     #time-banner .time-chip-group {
       display: flex;
