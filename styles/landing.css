@@ -155,6 +155,20 @@ img:not([src]) {
   display: none;
 }
 
+.map-preview-layout {
+  width: 100%;
+  min-height: 320px;
+  height: 100%;
+  overflow: hidden;
+}
+
+.map-preview {
+  position: relative;
+  min-height: 320px;
+  height: 100%;
+  overflow: hidden;
+}
+
 body.landing-active {
   margin: 0;
   color: var(--text-strong);
@@ -1616,6 +1630,11 @@ body.landing-active .map-legend__swatch[data-type='stone'] {
 }
 
 @media (max-width: 640px) {
+  .map-preview-layout,
+  .map-preview {
+    min-height: 260px;
+  }
+
   body.landing-active #content {
     padding: 18px;
   }
