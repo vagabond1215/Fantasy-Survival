@@ -518,6 +518,11 @@ export class WheelSelect {
     }
 
     const maxIndex = this.maxIndex;
+    const viewportRect = this.viewport?.getBoundingClientRect();
+    const viewportWidth = viewportRect?.width ?? this.viewport?.clientWidth ?? 0;
+    const frameRadius = viewportWidth > 0 ? viewportWidth / 2 : 0;
+    const baseVisibleRadius = Math.max(frameRadius - 12, 0);
+
     this.items.forEach((item, index) => {
       const distance = index - this.offset;
       const translate = distance * ITEM_SPACING;
@@ -529,10 +534,17 @@ export class WheelSelect {
       const fadeProgress = Math.max(0, Math.min((absDistance - fadeStart) / (fadeEnd - fadeStart), 1));
       const opacity = 1 - fadeProgress * 0.92;
       const depth = maxIndex - Math.abs(Math.round(distance));
+      const itemWidth = item.getBoundingClientRect?.().width || item.offsetWidth || 0;
+      const halfItem = itemWidth / 2;
+      const visibilityRadius = Math.max(baseVisibleRadius, halfItem + 6);
+      const itemLeft = translate - halfItem;
+      const itemRight = translate + halfItem;
+      const overlapsFrame = itemLeft < -visibilityRadius || itemRight > visibilityRadius;
       item.style.transform = `translate3d(${translate}px, 0, 0) rotateY(${rotate}deg) scale(${scale})`;
       item.style.opacity = String(clamp(opacity, 0.08, 1));
       item.style.zIndex = String(depth + 1);
       item.style.pointerEvents = absDistance <= 1.05 ? 'auto' : 'none';
+      item.classList.toggle('wheel-select__item--hidden', overlapsFrame);
     });
   }
 
