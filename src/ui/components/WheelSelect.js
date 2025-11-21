@@ -46,9 +46,8 @@ function ensureWheelSelectStylesheet() {
 
 ensureWheelSelectStylesheet();
 
-// Horizontal spacing between cards. Keep this in sync with the sizing rules in
-// WheelSelect.css to prevent neighboring cards from overlapping when the active
-// card scales up while maintaining a slim gap between items.
+// Fallback spacing between cards. The runtime measurement reads from the track
+// gap + item width so the active card can stay centered without overlap.
 const ITEM_SPACING = 200;
 const SNAP_DELAY_MS = 140;
 const ANIMATION_DURATION = 220;
@@ -384,7 +383,7 @@ export class WheelSelect {
       }
       event.preventDefault();
       const delta = event.clientX - this.dragStartX;
-      const nextOffset = this.dragStartOffset + delta / ITEM_SPACING;
+      const nextOffset = this.dragStartOffset + delta / this.measureItemSpacing();
       this.offset = clamp(nextOffset, 0, this.maxIndex);
       this.updateTransforms();
       this.updateSelection(false);
@@ -420,7 +419,8 @@ export class WheelSelect {
       const dominantDelta =
         Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
       const delta = dominantDelta;
-      const nextOffset = this.offset + delta / (ITEM_SPACING * 2.4);
+      const spacing = this.measureItemSpacing();
+      const nextOffset = this.offset + delta / (spacing * 1.8);
       this.offset = clamp(nextOffset, 0, this.maxIndex);
       this.updateTransforms();
       this.updateSelection(false);
@@ -517,35 +517,41 @@ export class WheelSelect {
       this.root.classList.remove('wheel-select--animating');
     }
 
-    const maxIndex = this.maxIndex;
+    const spacing = this.measureItemSpacing();
     const viewportRect = this.viewport?.getBoundingClientRect();
     const viewportWidth = viewportRect?.width ?? this.viewport?.clientWidth ?? 0;
-    const frameRadius = viewportWidth > 0 ? viewportWidth / 2 : 0;
-    const baseVisibleRadius = Math.max(frameRadius - 12, 0);
+    const sampleItem = this.items[0];
+    const itemWidth = sampleItem?.getBoundingClientRect?.().width || sampleItem?.offsetWidth || spacing;
+    const centerOffset = viewportWidth > 0 ? (viewportWidth - itemWidth) / 2 : 0;
+
+    this.track.style.transform = `translate3d(${centerOffset - this.offset * spacing}px, 0, 0)`;
 
     this.items.forEach((item, index) => {
       const distance = index - this.offset;
-      const translate = distance * ITEM_SPACING;
-      const rotate = distance * 18;
-      const scale = 1 - Math.min(Math.abs(distance) * 0.08, 0.35);
       const absDistance = Math.abs(distance);
-      const fadeStart = 1.1;
-      const fadeEnd = 2.2;
+      const scale = 1 - Math.min(absDistance * 0.06, 0.25);
+      const fadeStart = 1;
+      const fadeEnd = 3;
       const fadeProgress = Math.max(0, Math.min((absDistance - fadeStart) / (fadeEnd - fadeStart), 1));
-      const opacity = 1 - fadeProgress * 0.92;
-      const depth = maxIndex - Math.abs(Math.round(distance));
-      const itemWidth = item.getBoundingClientRect?.().width || item.offsetWidth || 0;
-      const halfItem = itemWidth / 2;
-      const visibilityRadius = Math.max(baseVisibleRadius, halfItem + 6);
-      const itemLeft = translate - halfItem;
-      const itemRight = translate + halfItem;
-      const overlapsFrame = itemLeft < -visibilityRadius || itemRight > visibilityRadius;
-      item.style.transform = `translate3d(${translate}px, 0, 0) rotateY(${rotate}deg) scale(${scale})`;
-      item.style.opacity = String(clamp(opacity, 0.08, 1));
+      const opacity = 1 - fadeProgress * 0.82;
+      const depth = this.maxIndex - Math.abs(Math.round(distance));
+
+      item.style.transform = `scale(${scale})`;
+      item.style.opacity = String(clamp(opacity, 0.18, 1));
       item.style.zIndex = String(depth + 1);
-      item.style.pointerEvents = absDistance <= 1.05 ? 'auto' : 'none';
-      item.classList.toggle('wheel-select__item--hidden', overlapsFrame);
+      item.style.pointerEvents = absDistance <= 0.75 ? 'auto' : 'none';
+      item.classList.toggle('wheel-select__item--hidden', opacity <= 0.2);
     });
+  }
+
+  measureItemSpacing() {
+    if (!this.items.length) return ITEM_SPACING;
+    const first = this.items[0];
+    const width = first?.getBoundingClientRect?.().width || first?.offsetWidth || ITEM_SPACING;
+    const style = this.track ? window.getComputedStyle(this.track) : null;
+    const gapValue = style?.columnGap ?? style?.gap ?? '0';
+    const gap = Number.parseFloat(gapValue) || 0;
+    return width + gap;
   }
 
   /**

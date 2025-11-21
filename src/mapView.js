@@ -1656,6 +1656,13 @@ export function createMapView(container, {
   mapWrapper.style.userSelect = 'none';
   mapWrapper.style.touchAction = allowDrag ? 'none' : 'auto';
   mapWrapper.style.boxSizing = 'border-box';
+  mapWrapper.style.width = '100%';
+  mapWrapper.style.height = '100%';
+  mapWrapper.style.minHeight = '320px';
+  mapWrapper.style.display = 'flex';
+  mapWrapper.style.flex = '1 1 auto';
+  mapWrapper.style.alignItems = 'stretch';
+  mapWrapper.style.justifyContent = 'center';
   mapWrapper.style.aspectRatio = 'auto';
   mapWrapper.style.flexShrink = '0';
   mapWrapper.style.margin = '0 auto';
