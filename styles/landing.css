@@ -1107,6 +1107,8 @@ body.landing-active .sub {
 body.landing-active .card.section {
   display: grid;
   gap: 14px;
+  grid-template-columns: minmax(0, 1fr);
+  justify-items: stretch;
 }
 
 body.landing-active .section__title {
