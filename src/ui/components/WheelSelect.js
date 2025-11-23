@@ -474,6 +474,12 @@ export class WheelSelect {
     this.root.addEventListener('wheel', this.handleWheel, { passive: false });
     this.root.addEventListener('keydown', this.handleKeyDown);
     this.root.addEventListener('blur', this.handleBlur, true);
+
+    this.handleResize = () => {
+      this.updateTransforms();
+    };
+
+    window.addEventListener('resize', this.handleResize, { passive: true });
   }
 
   detachEvents() {
@@ -485,6 +491,7 @@ export class WheelSelect {
     this.root.removeEventListener('wheel', this.handleWheel);
     this.root.removeEventListener('keydown', this.handleKeyDown);
     this.root.removeEventListener('blur', this.handleBlur, true);
+    window.removeEventListener('resize', this.handleResize);
   }
 
   /**
@@ -520,8 +527,10 @@ export class WheelSelect {
     const spacing = this.measureItemSpacing();
     const viewportRect = this.viewport?.getBoundingClientRect();
     const viewportWidth = viewportRect?.width ?? this.viewport?.clientWidth ?? 0;
-    const sampleItem = this.items[0];
-    const itemWidth = sampleItem?.getBoundingClientRect?.().width || sampleItem?.offsetWidth || spacing;
+    const activeItem = this.items[Math.round(this.offset)] ?? this.items[0];
+    const itemRect = activeItem?.getBoundingClientRect?.();
+    const sampleItem = activeItem || this.items[0];
+    const itemWidth = itemRect?.width || sampleItem?.offsetWidth || spacing;
     const centerOffset = viewportWidth > 0 ? (viewportWidth - itemWidth) / 2 : 0;
 
     this.track.style.transform = `translate3d(${centerOffset - this.offset * spacing}px, 0, 0)`;
@@ -529,17 +538,20 @@ export class WheelSelect {
     this.items.forEach((item, index) => {
       const distance = index - this.offset;
       const absDistance = Math.abs(distance);
-      const scale = 1 - Math.min(absDistance * 0.06, 0.25);
-      const fadeStart = 1;
-      const fadeEnd = 3;
-      const fadeProgress = Math.max(0, Math.min((absDistance - fadeStart) / (fadeEnd - fadeStart), 1));
-      const opacity = 1 - fadeProgress * 0.82;
+      const logFalloff = 1 / (1 + Math.log1p(absDistance * 1.25));
+      const emphasis = Math.max(0, Math.min(logFalloff, 1));
+      const scale = 0.9 + 0.16 * Math.pow(emphasis, 0.92);
+      const opacity = clamp(0.2 + 0.85 * Math.pow(emphasis, 1.1), 0.15, 1);
+      const blur = 12 * Math.pow(1 - emphasis, 1.1);
+      const saturation = 0.82 + 0.4 * emphasis;
+      const contrast = 0.86 + 0.38 * emphasis;
       const depth = this.maxIndex - Math.abs(Math.round(distance));
 
       item.style.transform = `scale(${scale})`;
-      item.style.opacity = String(clamp(opacity, 0.18, 1));
+      item.style.opacity = String(opacity);
       item.style.zIndex = String(depth + 1);
-      item.style.pointerEvents = absDistance <= 0.75 ? 'auto' : 'none';
+      item.style.pointerEvents = absDistance <= 0.8 ? 'auto' : 'none';
+      item.style.filter = `blur(${blur.toFixed(2)}px) saturate(${saturation.toFixed(2)}) contrast(${contrast.toFixed(2)})`;
       item.classList.toggle('wheel-select__item--hidden', opacity <= 0.2);
     });
   }
