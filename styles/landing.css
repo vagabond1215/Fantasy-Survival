@@ -1228,8 +1228,21 @@ body.landing-active .wheel-select-host .wheel-select {
   width: min(100%, 520px);
 }
 
+body.landing-active .setup__column--preview {
+  display: flex;
+  justify-content: center;
+}
+
+body.landing-active .map-section,
+body.landing-active .map-preview-layout,
+body.landing-active .maptype-row {
+  width: 100%;
+  max-width: min(100%, 520px);
+  margin-inline: auto;
+}
+
 body.landing-active .maptype-row .wheel-select {
-  width: min(100%, 640px);
+  width: min(100%, 520px);
   margin-inline: auto;
 }
 
