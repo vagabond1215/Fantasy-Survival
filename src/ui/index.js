@@ -1620,7 +1620,9 @@ export function initSetupUI(onStart) {
         width,
         height,
         seed: canonicalSeed,
-        params
+        params,
+        biomeId: previewBiome,
+        world: worldParameters
       });
     } catch (error) {
       console.error('Failed to generate world artifact for preview.', error);
@@ -2122,7 +2124,9 @@ export function initSetupUI(onStart) {
           width: normalizedWidth,
           height: normalizedHeight,
           seed: canonicalSeed,
-          params
+          params,
+          biomeId: resolvedBiomeId,
+          world: worldParameters
         });
       } catch (error) {
         console.error('Failed to generate world artifact for map fetch.', error);

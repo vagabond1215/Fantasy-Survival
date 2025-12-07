@@ -60,6 +60,9 @@ export type WorldParams = {
     readonly seed?: CanonicalSeed;
     readonly seedString?: string;
     readonly params?: GenerationTuning;
+    readonly biomeId?: string;
+    readonly world?: Record<string, unknown> | null;
+    readonly worldSettings?: Record<string, unknown> | null;
 };
 type GenerationConfig = {
     readonly width: number;
@@ -68,6 +71,8 @@ type GenerationConfig = {
     readonly temperatureBias: number;
     readonly moistureBias: number;
     readonly spawnSuggestionCount: number;
+    readonly biomeId: string;
+    readonly world: Record<string, unknown> | null;
 };
 export type WorldArtifact = {
     readonly seed: CanonicalSeed;
@@ -87,7 +92,22 @@ export type WorldArtifact = {
         stone: Float32Array;
         water: Float32Array;
         fertility: Float32Array;
+        waterTable: Float32Array;
     }>;
+    readonly hydrology: Readonly<{
+        readonly types: string[][];
+        readonly flowDirections: ReadonlyArray<ReadonlyArray<{ dx: number; dy: number; } | null>>;
+        readonly flowAccumulation: number[][];
+        readonly filledElevation: number[][];
+        readonly waterTable: number[][];
+        readonly rules: Record<string, unknown>;
+        readonly seaLevel: number;
+        readonly waterCoverage: number;
+        readonly surfaceWaterCoverage: number;
+        readonly waterAdjustmentHistory: ReadonlyArray<Record<string, unknown>>;
+        readonly riverStats: Record<string, unknown>;
+        readonly seed?: string;
+    }> | null;
     readonly tiles: readonly WorldTileData[];
     readonly spawnSuggestions: Uint32Array;
 };

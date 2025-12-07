@@ -88,7 +88,7 @@ function ensureCanonicalSeed(seed) {
   return fallbackCanonicalSeed(seedString);
 }
 
-export function classifyWorldTile(tile) {
+export function classifyWorldTile(tile, seaLevel = null) {
   if (!tile) return 'open';
   const elevation = Number.isFinite(tile.elevation) ? tile.elevation : 0;
   const runoff = Number.isFinite(tile.runoff) ? tile.runoff : 0;
@@ -98,10 +98,13 @@ export function classifyWorldTile(tile) {
   const wood = Number.isFinite(resources.wood) ? resources.wood : 0;
   const vegetation = Number.isFinite(resources.vegetation) ? resources.vegetation : 0;
 
+  const waterThreshold = Number.isFinite(seaLevel) ? seaLevel : WATER_ELEVATION_THRESHOLD;
+  const bufferedThreshold = waterThreshold + WATER_ELEVATION_BUFFER;
+
   if (
-    elevation <= WATER_ELEVATION_THRESHOLD ||
-    (elevation <= WATER_ELEVATION_THRESHOLD + WATER_ELEVATION_BUFFER && runoff >= WATER_RUNOFF_THRESHOLD) ||
-    (moisture >= WATER_MOISTURE_THRESHOLD && elevation <= WATER_ELEVATION_THRESHOLD + WATER_ELEVATION_BUFFER)
+    elevation <= waterThreshold ||
+    (elevation <= bufferedThreshold && runoff >= WATER_RUNOFF_THRESHOLD) ||
+    (moisture >= WATER_MOISTURE_THRESHOLD && elevation <= bufferedThreshold)
   ) {
     return 'water';
   }
@@ -154,8 +157,11 @@ export function adaptWorldToMapData(world, options = {}) {
         temperature: new Float32Array(0),
         moisture: new Float32Array(0),
         runoff: new Float32Array(0),
+        waterTable: new Float32Array(0),
       },
       worldSettings: options.worldSettings || null,
+      hydrology: null,
+      seaLevel: null,
       buffer: null,
       spawnSuggestion: null,
       world: null,
@@ -173,10 +179,38 @@ export function adaptWorldToMapData(world, options = {}) {
   const types = new Array(height);
   const elevations = new Array(height);
   const tileMatrix = new Array(height);
+  const hydrology = world.hydrology || null;
+  const hydrologyTypes = hydrology?.types || null;
+  const hydrologyWaterTable = hydrology?.waterTable || hydrology?.filledElevation || null;
+  const seaLevel = Number.isFinite(hydrology?.seaLevel) ? hydrology.seaLevel : null;
 
   const elevationLayer = world.layers?.elevation instanceof Float32Array
     ? world.layers.elevation
     : new Float32Array(size);
+  const temperatureLayer = world.layers?.temperature instanceof Float32Array
+    ? world.layers.temperature
+    : new Float32Array(size);
+  const moistureLayer = world.layers?.moisture instanceof Float32Array
+    ? world.layers.moisture
+    : new Float32Array(size);
+  const runoffLayer = world.layers?.runoff instanceof Float32Array
+    ? world.layers.runoff
+    : new Float32Array(size);
+  const waterTableLayer = world.layers?.waterTable instanceof Float32Array
+    ? world.layers.waterTable
+    : new Float32Array(size);
+  if (hydrologyWaterTable) {
+    for (let row = 0; row < height; row += 1) {
+      const sourceRow = hydrologyWaterTable[row];
+      if (!sourceRow) continue;
+      for (let col = 0; col < width; col += 1) {
+        const value = sourceRow[col];
+        if (Number.isFinite(value)) {
+          waterTableLayer[row * width + col] = value;
+        }
+      }
+    }
+  }
 
   for (let row = 0; row < height; row += 1) {
     const tileRow = new Array(width);
@@ -186,7 +220,13 @@ export function adaptWorldToMapData(world, options = {}) {
     for (let col = 0; col < width; col += 1) {
       const index = row * width + col;
       const tile = world.tiles?.[index] || null;
-      const type = classifyWorldTile(tile);
+      const baseType = classifyWorldTile(tile, seaLevel);
+      const hydrologyType = hydrologyTypes?.[row]?.[col];
+      const elevationValue = elevationLayer[index] ?? 0;
+      const nearSea = Number.isFinite(seaLevel) && elevationValue <= seaLevel + WATER_ELEVATION_BUFFER;
+      const type = hydrologyType && hydrologyType !== 'land' && (baseType === 'water' || nearSea)
+        ? hydrologyType
+        : baseType;
       typeRow[col] = type;
       const symbol = TERRAIN_SYMBOLS[type] ?? TERRAIN_SYMBOLS.open ?? type ?? '?';
       tileRow[col] = symbol;
@@ -220,13 +260,16 @@ export function adaptWorldToMapData(world, options = {}) {
     viewport,
     tileData: world.tiles ?? [],
     tileMatrix,
-    layerBuffers: world.layers ?? {
-      elevation: new Float32Array(size),
-      temperature: new Float32Array(size),
-      moisture: new Float32Array(size),
-      runoff: new Float32Array(size),
+    layerBuffers: {
+      elevation: elevationLayer,
+      temperature: temperatureLayer,
+      moisture: moistureLayer,
+      runoff: runoffLayer,
+      waterTable: waterTableLayer,
     },
     worldSettings: options.worldSettings || null,
+    hydrology,
+    seaLevel,
     buffer: null,
     spawnSuggestion: null,
     world,
@@ -247,6 +290,8 @@ export function adaptWorldToMapData(world, options = {}) {
     tileMatrix,
     layers: map.layerBuffers,
     worldSettings: map.worldSettings,
+    hydrology: map.hydrology,
+    seaLevel: map.seaLevel,
     world,
   };
 
