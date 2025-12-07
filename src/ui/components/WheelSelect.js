@@ -418,13 +418,10 @@ export class WheelSelect {
       event.preventDefault();
       const dominantDelta =
         Math.abs(event.deltaX) > Math.abs(event.deltaY) ? event.deltaX : event.deltaY;
-      const delta = dominantDelta;
-      const spacing = this.measureItemSpacing();
-      const nextOffset = this.offset + delta / (spacing * 1.8);
-      this.offset = clamp(nextOffset, 0, this.maxIndex);
-      this.updateTransforms();
-      this.updateSelection(false);
-      this.scheduleSnap();
+      const direction = Math.sign(dominantDelta);
+      if (!direction) return;
+      const targetIndex = this.activeIndex + direction;
+      this.goToIndex(targetIndex, { animate: true, commit: true });
     };
 
     this.handleKeyDown = event => {
@@ -527,13 +524,15 @@ export class WheelSelect {
     const spacing = this.measureItemSpacing();
     const viewportRect = this.viewport?.getBoundingClientRect();
     const viewportWidth = viewportRect?.width ?? this.viewport?.clientWidth ?? 0;
-    const activeItem = this.items[Math.round(this.offset)] ?? this.items[0];
+    const activeIndex = clamp(Math.round(this.offset), 0, this.maxIndex);
+    const activeItem = this.items[activeIndex] ?? this.items[0];
     const sampleItem = activeItem || this.items[0];
     const itemRect = activeItem?.getBoundingClientRect?.();
-    const itemWidth = sampleItem?.offsetWidth || itemRect?.width || spacing;
-    const centerOffset = viewportWidth > 0 ? (viewportWidth - itemWidth) / 2 : 0;
+    const itemWidth = itemRect?.width || sampleItem?.offsetWidth || spacing;
+    const itemStart = activeItem?.offsetLeft ?? activeIndex * spacing;
+    const translateX = viewportWidth > 0 ? viewportWidth / 2 - (itemStart + itemWidth / 2) : 0;
 
-    this.track.style.transform = `translate3d(${centerOffset - this.offset * spacing}px, 0, 0)`;
+    this.track.style.transform = `translate3d(${translateX}px, 0, 0)`;
 
     this.items.forEach((item, index) => {
       const distance = index - this.offset;
