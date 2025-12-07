@@ -99,6 +99,9 @@ describe('generateHydrology integrates mapType tuned rules', () => {
   const width = 16;
   const height = 16;
   const flatElevations = Array.from({ length: height }, () => Array(width).fill(0.35));
+  const gradientElevations = Array.from({ length: height }, (_, y) =>
+    Array.from({ length: width }, (_, x) => (x + y) / (width + height - 2))
+  );
 
   function buildWorld(mapType: string): WorldConfig {
     return {
@@ -135,5 +138,30 @@ describe('generateHydrology integrates mapType tuned rules', () => {
     expect(continentHydro.rules.lakeMinArea).toBe(continentRules.lakeMinArea);
     expect(archipelagoHydro.rules.seaLevel).not.toBe(continentHydro.rules.seaLevel);
     expect(archipelagoHydro.rules.estuaryRadius).not.toBe(continentHydro.rules.estuaryRadius);
+  });
+
+  it('converges toward map-type aware coverage targets', () => {
+    const archipelagoHydro = generateHydrology({
+      seed: 7,
+      width,
+      height,
+      elevations: gradientElevations,
+      biome: baseBiome,
+      world: { ...baseWorld, mapType: 'archipelago', minOceanFraction: 0.08 }
+    });
+
+    const inlandHydro = generateHydrology({
+      seed: 7,
+      width,
+      height,
+      elevations: gradientElevations,
+      biome: baseBiome,
+      world: { ...baseWorld, mapType: 'inland', minOceanFraction: 0.02 }
+    });
+
+    expect(archipelagoHydro.waterCoverageTarget).toBeGreaterThan(inlandHydro.waterCoverageTarget);
+    expect(archipelagoHydro.waterCoverage).toBeGreaterThan(inlandHydro.waterCoverage);
+    expect(Math.abs(archipelagoHydro.waterCoverage - archipelagoHydro.waterCoverageTarget)).toBeLessThanOrEqual(0.08);
+    expect(Math.abs(inlandHydro.waterCoverage - inlandHydro.waterCoverageTarget)).toBeLessThanOrEqual(0.08);
   });
 });
