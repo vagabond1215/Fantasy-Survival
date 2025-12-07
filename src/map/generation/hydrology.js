@@ -73,6 +73,7 @@ const MARINE_TYPES = new Set([
 const STANDING_FRESHWATER_TYPES = new Set(['lake', 'pond']);
 const WETLAND_TYPES = new Set(['marsh', 'swamp', 'bog', 'fen']);
 const FLOWING_WATER_TYPES = new Set(['river', 'stream']);
+const SPRING_TYPES = new Set(['spring']);
 function isMarine(type) {
     return MARINE_TYPES.has(type);
 }
@@ -85,6 +86,18 @@ function isWetland(type) {
 function isFlowingWater(type) {
     return FLOWING_WATER_TYPES.has(type);
 }
+function isSpring(type) {
+    return SPRING_TYPES.has(type);
+}
+const WATER_CLASSIFICATIONS = new Set([
+    'water',
+    ...MARINE_TYPES,
+    ...STANDING_FRESHWATER_TYPES,
+    ...WETLAND_TYPES,
+    ...FLOWING_WATER_TYPES,
+    ...SPRING_TYPES,
+    'mangrove'
+]);
 function directionIndex(dx, dy) {
     for (let i = 0; i < D8.length; i += 1) {
         if (D8[i][0] === dx && D8[i][1] === dy) {
@@ -278,6 +291,83 @@ function classifyLakes(width, height, elevations, filled, seaLevel, rules) {
     }
     return { types, spill };
 }
+
+function placeSprings(width, height, types, filled, elevations, seaLevel, rules, seed) {
+    const size = width * height;
+    const target = Math.max(0, Math.round(size * Math.max(0, rules.springDensity ?? 0)));
+    if (target <= 0)
+        return [];
+    const elevationThreshold = seaLevel + Math.max(0.04, rules.springElevationThreshold ?? 0.08);
+    const candidates = [];
+    const epsilon = 1e-4;
+    for (let idx = 0; idx < size; idx += 1) {
+        if (types[idx] !== 'land')
+            continue;
+        const localHeight = filled[idx];
+        if (localHeight < elevationThreshold - epsilon)
+            continue;
+        const x = idx % width;
+        const y = Math.floor(idx / width);
+        let lowerNeighbors = 0;
+        let higherNeighbors = 0;
+        let wetNeighbors = 0;
+        for (const [dx, dy] of D8) {
+            const nx = x + dx;
+            const ny = y + dy;
+            if (nx < 0 || ny < 0 || nx >= width || ny >= height)
+                continue;
+            const nIdx = ny * width + nx;
+            const diff = localHeight - filled[nIdx];
+            if (diff > 0.002) {
+                lowerNeighbors += 1;
+            }
+            else if (diff < -0.002) {
+                higherNeighbors += 1;
+            }
+            if (WATER_CLASSIFICATIONS.has(types[nIdx])) {
+                wetNeighbors += 1;
+            }
+        }
+        if (higherNeighbors > 3 || lowerNeighbors < 2)
+            continue;
+        const prominence = clamp((localHeight - elevationThreshold) / Math.max(0.1, 1 - elevationThreshold), 0, 1);
+        const ruggedness = clamp((lowerNeighbors - higherNeighbors + 4) / 8, 0, 1);
+        const score = (localHeight - seaLevel) + prominence * 0.2 + ruggedness * 0.15 - wetNeighbors * 0.08;
+        const noise = (hashCoord(seed, idx) & 0xffff) / 0xffff;
+        candidates.push({ idx, score: score + noise * 0.05, prominence });
+    }
+    if (!candidates.length)
+        return [];
+    candidates.sort((a, b) => b.score - a.score || a.idx - b.idx);
+    const springs = [];
+    const reserved = new Uint8Array(size);
+    const radius = 1;
+    for (const candidate of candidates) {
+        if (springs.length >= target)
+            break;
+        if (reserved[candidate.idx])
+            continue;
+        const chanceBase = clamp(0.35 + (rules.springDensity ?? 0) * 40 + candidate.prominence * 0.4, 0.05, 0.95);
+        const roll = (hashCoord(seed, candidate.idx * 13) & 0xffff) / 0xffff;
+        if (roll > chanceBase)
+            continue;
+        springs.push(candidate.idx);
+        types[candidate.idx] = 'spring';
+        const cx = candidate.idx % width;
+        const cy = Math.floor(candidate.idx / width);
+        for (let dy = -radius; dy <= radius; dy += 1) {
+            for (let dx = -radius; dx <= radius; dx += 1) {
+                const nx = cx + dx;
+                const ny = cy + dy;
+                if (nx < 0 || ny < 0 || nx >= width || ny >= height)
+                    continue;
+                const nIdx = ny * width + nx;
+                reserved[nIdx] = 1;
+            }
+        }
+    }
+    return springs;
+}
 function computeFlowDirections(width, height, elevations, filled, types, seed) {
     const size = width * height;
     const flow = new Int8Array(size);
@@ -336,12 +426,19 @@ function computeFlowDirections(width, height, elevations, filled, types, seed) {
     }
     return flow;
 }
-function computeAccumulation(width, height, flow, types, filled) {
+function computeAccumulation(width, height, flow, types, filled, springFlow = 0) {
     const size = width * height;
     const order = Array.from({ length: size }, (_, index) => index);
     order.sort((a, b) => filled[a] - filled[b]);
     const accumulation = new Float64Array(size);
     accumulation.fill(1);
+    if (springFlow > 0) {
+        for (let idx = 0; idx < size; idx += 1) {
+            if (isSpring(types[idx])) {
+                accumulation[idx] += springFlow;
+            }
+        }
+    }
     for (const idx of order) {
         const dir = flow[idx];
         if (dir < 0)
@@ -866,7 +963,7 @@ function layMarshes(width, height, types, rules) {
     const ring = Math.max(1, Math.trunc(rules.marshRingWidth));
     const newMarsh = new Uint8Array(size);
     for (let idx = 0; idx < size; idx += 1) {
-        if (!STANDING_FRESHWATER_TYPES.has(types[idx]) && !isFlowingWater(types[idx]) && !isMarine(types[idx]))
+        if (!STANDING_FRESHWATER_TYPES.has(types[idx]) && !isFlowingWater(types[idx]) && !isMarine(types[idx]) && !isSpring(types[idx]))
             continue;
         const cx = idx % width;
         const cy = Math.floor(idx / width);
@@ -926,6 +1023,10 @@ function refineWetlands(width, height, types, filled, elevations, accumulation, 
             }
             else if (isWetland(neighbor)) {
                 // neighboring wetlands influence peat development but are handled via type reassignment
+            }
+            else if (isSpring(neighbor)) {
+                standingNeighbors += 1;
+                flowSignal += 0.6;
             }
             else if (STANDING_FRESHWATER_TYPES.has(neighbor)) {
                 standingNeighbors += 1;
@@ -1238,15 +1339,6 @@ function pruneSingletons(width, height, types, filled, maxFraction) {
     }
 }
 
-const WATER_CLASSIFICATIONS = new Set([
-    'water',
-    ...MARINE_TYPES,
-    ...STANDING_FRESHWATER_TYPES,
-    ...WETLAND_TYPES,
-    ...FLOWING_WATER_TYPES,
-    'mangrove'
-]);
-
 function computeWaterCoverage(width, height, types, filled, elevations, seaLevel) {
     const size = width * height;
     const depthThreshold = 1e-4;
@@ -1280,7 +1372,8 @@ function buildHydrologyState({ width, height, elevationGrid, rules, seed, seaLev
     const filled = priorityFlood(width, height, elevationGrid, seaLevel);
     const { types, spill } = classifyLakes(width, height, elevationGrid, filled, seaLevel, rules);
     const flow = computeFlowDirections(width, height, elevationGrid, filled, types, seed);
-    const accumulation = computeAccumulation(width, height, flow, types, filled);
+    const springs = placeSprings(width, height, types, filled, elevationGrid, seaLevel, rules, seed);
+    const accumulation = computeAccumulation(width, height, flow, types, filled, rules.springFlowContribution);
     const upstream = buildUpstreamGraph(width, height, flow);
     applyRiverClassification(width, height, types, accumulation, flow, upstream, rules);
     const riverStats = enhanceRiverNetwork({
@@ -1303,7 +1396,7 @@ function buildHydrologyState({ width, height, elevationGrid, rules, seed, seaLev
     normalizeCoastline(width, height, types);
     classifyMarineEdges(width, height, types, filled, elevationGrid, seaLevel, rules, accumulation);
     pruneSingletons(width, height, types, spill, rules.maxSingletonFraction);
-    return { filled, types, spill, flow, accumulation, riverStats };
+    return { filled, types, spill, flow, accumulation, riverStats, springs };
 }
 
 function pruneDisconnectedRivers(width, height, types, flow) {
