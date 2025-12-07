@@ -1670,13 +1670,15 @@ export function initSetupUI(onStart) {
     previewDirty = false;
     setPreviewStatus('loading');
     previewRequest = generatePreview()
-      .then(() => {
+      .then(preview => {
         setPreviewStatus('ready');
+        return preview;
       })
       .catch(error => {
         console.error('Failed to generate world preview', error);
         previewDirty = true;
         setPreviewStatus('error');
+        return null;
       })
       .finally(() => {
         previewRequest = null;
