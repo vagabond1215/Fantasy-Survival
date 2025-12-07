@@ -1,4 +1,4 @@
-import { resolveWaterRules } from './waterRules.js';
+import { resolveHydrologyPreset, resolveWaterRules } from './waterRules.js';
 class MinHeap {
     constructor() {
         this.heap = [];
@@ -1358,6 +1358,18 @@ function computeWaterCoverage(width, height, types, filled, elevations, seaLevel
     return waterCells / size;
 }
 
+function resolveCoverageTarget({ biome, world, rules }) {
+    if (world?.waterCoverageTarget !== undefined && world?.waterCoverageTarget !== null) {
+        return clamp(world.waterCoverageTarget, 0.08, 0.85);
+    }
+    const hydrologyPreset = resolveHydrologyPreset(world?.mapType);
+    const waterLevel = clamp(biome?.elevation?.waterLevel ?? rules?.seaLevel ?? 0.28, 0.02, 0.9);
+    const seaLevelHint = clamp(waterLevel + hydrologyPreset.seaLevelOffset, 0.02, 0.86);
+    const oceanSkew = clamp(hydrologyPreset.seaLevelOffset * 0.6, -0.05, 0.08);
+    const surfaceBonus = clamp((rules?.marshiness ?? 0) * 0.02, 0, 0.06);
+    return clamp(seaLevelHint + 0.06 + oceanSkew + surfaceBonus, 0.08, 0.85);
+}
+
 function computeElevationCoverage(elevationGrid, seaLevel) {
     let waterCells = 0;
     for (let idx = 0; idx < elevationGrid.length; idx += 1) {
@@ -1468,9 +1480,9 @@ export function generateHydrology(input) {
             elevationGrid[y * width + x] = clamp(row[x] ?? 0, 0, 1);
         }
     }
-    const targetCoverage = clamp(world?.waterCoverageTarget ?? 0.32, 0.08, 0.85);
-    const tolerance = 0.05;
-    const maxIterations = 6;
+    const targetCoverage = resolveCoverageTarget({ biome, world, rules });
+    const tolerance = 0.04;
+    const maxIterations = 8;
     const baseStep = 0.012;
     let seaLevel = clamp(rules.seaLevel, 0.02, 0.95);
     let bestResult = null;
@@ -1600,6 +1612,7 @@ export function generateHydrology(input) {
         seaLevel: adjustedSeaLevel,
         waterCoverage: coverage,
         surfaceWaterCoverage: surfaceCoverage,
+        waterCoverageTarget: targetCoverage,
         waterAdjustmentHistory: adjustmentHistory,
         riverStats
     };

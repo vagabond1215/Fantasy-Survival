@@ -234,7 +234,7 @@ const DEFAULT_HYDROLOGY_PRESET = Object.freeze({
     estuaryFlowScale: 1,
     distributaryBias: 0
 });
-function resolveHydrologyPreset(mapType) {
+export function resolveHydrologyPreset(mapType) {
     const normalized = typeof mapType === 'string' ? mapType : DEFAULT_LANDMASS_TYPE;
     if (Object.prototype.hasOwnProperty.call(HYDROLOGY_PRESETS, normalized)) {
         return HYDROLOGY_PRESETS[normalized];
