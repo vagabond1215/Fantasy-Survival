@@ -528,9 +528,9 @@ export class WheelSelect {
     const viewportRect = this.viewport?.getBoundingClientRect();
     const viewportWidth = viewportRect?.width ?? this.viewport?.clientWidth ?? 0;
     const activeItem = this.items[Math.round(this.offset)] ?? this.items[0];
-    const itemRect = activeItem?.getBoundingClientRect?.();
     const sampleItem = activeItem || this.items[0];
-    const itemWidth = itemRect?.width || sampleItem?.offsetWidth || spacing;
+    const itemRect = activeItem?.getBoundingClientRect?.();
+    const itemWidth = sampleItem?.offsetWidth || itemRect?.width || spacing;
     const centerOffset = viewportWidth > 0 ? (viewportWidth - itemWidth) / 2 : 0;
 
     this.track.style.transform = `translate3d(${centerOffset - this.offset * spacing}px, 0, 0)`;

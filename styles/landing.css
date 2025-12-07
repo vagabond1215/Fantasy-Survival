@@ -1241,12 +1241,12 @@ body.landing-active .map-section,
 body.landing-active .map-preview-layout,
 body.landing-active .maptype-row {
   width: 100%;
-  max-width: min(100%, 520px);
+  max-width: min(var(--content-max-width), 100%);
   margin-inline: auto;
 }
 
 body.landing-active .maptype-row .wheel-select {
-  width: min(100%, 520px);
+  width: min(100%, var(--content-max-width));
   margin-inline: auto;
 }
 
