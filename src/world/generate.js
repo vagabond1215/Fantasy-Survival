@@ -1,4 +1,5 @@
 import { getBiome } from '../biomes.js';
+import { generateHydrology } from '../map/generation/hydrology.js';
 import { canonicalizeSeed } from './seed.js';
 import { xorshift128plus } from './rng.js';
 const DEFAULT_LANES = [
@@ -130,13 +131,21 @@ function sanitizeConfig(params) {
     const width = normalizeDimension(params.width, 128);
     const height = normalizeDimension(params.height, 128);
     const tuning = params.params ?? {};
+    const biomeId = typeof params.biomeId === 'string' && params.biomeId.trim()
+        ? params.biomeId.trim()
+        : 'temperate-broadleaf';
+    const world = typeof params.world === 'object' && params.world !== null
+        ? params.world
+        : typeof params.worldSettings === 'object' && params.worldSettings !== null
+            ? params.worldSettings
+            : null;
     const elevationBias = sanitizeBias(tuning.elevationBias, 0.45);
     const temperatureBias = sanitizeBias(tuning.temperatureBias, 0.45);
     const moistureBias = sanitizeBias(tuning.moistureBias, 0.45);
     const baselineSuggestions = Math.max(16, Math.min(256, Math.floor((width * height) / 64)));
     const desiredSuggestions = Math.trunc(tuning.spawnSuggestionCount ?? baselineSuggestions);
     const spawnSuggestionCount = Math.max(8, Math.min(width * height, desiredSuggestions));
-    return { width, height, elevationBias, temperatureBias, moistureBias, spawnSuggestionCount };
+    return { width, height, elevationBias, temperatureBias, moistureBias, spawnSuggestionCount, biomeId, world };
 }
 function fingerprintConfig(config) {
     let hash = 0x811c9dc5;
@@ -495,6 +504,39 @@ function generateWorldArtifact(seed, config) {
         spawnScores[i] = spawnSuitability(elev, temp, moist, run, oreValue, stoneValue, waterValue, fertilityValue, woodValue, forageValue, vegetationValue);
     }
     const spawnSuggestions = prepareSpawnSuggestions(spawnScores, config.spawnSuggestionCount);
+    const hydrologySeed = seed?.hex
+        || (lanes?.length ? lanes.map(lane => lane.toString(16).padStart(8, '0')).join('') : '');
+    const hydrologyBiome = getBiome(config.biomeId || 'temperate-broadleaf');
+    const hydrologyElevations = [];
+    for (let y = 0; y < height; y += 1) {
+        const row = [];
+        for (let x = 0; x < width; x += 1) {
+            row.push(elevation[y * width + x]);
+        }
+        hydrologyElevations.push(row);
+    }
+    const hydrology = generateHydrology({
+        width,
+        height,
+        elevations: hydrologyElevations,
+        seed: hydrologySeed,
+        biome: hydrologyBiome,
+        world: config.world || null,
+    });
+    const waterTableLayer = new Float32Array(size);
+    if (hydrology?.waterTable?.length) {
+        for (let row = 0; row < height; row += 1) {
+            const source = hydrology.waterTable[row];
+            if (!source)
+                continue;
+            for (let col = 0; col < width; col += 1) {
+                const value = source[col];
+                if (Number.isFinite(value)) {
+                    waterTableLayer[row * width + col] = value;
+                }
+            }
+        }
+    }
     const tiles = new Array(size);
     for (let i = 0; i < size; i += 1) {
         const climate = Object.freeze({
@@ -530,12 +572,14 @@ function generateWorldArtifact(seed, config) {
         });
     }
     const dimensions = Object.freeze({ width, height, size });
-    const layers = Object.freeze({ elevation, temperature, moisture, runoff, biome, ore, stone, water, fertility });
+    const layers = Object.freeze({ elevation, temperature, moisture, runoff, biome, ore, stone, water, fertility, waterTable: waterTableLayer });
+    const hydrologySnapshot = hydrology ? Object.freeze({ ...hydrology, seed: hydrologySeed }) : null;
     return Object.freeze({
         seed,
         params: Object.freeze(config),
         dimensions,
         layers,
+        hydrology: hydrologySnapshot,
         tiles: Object.freeze(tiles),
         spawnSuggestions,
     });

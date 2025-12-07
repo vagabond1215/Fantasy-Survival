@@ -1620,7 +1620,9 @@ export function initSetupUI(onStart) {
         width,
         height,
         seed: canonicalSeed,
-        params
+        params,
+        biomeId: previewBiome,
+        world: worldParameters
       });
     } catch (error) {
       console.error('Failed to generate world artifact for preview.', error);
@@ -1668,13 +1670,15 @@ export function initSetupUI(onStart) {
     previewDirty = false;
     setPreviewStatus('loading');
     previewRequest = generatePreview()
-      .then(() => {
+      .then(preview => {
         setPreviewStatus('ready');
+        return preview;
       })
       .catch(error => {
         console.error('Failed to generate world preview', error);
         previewDirty = true;
         setPreviewStatus('error');
+        return null;
       })
       .finally(() => {
         previewRequest = null;
@@ -2122,7 +2126,9 @@ export function initSetupUI(onStart) {
           width: normalizedWidth,
           height: normalizedHeight,
           seed: canonicalSeed,
-          params
+          params,
+          biomeId: resolvedBiomeId,
+          world: worldParameters
         });
       } catch (error) {
         console.error('Failed to generate world artifact for map fetch.', error);
