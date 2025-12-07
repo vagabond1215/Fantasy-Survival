@@ -317,6 +317,9 @@ export function resolveWaterRules(biome, world, width, height) {
     const pondMaxDepthBase = clamp(lakeMinDepth * (0.55 + freshwaterPresence.lakes * 0.35), 0.006, lakeMinDepth * 0.95);
     const pondMaxDepth = clamp(pondMaxDepthBase * clamp(1 + pondsBias * 0.4, 0.5, 1.6), 0.004, lakeMinDepth * 0.95);
     const peatlandFlowThreshold = Math.max(2, streamFlowThreshold * clamp(0.55 + freshwaterPresence.streams * 0.15 - marshBias * 0.08 - bogBias * 0.12, 0.3, 0.85));
+    const springDensity = clamp(0.00015 + freshwaterPresence.springs * 0.002 + Math.max(0, rainfallBias) * 0.0004 + Math.max(0, waterBias) * 0.00035, 0, 0.003);
+    const springElevationThreshold = clamp(0.08 - freshwaterPresence.springs * 0.02 + Math.max(0, elevationBias) * 0.04 - Math.min(0, waterBias) * 0.04, 0.05, 0.18);
+    const springFlowContribution = clamp(1.5 + freshwaterPresence.springs * 5 + Math.max(0, rainfallBias) * 1.2 + Math.max(0, waterBias) * 0.6, 1.5, 8);
     const marineEdgeWeights = resolveMarineEdgeWeights({
         freshwaterPresence,
         rainfallBias,
@@ -349,6 +352,9 @@ export function resolveWaterRules(biome, world, width, height) {
         pondMaxArea,
         pondMaxDepth,
         peatlandFlowThreshold,
+        springDensity,
+        springElevationThreshold,
+        springFlowContribution,
         wetlandWeights: wetlandProfile.weights,
         peatlandPreference: wetlandProfile.peatlandPreference,
         fenPreference: wetlandProfile.fenPreference,
