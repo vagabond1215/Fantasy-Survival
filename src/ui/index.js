@@ -636,6 +636,11 @@ export function initSetupUI(onStart) {
               <div class="wheel-select-host maptype-wheel" id="maptype-wheel" aria-describedby="maptype-details"></div>
             </div>
             <div class="sub" id="maptype-details"></div>
+            <div class="map-preview-actions">
+              <button id="map-preview-generate" type="button" class="btn btn--secondary">
+                Generate Preview
+              </button>
+            </div>
             <div class="map-preview-layout">
               <div id="map-preview" class="map-preview" aria-label="World map preview"></div>
               <div id="map-preview-sidebar" class="map-preview-sidebar"></div>
@@ -727,10 +732,13 @@ export function initSetupUI(onStart) {
   const seedRandomBtn = contentRoot.querySelector('#seed-rand');
   const mapPreview = setupRoot.querySelector('#map-preview');
   const mapPreviewSidebar = setupRoot.querySelector('#map-preview-sidebar');
+  const previewBtn = setupRoot.querySelector('#map-preview-generate');
   const spawnInfo = setupRoot.querySelector('#spawn-info');
   const startBtn = contentRoot.querySelector('#start-btn');
 
-  let previewStatus = 'loading';
+  let previewStatus = 'stale';
+  let previewDirty = true;
+  let previewRequest = null;
   let mapPreviewStatusOverlay = null;
 
   if (
@@ -979,10 +987,8 @@ export function initSetupUI(onStart) {
   let spawnCoords = null;
   let spawnPrompt = null;
   let pendingSpawn = null;
-  let worldPreviewTimer = null;
   let seedUpdateTimer = null;
   const spawnMarkerId = 'setup-spawn-marker';
-  const worldConfigDebounceDelay = 180;
   const seedDispatchDelay = 200;
 
   const existingConfig = getWorldConfig();
@@ -1514,13 +1520,23 @@ export function initSetupUI(onStart) {
     spawnInfo.hidden = true;
   }
 
+  function syncPreviewButton() {
+    if (!previewBtn) return;
+    const isBusy = previewStatus === 'loading';
+    previewBtn.disabled = isBusy;
+    const label = previewDirty ? 'Generate Preview' : 'Regenerate Preview';
+    previewBtn.textContent = isBusy ? 'Generating…' : label;
+  }
+
   function syncPreviewStatusDisplay() {
     if (!mapPreview) return;
     const normalizedStatus = previewStatus === 'error'
       ? 'error'
       : previewStatus === 'loading'
         ? 'loading'
-        : 'ready';
+        : previewStatus === 'stale'
+          ? 'stale'
+          : 'ready';
     previewStatus = normalizedStatus;
     mapPreview.dataset.previewStatus = normalizedStatus;
     if (normalizedStatus === 'loading') {
@@ -1537,9 +1553,12 @@ export function initSetupUI(onStart) {
       message = 'Generating preview…';
     } else if (normalizedStatus === 'error') {
       message = 'Failed to generate map preview. Please try again.';
+    } else if (normalizedStatus === 'stale') {
+      message = 'Preview not generated for the current settings. Click Generate Preview to refresh.';
     }
     mapPreviewStatusOverlay.textContent = message;
     mapPreviewStatusOverlay.setAttribute('aria-hidden', message ? 'false' : 'true');
+    syncPreviewButton();
   }
 
   function setPreviewStatus(nextStatus) {
@@ -1547,7 +1566,9 @@ export function initSetupUI(onStart) {
       ? 'error'
       : nextStatus === 'loading'
         ? 'loading'
-        : 'ready';
+        : nextStatus === 'stale'
+          ? 'stale'
+          : 'ready';
     previewStatus = normalized;
     syncPreviewStatusDisplay();
   }
@@ -1633,6 +1654,32 @@ export function initSetupUI(onStart) {
 
     renderMapPreview();
     updateBiomeDetails();
+  }
+
+  function markPreviewDirty() {
+    previewDirty = true;
+    setPreviewStatus('stale');
+  }
+
+  async function requestPreviewGeneration() {
+    if (previewRequest) {
+      return previewRequest;
+    }
+    previewDirty = false;
+    setPreviewStatus('loading');
+    previewRequest = generatePreview()
+      .then(() => {
+        setPreviewStatus('ready');
+      })
+      .catch(error => {
+        console.error('Failed to generate world preview', error);
+        previewDirty = true;
+        setPreviewStatus('error');
+      })
+      .finally(() => {
+        previewRequest = null;
+      });
+    return previewRequest;
   }
 
   function attachSetupLegend() {
@@ -1993,7 +2040,7 @@ export function initSetupUI(onStart) {
       onChange: (value, option) => {
         selectedBiome = value;
         updateBiomeDetails();
-        scheduleWorldPreview();
+        markPreviewDirty();
         if (option?.description) {
           biomeWheelRoot.title = option.description;
         } else {
@@ -2020,7 +2067,7 @@ export function initSetupUI(onStart) {
       ariaDescribedBy: 'maptype-details',
       onChange: (value, _option) => {
         selectMapType(value, { persist: false });
-        scheduleWorldPreview();
+        markPreviewDirty();
       },
       onCommit: value => {
         selectMapType(value, { persist: true });
@@ -2269,7 +2316,7 @@ export function initSetupUI(onStart) {
     syncWorldControls();
     updateDifficultyScore();
     updateDifficultyInfo();
-    scheduleWorldPreview();
+    markPreviewDirty();
   });
 
   difficultyApplyBtn?.addEventListener('click', () => {
@@ -2346,23 +2393,6 @@ export function initSetupUI(onStart) {
     const score = difficultyScore(worldParameters);
     difficultyScoreBadge.textContent = `Score: ${score}`;
     difficultyScoreBadge.dataset.score = String(score);
-  }
-
-  function scheduleWorldPreview() {
-    if (worldPreviewTimer) {
-      clearTimeout(worldPreviewTimer);
-    }
-    setPreviewStatus('loading');
-    worldPreviewTimer = setTimeout(async () => {
-      worldPreviewTimer = null;
-      try {
-        await generatePreview();
-        setPreviewStatus('ready');
-      } catch (error) {
-        console.error('Failed to generate world preview', error);
-        setPreviewStatus('error');
-      }
-    }, worldConfigDebounceDelay);
   }
 
   function syncWorldControls() {
@@ -2663,7 +2693,7 @@ export function initSetupUI(onStart) {
     }
     updateDifficultyInfo();
     updateDifficultyScore();
-    scheduleWorldPreview();
+    markPreviewDirty();
   }
 
   onWorldConfigChange(handleWorldConfigUpdate, { immediate: true });
@@ -2678,6 +2708,12 @@ export function initSetupUI(onStart) {
     },
     { force: true }
   );
+
+  previewBtn?.addEventListener('click', () => {
+    requestPreviewGeneration();
+  });
+
+  requestPreviewGeneration();
 
   seedInput.addEventListener('input', () => {
     const value = seedInput.value;
