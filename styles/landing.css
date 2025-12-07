@@ -1212,12 +1212,14 @@ body.landing-active .season-switch__button.is-active {
 body.landing-active .season-switch__button--icon {
   justify-content: center;
   gap: 0;
-  width: 52px;
-  height: 52px;
-  padding: 0;
+  width: 56px;
+  height: 56px;
+  padding: 6px;
   font-size: clamp(22px, 2.4vw, 30px);
-  line-height: 1;
+  line-height: 1.1;
   border-radius: 16px;
+  display: grid;
+  place-items: center;
 }
 
 body.landing-active .wheel-select-host {
@@ -1256,6 +1258,12 @@ body.landing-active .maptype-row {
 
 body.landing-active .maptype-row .section__title {
   align-self: center;
+}
+
+body.landing-active .map-preview-actions {
+  display: flex;
+  justify-content: flex-end;
+  gap: 8px;
 }
 
 body.landing-active #biome-details {
@@ -1314,6 +1322,10 @@ body.landing-active .map-preview__status[data-status='error'] {
   background: color-mix(in srgb, #5f1425 72%, rgba(12, 18, 32, 0.82));
 }
 
+body.landing-active .map-preview__status[data-status='stale'] {
+  background: color-mix(in srgb, var(--glass-blue-strong) 82%, rgba(12, 18, 32, 0.78));
+}
+
 body.landing-active .map-preview[data-preview-status='ready'] .map-preview__status {
   display: none;
 }
@@ -1322,6 +1334,13 @@ body.landing-active .map-preview[data-preview-status='loading'] .map-layout,
 body.landing-active .map-preview[data-preview-status='error'] .map-layout {
   opacity: 0.32;
   filter: grayscale(0.15) blur(0.5px);
+  pointer-events: none;
+  transition: opacity 140ms ease, filter 140ms ease;
+}
+
+body.landing-active .map-preview[data-preview-status='stale'] .map-layout {
+  opacity: 0.55;
+  filter: grayscale(0.08);
   pointer-events: none;
   transition: opacity 140ms ease, filter 140ms ease;
 }
