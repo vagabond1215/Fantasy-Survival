@@ -30,6 +30,7 @@ import { deriveGenerationTuning } from '../world/parameters.js';
 import { canonicalizeSeed } from '../world/seed.js';
 import { adaptWorldToMapData, fallbackCanonicalSeed } from '../world/mapAdapter.js';
 import { WheelSelect } from './components/WheelSelect.js';
+import { clearPersistedChunkCache } from '../storage/chunkCache.js';
 
 const seasons = [
   { id: 'Thawbound', label: 'Spring', icon: '🌱' },
@@ -461,6 +462,10 @@ function getFocusableElements(container) {
     const ariaHidden = element.getAttribute('aria-hidden');
     return ariaHidden !== 'true';
   });
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', cleanupPreviewArtifact);
+  }
 }
 
 function formatThemeLabel(id, fallback = '') {
@@ -984,6 +989,7 @@ export function initSetupUI(onStart) {
   let resolvedBiomeId = selectedBiome;
   let worldArtifact = null;
   let mapData = null;
+  let previewArtifactUrl = null;
   let spawnCoords = null;
   let spawnPrompt = null;
   let pendingSpawn = null;
@@ -1561,6 +1567,62 @@ export function initSetupUI(onStart) {
     syncPreviewButton();
   }
 
+  function cleanupPreviewArtifact() {
+    if (previewArtifactUrl && typeof URL !== 'undefined' && typeof URL.revokeObjectURL === 'function') {
+      try {
+        URL.revokeObjectURL(previewArtifactUrl);
+      } catch (_error) {
+        // Ignore cleanup errors and fall back to GC.
+      }
+    }
+    previewArtifactUrl = null;
+    if (mapPreview?.dataset) {
+      delete mapPreview.dataset.previewUrl;
+    }
+  }
+
+  function previewArtifactReplacer(_key, value) {
+    if (typeof value === 'function') return undefined;
+    if (typeof value === 'bigint') return Number(value);
+    if (typeof ArrayBuffer !== 'undefined' && ArrayBuffer.isView && ArrayBuffer.isView(value)) {
+      return Array.from(value);
+    }
+    if (typeof ArrayBuffer !== 'undefined' && value instanceof ArrayBuffer) {
+      return Array.from(new Uint8Array(value));
+    }
+    return value;
+  }
+
+  function writePreviewArtifact(payload) {
+    cleanupPreviewArtifact();
+    if (
+      typeof Blob === 'undefined' ||
+      typeof URL === 'undefined' ||
+      typeof URL.createObjectURL !== 'function'
+    ) {
+      return null;
+    }
+    try {
+      const blob =
+        payload instanceof Blob
+          ? payload
+          : new Blob([
+              typeof payload === 'string'
+                ? payload
+                : JSON.stringify(payload, previewArtifactReplacer),
+            ], { type: 'application/json' });
+      previewArtifactUrl = URL.createObjectURL(blob);
+      if (mapPreview?.dataset) {
+        mapPreview.dataset.previewUrl = previewArtifactUrl;
+      }
+      return previewArtifactUrl;
+    } catch (error) {
+      console.warn('Failed to persist preview artifact', error);
+      previewArtifactUrl = null;
+      return null;
+    }
+  }
+
   function setPreviewStatus(nextStatus) {
     const normalized = nextStatus === 'error'
       ? 'error'
@@ -1654,12 +1716,19 @@ export function initSetupUI(onStart) {
       updateSpawnInfo();
     }
 
+    writePreviewArtifact({
+      map: mapData,
+      world: worldArtifact,
+      viewport,
+    });
+
     renderMapPreview();
     updateBiomeDetails();
   }
 
   function markPreviewDirty() {
     previewDirty = true;
+    cleanupPreviewArtifact();
     setPreviewStatus('stale');
   }
 
@@ -1677,6 +1746,7 @@ export function initSetupUI(onStart) {
       .catch(error => {
         console.error('Failed to generate world preview', error);
         previewDirty = true;
+        cleanupPreviewArtifact();
         setPreviewStatus('error');
         return null;
       })
@@ -2687,6 +2757,7 @@ export function initSetupUI(onStart) {
       const clonedWorld = cloneWorldParameters(nextWorld);
       worldParameters = clonedWorld;
       store.worldSettings = cloneWorldParameters(clonedWorld);
+      clearPersistedChunkCache();
       syncWorldControls();
       const normalizedType = normalizeMapType(worldParameters.mapType);
       if (normalizedType !== selectedMapType) {
@@ -2782,4 +2853,8 @@ export function initSetupUI(onStart) {
       spawn: spawnCoords ? { ...spawnCoords } : null
     });
   });
+
+  if (typeof window !== 'undefined') {
+    window.addEventListener('beforeunload', cleanupPreviewArtifact);
+  }
 }
