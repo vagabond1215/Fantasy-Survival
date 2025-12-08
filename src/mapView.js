@@ -965,6 +965,7 @@ export function createMapView(container, {
       timer: null,
     },
     resizeHandler: null,
+    resizeObserver: null,
     fetchMap,
     onMapUpdate,
     onTileClick: typeof onTileClick === 'function' ? onTileClick : null,
@@ -4439,6 +4440,15 @@ export function createMapView(container, {
   attachNavButtons();
   applyResponsiveLayout();
 
+  if (typeof ResizeObserver !== 'undefined') {
+    state.resizeObserver = new ResizeObserver(entries => {
+      if (!entries || entries.length === 0) return;
+      updateWrapperSize();
+      applyResponsiveLayout();
+    });
+    state.resizeObserver.observe(container);
+  }
+
   if (typeof window !== 'undefined') {
     state.resizeHandler = () => {
       updateWrapperSize();
@@ -4616,6 +4626,14 @@ export function createMapView(container, {
           window.removeEventListener('resize', state.resizeHandler);
         }
         if (detachGlobalDrag) detachGlobalDrag();
+      }
+      if (state.resizeObserver) {
+        try {
+          state.resizeObserver.disconnect();
+        } catch (_error) {
+          /* ignore */
+        }
+        state.resizeObserver = null;
       }
       state.markerElements.forEach(element => {
         if (element?.parentElement) {
