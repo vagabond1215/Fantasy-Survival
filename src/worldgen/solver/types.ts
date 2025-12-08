@@ -90,12 +90,24 @@ export interface HabitatProfile {
   readonly objectives: ObjectiveTarget[];
 }
 
+export interface BiomeDescriptor {
+  readonly id?: string;
+  readonly elevation?: { waterLevel?: number };
+  readonly freshwater?: Record<string, unknown>;
+  readonly latitudeRange?: { min?: number; max?: number };
+  readonly elevationRange?: { min?: number; max?: number };
+  readonly climate?: Record<string, unknown>;
+  readonly transitions?: Record<string, unknown>;
+  readonly features?: string[];
+}
+
 export interface BuildWorldOptions {
   readonly difficulty?: string;
   readonly profileId?: string;
   readonly seed?: number | string;
   readonly overrides?: Partial<ParameterVector>;
   readonly objectives?: ObjectiveTarget[];
+  readonly biome?: string | BiomeDescriptor;
 }
 
 export interface BuildWorldResult extends SolverResult {
