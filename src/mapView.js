@@ -2031,7 +2031,15 @@ export function createMapView(container, {
       }
     }
     if (tooltipState.visible && tooltipState.pointerId === event.pointerId) {
-      updateTooltipPosition(event.clientX, event.clientY, tooltipState.tile);
+      const hasMovedToNewTile =
+        tileInfo &&
+        tooltipState.tile &&
+        (tileInfo.x !== tooltipState.tile.x || tileInfo.y !== tooltipState.tile.y);
+      if (hasMovedToNewTile) {
+        showTooltip(tileInfo, event);
+      } else {
+        updateTooltipPosition(event.clientX, event.clientY, tooltipState.tile);
+      }
     } else if (event.pointerType === 'mouse' && tileInfo) {
       showTooltip(tileInfo, event);
     }
