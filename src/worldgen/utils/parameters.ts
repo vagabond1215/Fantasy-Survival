@@ -69,7 +69,7 @@ export function mergeParameterOverrides(
     const { target, source } = stack.pop()!;
     for (const [key, value] of Object.entries(source)) {
       if (value == null) continue;
-      if (typeof value === 'number') {
+      if (typeof value === 'number' || typeof value === 'string') {
         target[key] = value;
       } else if (typeof value === 'object') {
         const next =

@@ -14,7 +14,7 @@ export interface ParameterDefinition {
 }
 
 export interface ParameterVector {
-  [key: string]: number | ParameterVector;
+  [key: string]: number | string | ParameterVector;
 }
 
 export interface MetricDefinition {
@@ -40,7 +40,7 @@ export interface ObjectiveScore {
 }
 
 export interface EvaluationState {
-  readonly metrics: Record<string, number>;
+  readonly metrics: Record<string, number | string>;
   readonly breakdown: ObjectiveScore[];
   readonly score: number;
 }

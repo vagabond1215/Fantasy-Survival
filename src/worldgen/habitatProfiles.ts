@@ -4,7 +4,6 @@ import { cloneParameters, mergeParameterOverrides } from './utils/parameters';
 
 const baseSeed: ParameterVector = (() => {
   const cloned = structuredClone(defaultWorldParameters) as Record<string, unknown>;
-  delete cloned.mapType;
   return cloneParameters(cloned as ParameterVector);
 })();
 

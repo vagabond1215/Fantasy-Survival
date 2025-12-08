@@ -92,9 +92,12 @@ export function buildWorld(options: BuildWorldOptions = {}): BuildWorldResult {
 
   const normalized = resolveWorldParameters(result.parameters as any);
   const finalParameters = cloneParameters(normalized as ParameterVector);
-  const metrics: Record<string, number> = {};
+  const metrics: Record<string, number | string> = {};
   for (const metric of METRIC_DEFINITIONS) {
     metrics[metric.key] = metric.compute(finalParameters);
+  }
+  if ('mapType' in finalParameters) {
+    metrics.mapType = (finalParameters as any).mapType as string;
   }
   const { breakdown, score } = scoreObjectives(metrics, objectives);
 
