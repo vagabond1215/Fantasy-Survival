@@ -26,7 +26,7 @@ import store, {
 } from '../state.js';
 import { BIOME_STARTER_OPTIONS } from '../world/biome/startingBiomes.js';
 import { generateWorld } from '../world/generate.js';
-import { deriveGenerationTuning } from '../world/parameters.js';
+import { deriveGenerationTuning, deriveLandmassModifiers } from '../world/parameters.js';
 import { canonicalizeSeed } from '../world/seed.js';
 import { adaptWorldToMapData, fallbackCanonicalSeed } from '../world/mapAdapter.js';
 import { WheelSelect } from './components/WheelSelect.js';
@@ -1673,6 +1673,7 @@ export function initSetupUI(onStart) {
 
     let artifact;
     const params = deriveGenerationTuning(worldParameters, { width, height });
+    const landmass = deriveLandmassModifiers(worldParameters, { skipResolve: true });
     try {
       artifact = await generateWorld({
         width,
@@ -1680,7 +1681,8 @@ export function initSetupUI(onStart) {
         seed: canonicalSeed,
         params,
         biomeId: previewBiome,
-        world: worldParameters
+        world: worldParameters,
+        landmass,
       });
     } catch (error) {
       console.error('Failed to generate world artifact for preview.', error);
@@ -2189,6 +2191,7 @@ export function initSetupUI(onStart) {
         width: normalizedWidth,
         height: normalizedHeight
       });
+      const landmass = deriveLandmassModifiers(worldParameters, { skipResolve: true });
       let artifact;
       try {
         artifact = await generateWorld({
@@ -2197,7 +2200,8 @@ export function initSetupUI(onStart) {
           seed: canonicalSeed,
           params,
           biomeId: resolvedBiomeId,
-          world: worldParameters
+          world: worldParameters,
+          landmass,
         });
       } catch (error) {
         console.error('Failed to generate world artifact for map fetch.', error);
