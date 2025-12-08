@@ -462,10 +462,6 @@ function getFocusableElements(container) {
     const ariaHidden = element.getAttribute('aria-hidden');
     return ariaHidden !== 'true';
   });
-
-  if (typeof window !== 'undefined') {
-    window.addEventListener('beforeunload', cleanupPreviewArtifact);
-  }
 }
 
 function formatThemeLabel(id, fallback = '') {
