@@ -2114,8 +2114,11 @@ export function initSetupUI(onStart) {
       const normalizedWidth = Math.max(1, Math.trunc(width ?? PREVIEW_MAP_SIZE));
       const normalizedHeight = Math.max(1, Math.trunc(height ?? PREVIEW_MAP_SIZE));
       const defaultStart = computeCenteredOrigin(normalizedWidth, normalizedHeight);
-      const startX = Number.isFinite(xStart) ? Math.trunc(xStart) : defaultStart.xStart;
-      const startY = Number.isFinite(yStart) ? Math.trunc(yStart) : defaultStart.yStart;
+      const requestedX = Number.isFinite(xStart) ? Math.trunc(xStart) : null;
+      const requestedY = Number.isFinite(yStart) ? Math.trunc(yStart) : null;
+      const useCenteredStart = requestedX === 0 && requestedY === 0;
+      const startX = useCenteredStart ? defaultStart.xStart : requestedX ?? defaultStart.xStart;
+      const startY = useCenteredStart ? defaultStart.yStart : requestedY ?? defaultStart.yStart;
       const params = deriveGenerationTuning(worldParameters, {
         width: normalizedWidth,
         height: normalizedHeight
