@@ -197,4 +197,41 @@ describe('solver-driven world generation', () => {
       expect(chunk.column).toBeLessThan(chunkColumns);
     }
   });
+
+  it('biases wetland hydrology toward wetter biomes when provided', () => {
+    const wetland = buildWorld({
+      difficulty: 'normal',
+      seed: 'biome-wetland',
+      biome: 'wetland-floodplain'
+    });
+    const alpine = buildWorld({
+      difficulty: 'normal',
+      seed: 'biome-alpine',
+      biome: 'mountain-alpine'
+    });
+
+    expect(wetland.metrics['hydrology.marshiness']).toBeGreaterThan(alpine.metrics['hydrology.marshiness']);
+    expect(wetland.metrics['hydrology.wetlandShare']).toBeGreaterThan(alpine.metrics['hydrology.wetlandShare']);
+    expect(wetland.metrics['hydrology.bogToMarshRatio']).toBeLessThan(alpine.metrics['hydrology.bogToMarshRatio']);
+  });
+
+  it('leans estuary weighting and lake profiles toward coastal biomes', () => {
+    const maritime = buildWorld({
+      difficulty: 'normal',
+      seed: 'biome-maritime',
+      biome: 'temperate-maritime'
+    });
+    const inland = buildWorld({
+      difficulty: 'normal',
+      seed: 'biome-inland',
+      biome: 'mountain-alpine'
+    });
+
+    expect(maritime.metrics['hydrology.marineEdge.estuary']).toBeGreaterThan(
+      inland.metrics['hydrology.marineEdge.estuary']
+    );
+    expect(maritime.metrics['hydrology.lakeMinArea']).toBeGreaterThan(0);
+    expect(maritime.metrics['hydrology.lakeMinDepth']).toBeGreaterThan(0);
+    expect(Math.abs(maritime.metrics['hydrology.latitudeBias'] as number)).toBeLessThanOrEqual(100);
+  });
 });
