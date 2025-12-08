@@ -54,6 +54,15 @@ type GenerationTuning = {
     readonly moistureBias?: number;
     readonly spawnSuggestionCount?: number;
 };
+type LandmassModifiers = {
+    readonly landmassType: string;
+    readonly maskStrength: number;
+    readonly maskBias: number;
+    readonly worldScaleFactor: number;
+    readonly waterCoverageTarget: number;
+    readonly minOceanFraction: number;
+    readonly openLandBias: number;
+};
 export type WorldParams = {
     readonly width: number;
     readonly height: number;
@@ -63,6 +72,7 @@ export type WorldParams = {
     readonly biomeId?: string;
     readonly world?: Record<string, unknown> | null;
     readonly worldSettings?: Record<string, unknown> | null;
+    readonly landmass?: LandmassModifiers;
 };
 type GenerationConfig = {
     readonly width: number;
@@ -72,6 +82,7 @@ type GenerationConfig = {
     readonly moistureBias: number;
     readonly spawnSuggestionCount: number;
     readonly biomeId: string;
+    readonly landmass: LandmassModifiers;
     readonly world: Record<string, unknown> | null;
 };
 export type WorldArtifact = {

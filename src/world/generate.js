@@ -2,6 +2,7 @@ import { getBiome } from '../biomes.js';
 import { generateHydrology } from '../map/generation/hydrology.js';
 import { canonicalizeSeed } from './seed.js';
 import { xorshift128plus } from './rng.js';
+import { deriveLandmassModifiers } from './parameters.js';
 const DEFAULT_LANES = [
     0x6d2b79f5,
     0x1b873593,
@@ -116,6 +117,31 @@ function clamp01(value) {
         return 1;
     return value;
 }
+function clamp(value, min, max) {
+    if (!Number.isFinite(value))
+        return min;
+    if (value < min)
+        return min;
+    if (value > max)
+        return max;
+    return value;
+}
+function sanitizeLandmass(input, world) {
+    const fallback = deriveLandmassModifiers(world ?? {}, { skipResolve: !world });
+    const source = input && typeof input === 'object' ? input : fallback;
+    const landmassType = typeof source.landmassType === 'string' && source.landmassType.trim()
+        ? source.landmassType.trim()
+        : fallback.landmassType;
+    return {
+        landmassType,
+        maskStrength: clamp(source.maskStrength ?? fallback.maskStrength, 0, 1),
+        maskBias: clamp(source.maskBias ?? fallback.maskBias, -0.5, 0.5),
+        worldScaleFactor: clamp(source.worldScaleFactor ?? fallback.worldScaleFactor, 0.25, 4),
+        waterCoverageTarget: clamp(source.waterCoverageTarget ?? fallback.waterCoverageTarget, 0.02, 0.9),
+        minOceanFraction: clamp(source.minOceanFraction ?? fallback.minOceanFraction, 0, 0.95),
+        openLandBias: clamp(source.openLandBias ?? fallback.openLandBias, -1, 1),
+    };
+}
 function normalizeDimension(value, fallback) {
     if (!Number.isFinite(value))
         return fallback;
@@ -139,13 +165,15 @@ function sanitizeConfig(params) {
         : typeof params.worldSettings === 'object' && params.worldSettings !== null
             ? params.worldSettings
             : null;
+    const landmass = sanitizeLandmass(params.landmass, world);
     const elevationBias = sanitizeBias(tuning.elevationBias, 0.45);
     const temperatureBias = sanitizeBias(tuning.temperatureBias, 0.45);
     const moistureBias = sanitizeBias(tuning.moistureBias, 0.45);
     const baselineSuggestions = Math.max(16, Math.min(256, Math.floor((width * height) / 64)));
     const desiredSuggestions = Math.trunc(tuning.spawnSuggestionCount ?? baselineSuggestions);
     const spawnSuggestionCount = Math.max(8, Math.min(width * height, desiredSuggestions));
-    return { width, height, elevationBias, temperatureBias, moistureBias, spawnSuggestionCount, biomeId, world };
+    const mergedWorld = world ? Object.assign({}, landmass, world) : landmass;
+    return { width, height, elevationBias, temperatureBias, moistureBias, spawnSuggestionCount, biomeId, landmass, world: mergedWorld };
 }
 function fingerprintConfig(config) {
     let hash = 0x811c9dc5;
@@ -155,6 +183,11 @@ function fingerprintConfig(config) {
     hash = mix32(hash, floatToUint32(config.temperatureBias));
     hash = mix32(hash, floatToUint32(config.moistureBias));
     hash = mix32(hash, config.spawnSuggestionCount >>> 0);
+    if (config.landmass) {
+        hash = mix32(hash, floatToUint32(config.landmass.maskStrength ?? 0));
+        hash = mix32(hash, floatToUint32(config.landmass.maskBias ?? 0));
+        hash = mix32(hash, floatToUint32(config.landmass.worldScaleFactor ?? 1));
+    }
     return hash >>> 0;
 }
 function ensureSeedLanes(seed) {
@@ -441,18 +474,29 @@ function generateWorldArtifact(seed, config) {
     const biomeScores = new Float32Array(size);
     const biomeReasonCodes = new Uint8Array(size);
     const spawnScores = new Float32Array(size);
+    const landmassMaskStrength = clamp(config.landmass?.maskStrength ?? 0.55, 0, 1);
+    const landmassMaskBias = clamp(config.landmass?.maskBias ?? 0, -0.5, 0.5);
+    const landmassScale = clamp(config.landmass?.worldScaleFactor ?? 1, 0.4, 3);
+    const openLandBias = clamp(config.landmass?.openLandBias ?? 0, -0.5, 0.5);
     for (let y = 0; y < height; y += 1) {
         const ny = normalized(y, height);
         const latDistance = Math.abs(ny - 0.5);
         for (let x = 0; x < width; x += 1) {
             const nx = normalized(x, width);
             const idx = y * width + x;
-            const radial = Math.sqrt((nx - 0.5) ** 2 + (ny - 0.5) ** 2);
-            const continentalMask = clamp01(1 - Math.pow(radial * 1.3, 1.35));
+            const scaledX = (nx - 0.5) * landmassScale + 0.5;
+            const scaledY = (ny - 0.5) * landmassScale + 0.5;
+            const radial = Math.sqrt((scaledX - 0.5) ** 2 + (scaledY - 0.5) ** 2);
+            const baseMask = clamp01(1 - Math.pow(radial * 1.3, 1.35));
+            const continentalMask = clamp01(baseMask * (1 - landmassMaskStrength) + Math.pow(baseMask, 1.5) * landmassMaskStrength + landmassMaskBias);
             const baseElev = fractalNoise(nx * 1.1, ny * 1.1, seeds.elevation);
             const ridge = fractalNoise(nx * 2.4, ny * 2.4, seeds.secondaryElevation);
             const rawElevation = clamp01(baseElev * 0.65 + ridge * 0.35);
-            const elevationValue = clamp01(rawElevation * 0.75 + continentalMask * 0.55 - 0.2 + config.elevationBias * 0.15);
+            const elevationValue = clamp01(rawElevation * 0.75
+                + continentalMask * 0.55
+                - 0.2
+                + config.elevationBias * 0.15
+                + openLandBias * 0.1);
             const tempNoise = fractalNoise(nx * 1.7 + rawElevation * 0.15, ny * 1.3, seeds.temperature);
             const latFactor = clamp01(1 - latDistance * 1.28);
             const elevationChill = elevationValue * 0.35;
