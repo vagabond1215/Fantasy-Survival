@@ -1,11 +1,11 @@
 import { ObjectiveScore, ObjectiveTarget } from '../solver/types';
 
 export function scoreObjectives(
-  metrics: Record<string, number>,
+  metrics: Record<string, number | string>,
   objectives: ObjectiveTarget[]
 ): { breakdown: ObjectiveScore[]; score: number } {
   const breakdown = objectives.map(objective => {
-    const value = metrics[objective.metric] ?? 0;
+    const value = Number(metrics[objective.metric] ?? 0);
     const deviation = value - objective.target;
     const absolute = Math.abs(deviation);
     const tolerance = objective.tolerance ?? 0;

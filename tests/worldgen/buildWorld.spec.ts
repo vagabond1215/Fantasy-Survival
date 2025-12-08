@@ -25,4 +25,14 @@ describe('buildWorld', () => {
     expect(result.profile).toBe(habitatProfilesById['harsh-wilds']);
     expect(result.difficulty).toBe('easy');
   });
+
+  it('retains and exposes mapType through parameters and metrics', () => {
+    const archipelago = buildWorld({ seed: 'maptype', overrides: { mapType: 'archipelago' } });
+    expect(archipelago.parameters.mapType).toBe('archipelago');
+    expect(archipelago.metrics.mapType).toBe('archipelago');
+
+    const pangea = buildWorld({ seed: 'maptype', overrides: { mapType: 'pangea' } });
+    expect(pangea.parameters.mapType).toBe('pangea');
+    expect(pangea.metrics.mapType).toBe('pangea');
+  });
 });
