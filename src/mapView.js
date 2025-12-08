@@ -3587,11 +3587,32 @@ export function createMapView(container, {
     document.documentElement.style.setProperty('--map-layout-width', `${width}px`);
   }
 
-  function normalizeFocusCoords(coords = {}) {
-    const x = Number.isFinite(coords.x) ? coords.x : 0;
-    const y = Number.isFinite(coords.y) ? coords.y : 0;
-    return { x, y };
+function normalizeFocusCoords(coords = {}) {
+  const x = Number.isFinite(coords.x) ? coords.x : 0;
+  const y = Number.isFinite(coords.y) ? coords.y : 0;
+  return { x, y };
+}
+
+function deriveDefaultFocus(map, buffer) {
+  const source = buffer || map;
+  if (!source) return null;
+
+  const width = Number.isFinite(source.width)
+    ? Math.max(0, Math.trunc(source.width))
+    : getGridBaseWidth(source.tiles, 0);
+  const height = Number.isFinite(source.height)
+    ? Math.max(0, Math.trunc(source.height))
+    : getGridBaseHeight(source.tiles, 0);
+
+  const xStart = Number.isFinite(source.xStart) ? Math.trunc(source.xStart) : 0;
+  const yStart = Number.isFinite(source.yStart) ? Math.trunc(source.yStart) : 0;
+
+  if (width && height) {
+    return { x: xStart + width / 2, y: yStart + height / 2 };
   }
+
+  return { x: xStart, y: yStart };
+}
 
   function computeHomeStart(coords = {}) {
     const visible = getVisibleDimensions();
@@ -4470,12 +4491,19 @@ export function createMapView(container, {
       state.hasInitializedBaseChunk = false;
       state.context = { ...state.context, ...context };
 
+      const buffer = extractBufferMap(map);
+      if (buffer?.tiles?.size) {
+        state.hasInitializedBaseChunk = true;
+      }
+
+      const defaultFocus = deriveDefaultFocus(map, buffer);
       const focusCandidate =
         context?.focus ??
         context?.center ??
         context?.current ??
         context?.currentCoords ??
         context?.homeCoords ??
+        defaultFocus ??
         state.focus;
       state.focus = normalizeFocusCoords(focusCandidate);
 
@@ -4503,10 +4531,6 @@ export function createMapView(container, {
         return;
       }
 
-      const buffer = extractBufferMap(map);
-      if (buffer?.tiles?.size) {
-        state.hasInitializedBaseChunk = true;
-      }
       state.buffer = buffer;
       if (buffer?.world) {
         applyWorldArtifact(buffer.world);
