@@ -1659,12 +1659,11 @@ export function createMapView(container, {
   mapWrapper.style.boxSizing = 'border-box';
   mapWrapper.style.width = '100%';
   mapWrapper.style.height = '100%';
-  mapWrapper.style.minHeight = '320px';
+  mapWrapper.style.minHeight = 'inherit';
   mapWrapper.style.display = 'flex';
   mapWrapper.style.flex = '1 1 auto';
   mapWrapper.style.alignItems = 'stretch';
   mapWrapper.style.justifyContent = 'center';
-  mapWrapper.style.aspectRatio = 'auto';
   mapWrapper.style.flexShrink = '0';
   mapWrapper.style.margin = '0 auto';
   if (!mapWrapper.hasAttribute('tabindex')) {
@@ -3896,8 +3895,8 @@ function deriveDefaultFocus(map, buffer) {
 
     mapWrapper.style.width = '100%';
     mapWrapper.style.height = '100%';
-    mapWrapper.style.minWidth = '100%';
-    mapWrapper.style.minHeight = '100%';
+    mapWrapper.style.minWidth = 'inherit';
+    mapWrapper.style.minHeight = 'inherit';
 
     const wrapperRect = typeof mapWrapper.getBoundingClientRect === 'function'
       ? mapWrapper.getBoundingClientRect()
