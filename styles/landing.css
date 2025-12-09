@@ -1160,6 +1160,7 @@ body.landing-active .season-switch {
   flex-wrap: wrap;
   gap: 10px;
   justify-content: center;
+  align-items: center;
 }
 
 body.landing-active .season-switch__button {
@@ -1213,8 +1214,8 @@ body.landing-active .season-switch__button--icon {
   justify-content: center;
   gap: 0;
   width: 56px;
-  height: 56px;
-  padding: 6px;
+  min-height: 56px;
+  padding: 10px 8px;
   font-size: clamp(22px, 2.4vw, 30px);
   line-height: 1.1;
   border-radius: 16px;
